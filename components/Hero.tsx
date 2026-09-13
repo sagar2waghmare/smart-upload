@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { MediaItem } from "../lib/types";
 import { FavButton } from "./FavButton";
 import { SmartImage } from "./SmartImage";
+import { useDetails } from "./DetailsProvider";
 import { IArrowLeft, IArrowRight, IInfo, IPlay } from "./icons";
 
 const AUTO_DURATION = 8500;
@@ -12,6 +13,7 @@ const kindLabel = (k?: MediaItem["kind"]) =>
   k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FEATURED MOVIE";
 
 export function Hero({ items }: { items: MediaItem[] }) {
+  const { openDetails } = useDetails();
   const count = items.length;
   const [index, setIndex] = useState(0);
   const [interacting, setInteracting] = useState(false);
@@ -81,9 +83,9 @@ export function Hero({ items }: { items: MediaItem[] }) {
                   <IPlay /> Play
                 </Link>
                 <FavButton id={item.id} labelStyle="chip" />
-                <Link href={`/play/${item.id}`} className="btn btn-secondary" aria-label="View details and episodes">
+                <button className="btn btn-secondary" onClick={() => openDetails(item)} aria-label="View details and episodes">
                   <IInfo /> Details
-                </Link>
+                </button>
               </div>
               <p className="hero-tagline">Media source: {item.mediaUrl ? "stream ready" : "demo preview stream"}</p>
             </div>

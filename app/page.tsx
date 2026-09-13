@@ -3,11 +3,12 @@ import { Rail } from "../components/Rail";
 import { LibraryTile } from "../components/LibraryTile";
 import { SignInPrompt } from "../components/SignInPrompt";
 import { LoginScreen } from "../components/LoginScreen";
+import { ContinueWatchingRail } from "../components/ContinueWatchingRail";
 import { getLibrary } from "../lib/library-service";
 import { featuredMedia, libraries as mockLibraries } from "../lib/mock-data";
 import { isDemoMode } from "../lib/config";
 import { authIntended, requireSession } from "../lib/auth";
-import { ILibrary, IPlay } from "../components/icons";
+import { ILibrary } from "../components/icons";
 
 export default async function Home({
   searchParams,
@@ -21,7 +22,6 @@ export default async function Home({
   const showSignInPrompt = signin === "1";
   const { items, mode } = await getLibrary();
   const heroItems = mode === "aws" && items.length > 0 ? items.slice(0, 5) : featuredMedia;
-  const continueItems = items.filter((m) => m.progress !== undefined);
   const recent = items.slice();
 
   return (
@@ -29,7 +29,7 @@ export default async function Home({
       <Hero items={heroItems} />
       <div className="page">
         <SignInPrompt prompt={showSignInPrompt} />
-        <Rail title="Continue Watching" icon={<IPlay style={{ color: "var(--accent-bright)", width: "1.1em", height: "1.1em" }} />} items={continueItems} seeAll="/my-media" />
+        <ContinueWatchingRail seeAll="/my-media" />
         <Rail title="Recently Added" items={recent.slice(0, 8)} seeAll={heroItems[0].kind === "movie" ? "/browse/movie" : "/browse/series"} fill />
         <section className="section">
           <div className="section-head">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Header } from "../components/Header";
 import { AuthProvider } from "../components/AuthProvider";
+import { DetailsProvider } from "../components/DetailsProvider";
 import { authIntended, requireSession } from "../lib/auth";
 import { getAppMode, getAppName, getAppVersion } from "../lib/config";
 import { ICloudUpload } from "../components/icons";
@@ -18,23 +19,25 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="en">
       <body>
         <AuthProvider>
-          {gate ? null : <Header />}
-          {children}
-          {gate ? null : (
-            <footer className="site-footer">
-              <span className="foot-brand">
-                <span className="brand-mark" style={{ width: "1.7em", height: "1.7em", fontSize: ".9rem" }}>S</span>
-                {getAppName()}
-              </span>
-              <span>Private media library · v{getAppVersion()}</span>
-              <span className="pill pill-neutral mode-pill" title={`Smart Upload is running in ${mode} mode`}>
-                {mode} mode
-              </span>
-              <a href="/upload" style={{ display: "inline-flex", alignItems: "center", gap: ".35em", color: "var(--accent-bright)" }}>
-                <ICloudUpload /> Upload a URL
-              </a>
-            </footer>
-          )}
+          <DetailsProvider>
+            {gate ? null : <Header />}
+            {children}
+            {gate ? null : (
+              <footer className="site-footer">
+                <span className="foot-brand">
+                  <span className="brand-mark" style={{ width: "1.7em", height: "1.7em", fontSize: ".9rem" }}>S</span>
+                  {getAppName()}
+                </span>
+                <span>Private media library · v{getAppVersion()}</span>
+                <span className="pill pill-neutral mode-pill" title={`Smart Upload is running in ${mode} mode`}>
+                  {mode} mode
+                </span>
+                <a href="/upload" style={{ display: "inline-flex", alignItems: "center", gap: ".35em", color: "var(--accent-bright)" }}>
+                  <ICloudUpload /> Upload a URL
+                </a>
+              </footer>
+            )}
+          </DetailsProvider>
         </AuthProvider>
       </body>
     </html>

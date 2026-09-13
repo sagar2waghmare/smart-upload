@@ -24,9 +24,11 @@ design tokens in `:root`.
 **real mode** (`AWS_LIBRARY_API_URL`, `CLOUDSHELL_UPLOAD_URL`, `TMDB_API_KEY`) without code changes.
 
 **Production phase (in progress):** UI frozen and approved → Firebase Google auth (Phase 1 done,
-security-reviewed, 2 hardening fixes applied) → **Phase 1.5 verification (done — fail-closed +
-additive confirmed; only real Firebase Console config + `.env.local` values remain)** → real AWS
-library wiring (Phase 2) → playback → upload hardening → demo-mode lockdown → deployment.
+security-reviewed + hardened) → whole-site auth gate implemented and **LIVE on Vercel** (confirmed
+during the audit: `/api/auth/session` → `configured:true`; unauth pages 307 / APIs 401 in prod) →
+**full security audit (done; one HIGH found — H1 page-level auth bypass — FIXED + runtime-verified,
+commit `c75dbab`; remaining findings moderate/low, deferred)** → Phase 2 real AWS wiring → playback
+→ upload hardening → demo-mode lockdown → deployment.
 Auth is additive: the app keeps running in demo mode until Firebase env vars are set.
 
 **Source of truth:** local codebase + this file + the git repository on GitHub
@@ -61,7 +63,8 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 | Auth | `middleware.ts` (edge route gate), `lib/auth.ts` (session helpers), `lib/firebase-admin.ts`, `lib/firebase-client.ts`, `app/api/auth/session/route.ts`, `components/AuthProvider.tsx`, `components/AccountButton.tsx`, `components/SignInPrompt.tsx` |
 | App shell | `app/layout.tsx` (header/footer/mode pill, wraps AuthProvider), `app/globals.css` (tokens + all styles) |
 | Pages | `app/page.tsx` (home), `app/upload/page.tsx`, `app/my-media/page.tsx`, `app/favorites/page.tsx`, `app/settings/page.tsx`, `app/play/[id]/page.tsx`, `app/browse/[kind]/page.tsx` |
-| Components | `Header`, `NavigationMenu`, `SearchOverlay`, `Hero`, `Rail`, `MediaCard`, `LibraryTile`, `FavButton`, `SmartImage`, `VideoPlayer`, `UploadForm`, `icons.tsx` (all under `components/`) |
+| Components | `Header`, `NavigationMenu`, `SearchOverlay`, `Hero`, `Rail`, `MediaCard`, `LibraryTile`, `FavButton`, `SmartImage`, `VideoPlayer`, `UploadForm`, `icons.tsx`, `DetailsProvider`, `DetailsOverlay`, `PlaybackOverlay`, `ContinueWatchingRail`, `LoginScreen`, `AuthProvider`, `AccountButton`, `SignInPrompt` (all under `components/`) |
+| Details UX | `components/DetailsProvider.tsx` (context: openDetails/closeDetails/openPlayer/closePlayer), `components/DetailsOverlay.tsx` (cinematic backdrop+poster+meta+resume+episodes), `components/PlaybackOverlay.tsx` (fullscreen player + `/api/play/[id]` + progress save/clear), `components/ContinueWatchingRail.tsx` (home rail from saved progress), `lib/watch-progress.ts` (localStorage `smart-upload:watch-progress`), `lib/use-tmdb-metadata.ts` (client hook → `/api/metadata` w/ cache) |
 | Data/types | `lib/types.ts` (MediaItem, Episode, Season, UploadResult, IdentifyResult, ConfigSnapshot…) |
 | Library | `lib/library-service.ts` (server: AWS fetch + normalize + demo fallback), `lib/client-library.ts` (client cache), `lib/mock-data.ts` (7 demo titles incl. 2 series w/ episodes), `lib/config.ts` (app mode / demo video / names), `lib/playback.ts` (URL resolution) |
 | Favorites | `lib/favorites.ts` (localStorage key `smart-upload:favorites`) |
@@ -81,6 +84,10 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
   (tmdb.org, `**.googleapis.com`, `**.amazonaws.com`).
 - CSS: use the `:root` design tokens in `globals.css` (e.g. `var(--accent-bright)`, `var(--surface-2)`),
   never hard-code colors.
+- **ANY Server Component that renders private library data MUST gate server-side FIRST:**
+  `if (authIntended() && !(await requireSession())) redirect("/?signin=1");` placed BEFORE
+  `getLibrary()`/metadata fetch (see `app/my-media/page.tsx`, `app/browse/[kind]/page.tsx`).
+  `middleware.ts` cookie-presence is UX-only — never the security boundary (H1 fix, `c75dbab`).
 
 ---
 
@@ -350,6 +357,131 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
     untouched; admin bug fix + login gate only. NOT committed yet (working tree:
     AGENTS.md, lib/firebase-admin.ts, middleware.ts, app/page.tsx, app/layout.tsx, app/globals.css,
     components/LoginScreen.tsx modified/added).
+- **Latest session (14 Sep 2026) — AUTH GATE committed/pushed; firebase-admin pin; browser E2E
+  issue root-caused; FULL SECURITY AUDIT delivered (read-only).**
+  - `d3d7c2c` "Complete Firebase authentication gate" (7 files — LoginScreen gate, layout hide,
+    middleware `/` passthrough, Admin app-reuse fix) committed + pushed. `d2f704b` "Pin
+    firebase-admin to 13.10.0 to avoid jose v6 ESM issue" (package.json + package-lock.json)
+    committed + pushed — `firebase-admin@13.10.0 → jwks-rsa@3.2.2 → jose@4.15.9` (jose@6 is
+    ESM-only and breaks Node CJS `require`); runtime `require('jose')` works.
+  - Browser "login screen not showing" investigation: the server provably serves the login screen;
+    cause is client-side (valid session cookie + cache reusing the logged-in shell) — no server fix.
+  - **Security audit (inspect → safe prod probes → report; NO code changes). Verdict: NEEDS
+    ATTENTION** — one HIGH (H1, fixed next entry); everything else moderate/low/informational.
+    Live-production probes: `GET /` → 200 login gate only; `/my-media` → 307 `/?signin=1`;
+    `/api/library`, `/api/identify`, `/api/upload-url`, `/api/metadata`, `/api/play/[id]` → **401**
+    with junk cookie; `/api/auth/session` → `configured:true` (Vercel client config + Admin ARE set
+    → **whole-site gate is LIVE in production**, superseding the earlier "gate OFF" note); HSTS
+    present (Vercel); no CORS headers; sourcemap probe → 403. Clean (verified): no XSS sinks
+    (`dangerouslySetInnerHTML`/`innerHTML`/`eval` = 0 hits), no command injection, no path
+    traversal (only env-controlled `readFileSync`), no local SSRF, cache headers `private
+    no-store`, git history/tracked files contain no secrets.
+  - **Findings NOT fixed (reported; fixes deferred):** M1 no rate-limiting/body-size caps; M2 no
+    security headers (CSP/XCTO/XFO/Referrer-Policy/Permissions-Policy); M3 `/api/upload-url` echoes
+    raw upstream `err.message` on 500; L1 public `/api/health` info; L2 `X-Powered-By: Next.js`;
+    L3 `_next/image` proxy for whitelisted hosts; L4 public webp + demo-mode content; L5 predictable
+    IDs (no IDOR — single-family library); L6 no `__Host-` cookie prefix; I1 `npm audit` 0
+    critical/0 high/**8 moderate** (`uuid` buffer-bounds family via `@google-cloud/*`, `google-gax`,
+    `gaxios`, `retry-request`, `teeny-request`; fix = `firebase-admin@14`, which reintroduces the
+    `jose@6` ESM issue → `^13.10.0` pin retained); I2 CloudShell = external SSRF boundary (out of
+    scope); I3 production runs in demo mode (no AWS/CloudShell/TMDB configured); I4 Vercel preview
+    protection unverified (recommended).
+- **Latest session (14 Sep 2026) — H1 FIXED (page-level auth bypass) + runtime-verified; committed
+  `c75dbab` (NOT yet pushed).**
+  - **Bug (audit H1, verified in prod):** `middleware.ts` only checked for `__session` *presence*;
+    `app/my-media/page.tsx` and `app/browse/[kind]/page.tsx` are Server Components that called
+    `getLibrary()` without verifying the session — a junk `__session=JUNK` cookie returned HTTP 200
+    with the full private catalog HTML. APIs stayed 401, but catalog metadata leaked.
+  - **Fix (smallest, 2 files, +6 lines):** in both Server Components, BEFORE `getLibrary()`:
+    `if (authIntended() && !(await requireSession())) redirect("/?signin=1");` (imports: `redirect`
+    from `next/navigation`, `authIntended`/`requireSession` from `lib/auth`). Reuses ONLY the
+    existing crypto-verified path (`requireSession()` → Firebase Admin `verifySessionCookie`
+    `checkRevoked=true` + `ALLOWED_EMAILS` deny-by-default). Middleware unchanged (UX-only gate).
+  - **Verification (production build `next start -p 3777`):** see §6. `lint` clean, `build` clean.
+    Commit `c75dbab` "Fix page-level auth bypass for private library" (2 files, 6 insertions) —
+    **branch `main` is `ahead 1` of `origin/main` (fix NOT pushed yet). Working tree clean after
+    committing the fix (AGENTS.md update in this entry is itself uncommitted).**
+- **Latest session (14 Sep 2026) — Cinematic media-details + fullscreen player UX IMPLEMENTED
+  (non-committed working tree).**
+  - Context flow: poster/title click (`MediaCard` + `Hero` "Details") → `openDetails(item)` →
+    full-screen `DetailsOverlay` (fixed, z-index 80, out of document flow) → Play/Resume →
+    `openPlayer(episode?)` → fullscreen `PlaybackOverlay` (fixed, z-index 90) → back button →
+    details → back button → dashboard. Escape closes player first, then details. Body scroll
+    locks while any overlay is open (`DetailsProvider` effect). Overlays are keyed by item id
+    (`key={item ? item.id : "closed"}`) so sub-state re-initialises per title.
+  - **New files:** `lib/watch-progress.ts` (localStorage key `smart-upload:watch-progress`;
+    stores ONLY `{id, position, duration, episodeId?, updatedAt}` — never URLs/tokens/cookies;
+    `saveProgress/clearProgress/getProgress/progressPercent/watchMode/formatPosition` +
+    `useWatchProgress()` hook that syncs on a custom `watch-progress` window event + `storage`);
+    `lib/use-tmdb-metadata.ts` (client hook → `/api/metadata?query=&type=&year=` with in-memory
+    cache incl. negative results; render-phase reset keyed on title/year/kind);
+    `components/DetailsProvider.tsx`, `components/DetailsOverlay.tsx`,
+    `components/PlaybackOverlay.tsx`, `components/ContinueWatchingRail.tsx`.
+  - **Edited:** `components/VideoPlayer.tsx` — new optional `initialTime` (seek once on
+    loadedMetadata/loadedData) + `onProgress` (throttled ~4 s, flushed on pause/seek/unmount) +
+    `onEnded` callbacks via a `cbRef` pattern; `components/MediaCard.tsx` — poster + title are now
+    buttons that open details (no card play button/overlay; FavButton is the only hover control);
+    progress bar shows live from `useWatchProgress` with "Resume at MM:SS"; `components/Hero.tsx` —
+    "Details" is a button → `openDetails(item)` (Play link unchanged); `app/page.tsx` — Continue
+    Watching section switched to client `<ContinueWatchingRail/>` (real saved progress, filters
+    pct 5–95, sorted by updatedAt); `app/layout.tsx` — wrapped shell in `DetailsProvider`;
+    `app/globals.css` — `html{scrollbar-gutter:stable}` (no layout shift on scroll-lock),
+    `.details-hero` overlay resets (`margin:0;padding:0` to neutralise the orphaned committed
+    rule), `.details-poster` scoped to hero (hidden <640 px), overlay/player/backdrop/episode-grid
+    + `@keyframes overlay-in` styles. Reused existing `.season-*`/`.episode-*`/`.details-actions`/
+    `.pill-*` classes (originally committed for the `/play/[id]` page) inside the overlay.
+  - **Behavior notes:** Resume label = "Play" (<5%), "Resume Watching" (5–95, initialTime seeks),
+    "Watch Again" (≥95). Series pick the stored episode; switching episodes starts at 0.
+    `PlaybackOverlay` fetches `/api/play/[id]`, shows a typed error state when `canPlay` is false,
+    clears progress on ended, saves on progress ticks. `DetailsOverlay` enriches via TMDB hook
+    (falls back to local item fields); episodes render in a responsive grid with a resume chip.
+  - **Verification:** `npm run lint` clean; `npm run build` clean (only the pre-existing
+    middleware→proxy deprecation warning). No runtime/browser E2E performed (auth-gated; UI is
+    verified statically + type-checked). Not committed; working tree = this entry + §6 note.
+- **Latest session (14 Sep 2026) — ElegantFin-inspired details-overlay polish, DONE (lint +
+  build clean; scoped, no UI-freeze violations).** ElegantFin used as visual reference ONLY —
+  no ElegantFin/Jellyfin CSS imported or copied; all patterns re-created with existing tokens.
+  - `components/DetailsOverlay.tsx` — metadata hierarchy now matches ElegantFin: genres removed
+    from the flat `hero-meta` line and rendered as their own `.details-genres` chip row
+    (`.pill pill-neutral`, up to 4, after the meta line) so the meta line holds only year •
+    rating • runtime. No other overlay logic changed.
+  - `app/globals.css` (overlay block only) — cinematic polish, all scoped to overlay classes and
+    reusing existing tokens: slow Ken-Burns hero backdrop zoom (`@keyframes hero-zoom`, 22 s) with
+    the existing backdrop dim/brightness; stronger 3-stop gradient on `.details-hero-shade`
+    (deeper left→right legibility + bottom fade into `var(--bg-0)` + top fade for the back
+    button); staggered fade-rise entrance for `.details-copy > *` children (1–8, `copy-rise`,
+    incremental delays ~60 ms); slightly larger/explicit Play CTA
+    (`.details-copy .details-actions .btn-primary`, accent-glow shadow + hover lift);
+    `.details-copy .pill`/`.details-overview` micro-spacing; `prefers-reduced-motion:reduce`
+    guard disables the zoom + stagger (children instantly visible). **Nothing shared was touched**:
+    `.details-actions`/`.hero-meta`/`.details-genres`/`.details-poster` base rules for
+    `/play/[id]` + settings pages are unchanged (overlay refinements are nested under
+    `.details-copy` / `.details-hero`, which only exist in the overlay).
+  - Constraint honored: committed hero/cards/rails/player/settings/dashboard untouched; no new
+    colors added (uses existing `--accent-*`/`--warn`/`--bg-*`/rgba(8,12,20,…) values). Demo
+    "gold" star accent preserved (`.dot`/`IStar` with `var(--warn)` unchanged).
+  - **Verification:** `npm run lint` clean; `npm run build` clean (only the pre-existing
+    middleware→proxy deprecation warning). Still not committed; working tree = this + prior entry.
+- **Latest session (14 Sep 2026) — Impl review + 3 real fixes (DONE, lint + build clean).**
+  - Reviewed the cinematic details/player implementation across the new components + the supporting
+    `/api/metadata`, `/api/play/[id]`, `client-library`, watch-progress, icons/Rail/FavButton —
+    found 3 real issues, all fixed.
+  - **Fix 1 (`components/DetailsProvider.tsx`):** overlay keys were duplicated (`key={item ? item.id
+    : "closed"}` for BOTH `DetailsOverlay` and `PlaybackOverlay`, two siblings) → React treated them
+    as the same child and remounted one whenever the other's key changed. Now namespaced:
+    `details-${item.id}` / `details-closed` and `player-${item.id}` / `player-closed`.
+  - **Fix 2 (`components/PlaybackOverlay.tsx`):** resume seek honored the stored position for ANY
+    episode match, so "Watch Again" (≥95%) sought to the near-end instead of starting over. Now
+    `initialTime` is passed only inside the 5–95% resume band (`progressPercent(stored) >= 5 && < 95`);
+    <5% ("Play") and ≥95% ("Watch Again") both start at 0. `progressPercent` imported.
+  - **Fix 3 (`components/PlaybackOverlay.tsx` `handleProgress`):** `endedRef` stayed `true` after
+    ended→Replay, so a replay watch was never saved (progress tracking silently died). Now a progress
+    tick that is NOT near the end (`position < duration*0.95`) clears `endedRef` and resumes saving;
+    the post-ended unmount flush (at/near duration) still returns early so a completed watch isn't
+    re-saved after `clearProgress`.
+  - **Verification:** `npm run lint` clean; `npm run build` clean (only pre-existing middleware→proxy
+    deprecation warning). Not committed; `c75dbab` still HEAD, main ahead 1 of origin. Working tree =
+    this + the two prior UX entries (§6 notes kept in sync).
 
 ---
 
@@ -371,11 +503,24 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
   credential contents printed). **`ALLOWED_EMAILS` is not set locally.** The credential never enters
   the repo (`.env.local` gitignored; SA JSON lives outside the project; AGENTS.md records no values
   or file names).
-- **Deployed on Vercel (13 Sep 2026):** `FIREBASE_SERVICE_ACCOUNT_JSON` + `ALLOWED_EMAILS` are set
-  (server-side vars) but the `NEXT_PUBLIC_FIREBASE_*` client config is MISSING → middleware is
-  disabled and every page is publicly reachable (incl. `/my-media` static prerender). WHOL-SITE
-  AUTH REQUIREMENT now implemented in code; fix = add the 6 `NEXT_PUBLIC_FIREBASE_*` Vercel env
-  vars + redeploy (build-time inlined). See §3 history entries.
+- **Deployed on Vercel (13 Sep 2026); whole-site auth LIVE in prod (confirmed 14 Sep 2026 during
+  audit).** The `NEXT_PUBLIC_FIREBASE_*` client vars ARE now set and `GET /api/auth/session`
+  returns `configured:true` → middleware + page gates are ACTIVE on the live deploy (unauth
+  `/my-media` → 307 `/?signin=1`, APIs → 401). Supersedes the earlier "Vercel gate is OFF" note;
+  see §3 history entries.
+- **Open audit findings (14 Sep 2026; NOT fixed — fixes deferred to next phases, do NOT fix
+  without approval):** H1 page-level bypass is FIXED (`c75dbab`). Remaining — **M1** no rate
+  limiting/body-size caps (session POST, metadata/TMDB, upload-url/CloudShell abuse); **M2** no
+  security headers (CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+  Permissions-Policy; HSTS ships via Vercel); **M3** `/api/upload-url` returns raw upstream
+  `err.message` on 500; **L1** public `/api/health` info; **L2** `X-Powered-By: Next.js`; **L3**
+  `_next/image` proxy for whitelisted hosts; **L4** public webp + demo-mode content; **L5**
+  predictable IDs (no IDOR — single shared family library); **L6** no `__Host-` cookie prefix;
+  **I1** 8 moderate `npm audit` advisories (uuid buffer-bounds family via `@google-cloud/*`/
+  `google-gax`/`gaxios`/`retry-request`/`teeny-request`; fix = `firebase-admin@14`, which
+  reintroduces the `jose@6` ESM require issue → pin `^13.10.0` retained); **I2** CloudShell =
+  external SSRF boundary (out of scope); **I3** production runs in demo mode (no AWS/CloudShell/
+  TMDB configured); **I4** Vercel preview-deployment protection unverified (recommended).
 - Runtime `console.error` is expected when AWS is configured but unreachable → falls back to demo
   (by design).
 - Demo-mode playback uses a public Google sample video
@@ -440,6 +585,23 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 - **Final pre-upload audit (13 Sep 2026):** lint clean, production build clean, no secrets found,
   `.gitignore` correct, upload set confirmed (61 files), project verified READY for first git init →
   GitHub → Vercel. Full findings recorded in §3 history.
+- **H1 runtime verification (14 Sep 2026, production build `next start -p 3777`, real `.env.local`
+  configuration):** no-cookie `/my-media` → **307 `/?signin=1`**; junk `__session=JUNK`
+  `/my-media` and `/browse/movie` → **307 `/?signin=1`**; malformed (`not-a-jwt`), tampered-JWT,
+  expired and empty cookie values → **307** on both pages; every protected-page response body was
+  scanned for all 7 demo titles ("The Last Horizon", "Midnight Signal", "Paper Kingdom", "Aurora",
+  "Echoes", "Neon District", "Starlight Reverie") → **zero hits** (no private metadata rendered).
+  APIs without a session cookie: `/api/library` **401**, `/api/play/the-last-horizon` **401**,
+  `/api/metadata` **401** (`{"error":"unauthorized","message":"Sign in to continue."}`);
+  `/api/identify` via GET → 405 (POST-only route, expected). Positive E2E NOT performed — minting a
+  real session cookie requires an interactive Google sign-in against the live Firebase project
+  (not available locally; not fabricated). Full matrix in chat report.
+- **Media-details + player overlay UX (14 Sep 2026):** `npm run lint` clean; `npm run build` clean
+  (only the pre-existing `middleware`→`proxy` deprecation warning). No runtime/browser E2E of the
+  new overlays performed — the app is auth-gated and a positive session cannot be minted locally;
+  UI pieces verified statically (type-checked) and their CSS/JSX structure consistency checked (all
+  `.details-*`/`.episode-*`/`.play-*` classes referenced by the overlays exist in `globals.css`;
+  every icon name imported by the new components exists in `components/icons.tsx`).
 
 ---
 
@@ -461,18 +623,14 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 > "FULL-SCREEN AUTH GATE". Authenticated website untouched; UI freeze respected (login gate is an
 > approved addition under §9).
 
-- **State:** Phase 1 (Firebase auth foundation) is implemented, security-reviewed, both security
-  fixes applied, and **Phase 1.5 gating machinery verified fail-closed at runtime** — lint clean,
-  production build clean. Whole-site page gating now implemented: when `NEXT_PUBLIC_FIREBASE_*`
-  client config is set, middleware redirects ALL no-cookie page requests (except `/`) to `/?signin=1`,
-  and the homepage renders only the dedicated **full-screen login gate** (`LoginScreen`) — no header,
-  logout, hero, rails or library content — until a valid session exists. After sign-in the existing
-  website renders exactly as before. With zero Firebase config the app runs in demo mode untouched.
-- **Next step (only remaining blocker on Vercel): add the 6 `NEXT_PUBLIC_FIREBASE_*` client vars
-  to Vercel Environment Variables and REDEPLOY (requires a new build — NEXT_PUBLIC_* is inlined at
-  build time). Server-side `FIREBASE_SERVICE_ACCOUNT_JSON` + `ALLOWED_EMAILS` are already set.
-  After redeploy, whole-site auth is live; then E2E the full sign-in flow in a browser
-  (Google popup → `POST /api/auth/session` → `__session` cookie → pages/APIs 200; sign-out revokes).**
+- **State:** Firebase whole-site authentication is IMPLEMENTED + committed + pushed (`d3d7c2c`,
+  `d2f704b`) and **CONFIRMED LIVE on Vercel** (`/api/auth/session` → `configured:true`; unauth
+  pages 307 / APIs 401 in prod). Full security audit delivered (verdict NEEDS ATTENTION): the one
+  HIGH (H1 page-level auth bypass) is **FIXED + runtime-verified** and committed as **`c75dbab`**
+  (2 files, +6 lines) — **NOT pushed yet; `main` is `ahead 1` of `origin/main`**. Remaining
+  findings are moderate/low (M1–M3, L1–L6, I1–I4) and deferred until the user approves fixes.
+- **Next step (immediate): push `c75dbab` to `origin/main` (commit this AGENTS.md update together
+  with it if desired), then review the deferred audit findings in priority order (see list).**
 - **Phase 1.5 remaining (now the only blocker to end-user sign-in): set `ALLOWED_EMAILS` locally and
   E2E-test.** (DONE 13 Sep 2026) `FIREBASE_SERVICE_ACCOUNT_JSON` path handling implemented in
   `lib/firebase-admin.ts` — the `.env.local` value is a file path, which the code now reads safely
@@ -496,14 +654,20 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 - **Do not** re-run layout smoke tests or wait on the background dev server. Homepage layout work
   is done and auth gating is verified; only the real credentials above are missing.
 - **Next tasks (in order, ask before starting):**
-  1. **(Recommended) Set `ALLOWED_EMAILS` + E2E** — the 6 client vars and the service-account path
-     are already configured locally (path-read now supported in code). Add `ALLOWED_EMAILS` to
-     `.env.local`, restart the dev server, then run the full sign-in E2E in a browser.
-  2. **Phase 2 — real AWS wiring** (`AWS_LIBRARY_API_URL=https://3-24-215-48.sslip.io`): strict
+  1. **(Recommended) Push `c75dbab`** — `main` is `ahead 1` of `origin/main` (H1 fix). Commit this
+     AGENTS.md update with it if desired, then push.
+  2. **Security hardening phase (audit M1–M3 first, one at a time)** — (a) rate limiting /
+     body-size caps; (b) security headers (CSP tuned for Firebase/TMDB/next-image/playback, XCTO,
+     XFO/`frame-ancestors`, Referrer-Policy, Permissions-Policy); (c) `/api/upload-url` error
+     hygiene (stop echoing raw upstream `err.message`). Then listed lows if approved.
+  3. **Phase 1.5 E2E sign-in** — set `ALLOWED_EMAILS` locally + run the full Google sign-in E2E in
+     a browser. All other local config is already in place (client trio + service-account path);
+     the whole-site gate is already live on Vercel.
+  4. **Phase 2 — real AWS wiring** (`AWS_LIBRARY_API_URL=https://3-24-215-48.sslip.io`): strict
      no-demo-fallback `getLibrary()` + typed "library unavailable" state; keep UI frozen.
-  3. Migrate `middleware.ts` → `proxy` convention (Next 16 deprecation; no behavior change —
+  5. Migrate `middleware.ts` → `proxy` convention (Next 16 deprecation; no behavior change —
      note: the latest build already lists `ƒ Proxy (Middleware)` in its route table).
-  4. (DONE 13 Sep 2026) `git init` + first commits + push to GitHub — project is version-controlled
+  6. (DONE 13 Sep 2026) `git init` + first commits + push to GitHub — project is version-controlled
      (`github.com/sagar2waghmare/smart-upload`, branch `main`); keep this file in sync with the repo.
 
 Ask the user which one to start, or continue in the order above if they say "resume project".
@@ -556,4 +720,6 @@ Ask the user which one to start, or continue in the order above if they say "res
    - Every protected `/api/*` route verifies the cookie via Firebase Admin with `checkRevoked=true`.
    - DELETE /api/auth/session revokes the Firebase session server-side before clearing the cookie.
    - No secrets/credentials in client bundles or logs (only `NEXT_PUBLIC_*` reach the browser).
+   - Server Components rendering private content call `requireSession()` BEFORE fetching the
+     library (never rely on middleware cookie presence) — H1 fix `c75dbab`.
 7. **Auth is additive:** the app must keep working in demo mode until real Firebase env vars are set.

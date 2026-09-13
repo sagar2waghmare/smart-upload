@@ -32,6 +32,9 @@ type Props = {
   item: MediaItem;
   episode?: Episode | null;
   onEpisode?: (ep: Episode) => void;
+  initialTime?: number;
+  onProgress?: (p: { position: number; duration: number }) => void;
+  onEnded?: () => void;
 };
 
 const fmt = (t: number) => {
@@ -53,10 +56,22 @@ export function VideoPlayer({
   item,
   episode,
   onEpisode,
+  initialTime,
+  onProgress,
+  onEnded,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentRef = useRef(0);
+  const durationRef = useRef(0);
+  const lastEmitRef = useRef(0);
+  const initialedRef = useRef(false);
+  const playedRef = useRef(false);
+  const cbRef = useRef({ onProgress, onEnded });
+  useEffect(() => {
+    cbRef.current = { onProgress, onEnded };
+  }, [onProgress, onEnded]);
 
   const [started, setStarted] = useState(false);
   const [status, setStatus] = useState<"idle" | "playing" | "paused" | "ended" | "error">("idle");
@@ -100,8 +115,29 @@ export function VideoPlayer({
     const v = videoRef.current;
     if (!v) return;
     v.currentTime = Math.max(0, Math.min(Number.isFinite(duration) ? duration : 1e9, t));
+    currentRef.current = v.currentTime;
     setCurrent(v.currentTime);
   }, [duration]);
+
+  const emitProgress = useCallback((force = false) => {
+    if (!playedRef.current) return;
+    const now = Date.now();
+    if (!force && now - lastEmitRef.current < 4000) return;
+    const pos = currentRef.current;
+    lastEmitRef.current = now;
+    if (Number.isFinite(pos) && pos >= 0) {
+      cbRef.current.onProgress?.({ position: pos, duration: durationRef.current });
+    }
+  }, []);
+
+  const applyInitial = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || initialedRef.current || !initialTime || initialTime <= 0.5) return;
+    const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
+    v.currentTime = d > 0 ? Math.min(initialTime, d - 0.25) : initialTime;
+    currentRef.current = v.currentTime;
+    initialedRef.current = true;
+  }, [initialTime]);
 
   const changeVolume = useCallback((val: number) => {
     const v = videoRef.current;
@@ -137,6 +173,13 @@ export function VideoPlayer({
   useEffect(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
   }, []);
+
+  // flush the latest position when the player unmounts (e.g. overlay close)
+  useEffect(() => {
+    return () => {
+      emitProgress(true);
+    };
+  }, [emitProgress]);
 
   useEffect(() => {
     const onFs = () => setFullscreen(Boolean(document.fullscreenElement));
@@ -226,19 +269,31 @@ export function VideoPlayer({
         preload="metadata"
         playsInline
         onPlay={() => { setStatus("playing"); setBuffering(false); poke(); }}
-        onPause={() => { setStatus("paused"); setControls(true); }}
+        onPause={() => { setStatus("paused"); setControls(true); emitProgress(true); }}
         onWaiting={() => setBuffering(true)}
         onPlaying={() => setBuffering(false)}
         onCanPlay={() => setBuffering(false)}
-        onLoadedData={() => setBuffering(false)}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+        onLoadedData={() => { setBuffering(false); applyInitial(); }}
+        onLoadedMetadata={(e) => {
+          durationRef.current = e.currentTarget.duration || durationRef.current;
+          setDuration(e.currentTarget.duration);
+          applyInitial();
+        }}
+        onTimeUpdate={(e) => {
+          const t = e.currentTarget.currentTime;
+          currentRef.current = t;
+          durationRef.current = e.currentTarget.duration || durationRef.current;
+          if (t > 0.5) playedRef.current = true;
+          setCurrent(t);
+          emitProgress();
+        }}
+        onSeeked={() => emitProgress(true)}
         onVolumeChange={(e) => {
           setMuted(e.currentTarget.muted);
           setVolume(e.currentTarget.volume);
         }}
         onRateChange={(e) => setRate(e.currentTarget.playbackRate)}
-        onEnded={() => { setStatus("ended"); setControls(true); }}
+        onEnded={() => { setStatus("ended"); setControls(true); cbRef.current.onEnded?.(); }}
         onError={() => setError("Could not load this media source.")}
       >
         {subtitleUrl && (
