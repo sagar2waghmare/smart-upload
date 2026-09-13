@@ -11,8 +11,9 @@ export function middleware(req: NextRequest) {
   if (req.cookies.has(SESSION_COOKIE)) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
-  const isSignInLanding = pathname === "/" && req.nextUrl.searchParams.get("signin") === "1";
-  if (isSignInLanding) return NextResponse.next();
+  // The home page renders the full-screen sign-in gate itself when the visitor
+  // is unauthenticated, so "/" (and "/?signin=1") pass through to the page.
+  if (pathname === "/") return NextResponse.next();
 
   const url = req.nextUrl.clone();
   url.pathname = "/";

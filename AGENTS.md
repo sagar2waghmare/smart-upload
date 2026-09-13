@@ -5,8 +5,8 @@
 > significant task, update this file (all sections that changed) and save it. "Resume project"
 > means: read this file and continue.
 >
-> **Repo status:** the project directory is NOT yet a git repository (no `.git`). If git/GitHub is
-> initialized, update the "Source of truth" section below.
+> **Repo status:** this project IS version-controlled on GitHub
+> (`github.com/sagar2waghmare/smart-upload`, branch `main`). Keep this file and the repo in sync.
 
 ---
 
@@ -29,8 +29,9 @@ additive confirmed; only real Firebase Console config + `.env.local` values rema
 library wiring (Phase 2) → playback → upload hardening → demo-mode lockdown → deployment.
 Auth is additive: the app keeps running in demo mode until Firebase env vars are set.
 
-**Source of truth:** local codebase + this file. No git/GitHub yet. (When git is initialized, keep
-this file and the repo in sync.)
+**Source of truth:** local codebase + this file + the git repository on GitHub
+(`github.com/sagar2waghmare/smart-upload`, branch `main`). Commits must never include secrets or
+`.env.local` (gitignored).
 
 ---
 
@@ -292,6 +293,63 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
     clean (build route table now shows `ƒ Proxy (Middleware)` — Next 16 migrated the convention).
   - Result: auth is **verified fail-closed and additive**. Only the real Firebase Console
     configuration (+ `.env.local` values) is missing before end-user sign-in is possible.
+- **Latest session (13 Sep 2026) — git initialized + whole-site auth committed; local Firebase
+  client config created; service-account registered as a local file path.**
+  - Project version-controlled: `git init` → initial commit `56f974f` → pushed to
+    `github.com/sagar2waghmare/smart-upload` (branch `main`). Whole-site auth commit `42916ee`
+    ("Implement whole-site Firebase authentication") pushed; working tree clean. `.env.local` is
+    gitignored and never committed; no credentials in any commit.
+  - `.env.local` (gitignored) created from `.env.example` with the 6 `NEXT_PUBLIC_FIREBASE_*`
+    client vars from the fresh Firebase project `smart-upload-383bf`, and
+    `FIREBASE_SERVICE_ACCOUNT_JSON` set to the **path** of a service-account JSON kept outside the
+    repo (`C:\Users\Sagar\SmartUpload-Secrets\`). Verified: file present, all six vars non-empty,
+    variable present/non-empty.
+  - **Caveat recorded:** `lib/firebase-admin.ts` does `JSON.parse(FIREBASE_SERVICE_ACCOUNT_JSON)`
+    and needs the JSON blob, not a path. Until resolved (embedded blob / path-read support / Admin
+    triple), Firebase Admin stays unconfigured → auth fails closed → no real sign-in possible.
+  - `.env.local` untracked + gitignored (verified via `git check-ignore`); no `.env.local`/secret
+    in any commit; build path accidentally concatenated a line onto `NEXT_PUBLIC_FIREBASE_APP_ID`
+    during append and was repaired (file restored to valid 7-line format, APP_ID format verified).
+
+- **Latest session (13 Sep 2026) — `FIREBASE_SERVICE_ACCOUNT_JSON` filesystem-path support
+  IMPLEMENTED (lint + build clean; runtime-verified).**
+  - `lib/firebase-admin.ts` — added `readServiceAccountValue()`: env value starting with `{` is
+    JSON-parsed inline exactly as before; anything else is treated as a filesystem path and read
+    server-side via Node `path.resolve` + `fs.readFileSync`, then JSON-parsed. Errors (missing/
+    unreadable file, malformed JSON) fall through to the existing
+    `FIREBASE_PROJECT_ID`/`_CLIENT_EMAIL`/`_PRIVATE_KEY` triple → null → `firebaseAdminConfigured()`
+    false → fail-closed 401 (behavior preserved). Credential contents are never logged/printed.
+  - Runtime proof on this machine: the `.env.local` path value resolves, file reads, JSON parses
+    with `type/project_id/private_key/client_email` present (booleans only; contents never displayed).
+  - Scope respected: `.env.example`/`.env.local`/middleware/auth routes/UI/AWS/CloudShell untouched;
+    NOT committed yet (working tree: AGENTS.md + lib/firebase-admin.ts modified).
+- **Latest session (13 Sep 2026) — Firebase Admin app-reuse init bug FIXED + FULL-SCREEN AUTH GATE
+  (lint + build clean).**
+  - **Bug fixed (`lib/firebase-admin.ts`):** `getAdminApp()` relied only on the module-level
+    `cachedApp`. If an Admin app named `smart-upload-admin` already existed in the SDK (dev
+    hot-reload / page-data workers re-initializing the module), `initializeApp()` threw "already
+    exists" and auth could fail intermittently. Fix: import `getApps` from `firebase-admin/app`;
+    `getAdminApp()` reuses an existing app via `getApps().find((a) => a.name === "smart-upload-admin")`
+    before ever calling `initializeApp()`. `ADMIN_APP_NAME` is a named constant; `cachedApp` kept
+    as fast path. Behavior otherwise unchanged.
+  - **ENHANCED login gate (owner-approved, no authenticated-site changes):**
+    - `components/LoginScreen.tsx` (new, client) — full-screen cinematic login: Smart Upload brand
+      mark + name, "Welcome to Smart Upload", sign-in-required copy, prominent "Continue with
+      Google" button (official Google G glyph) via `AuthProvider.signIn()`, loading spinner
+      ("Checking session…") and error states. Returns null if a user session appears post-hydration.
+    - `app/page.tsx` — unauthenticated (auth intended + no session) renders `<LoginScreen />` only
+      (no `.page` wrapper, no hero/rails/library).
+    - `app/layout.tsx` — becomes async; hides `Header` + footer entirely while the gate is active
+      (`authIntended() && !(await requireSession())`), so no navigation/upload controls leak onto
+      the login screen. Authenticated/demo rendering unchanged.
+    - `middleware.ts` — `/` now passes through middleware (the page itself renders the login gate);
+      every other no-cookie page route still 307-redirects to `/?signin=1`.
+    - `app/globals.css` — added `.login-screen`/`.login-card`/`.login-*` styles + `.spinner` keyframes
+      using existing `:root` tokens only.
+  - Scope respected: AWS/CloudShell/upload/playback/demo/AuthProvider/firebase-client/API routes
+    untouched; admin bug fix + login gate only. NOT committed yet (working tree:
+    AGENTS.md, lib/firebase-admin.ts, middleware.ts, app/page.tsx, app/layout.tsx, app/globals.css,
+    components/LoginScreen.tsx modified/added).
 
 ---
 
@@ -302,10 +360,17 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
   `ƒ Proxy (Middleware)` in its route table (Next 16 migrated the convention internally), so the
   deprecation is effectively moot. Optionally rename `middleware.ts` → `proxy.ts` in a later cleanup
   task (Stopping point §7, item 3).
-- **Auth is inert until real credentials exist.** No `NEXT_PUBLIC_FIREBASE_*`, `FIREBASE_SERVICE_ACCOUNT_JSON`,
-  or `ALLOWED_EMAILS` are set on disk (no `.env.local`). Demo mode works untouched (verified 200s);
-  once the client Firebase vars are set, protected routes fail closed (401 — verified at runtime)
-  until the Admin credential and allowlist are also in place (Phase 1.5).
+- **Local Firebase client config + service-account path setup complete (13 Sep 2026); remaining
+  local blocker is only `ALLOWED_EMAILS`.** `.env.local` (gitignored) contains the 6
+  `NEXT_PUBLIC_FIREBASE_*` client vars from the fresh Firebase project `smart-upload-383bf`, and
+  `FIREBASE_SERVICE_ACCOUNT_JSON` set to the **file path** of a service-account JSON kept OUTSIDE
+  the repo (`C:\Users\Sagar\SmartUpload-Secrets\`). `lib/firebase-admin.ts` now supports BOTH an
+  inline JSON blob and a filesystem path (path branch added 13 Sep 2026): values starting with `{`
+  are JSON-parsed as before; anything else is resolved with Node `path.resolve` + `fs.readFileSync`
+  and JSON-parsed. Verified at runtime on this machine (parse ok, required fields present — no
+  credential contents printed). **`ALLOWED_EMAILS` is not set locally.** The credential never enters
+  the repo (`.env.local` gitignored; SA JSON lives outside the project; AGENTS.md records no values
+  or file names).
 - **Deployed on Vercel (13 Sep 2026):** `FIREBASE_SERVICE_ACCOUNT_JSON` + `ALLOWED_EMAILS` are set
   (server-side vars) but the `NEXT_PUBLIC_FIREBASE_*` client config is MISSING → middleware is
   disabled and every page is publicly reachable (incl. `/my-media` static prerender). WHOL-SITE
@@ -334,8 +399,12 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 - Copy `.env.example` → `.env.local`. All variables optional for demo mode. Full descriptions live
   in `.env.example`.
 - Firebase vars (`NEXT_PUBLIC_FIREBASE_*`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `ALLOWED_EMAILS`) are
-  documented in `.env.example`. **No real Firebase credentials are set on disk yet** — the only
-  remaining Phase 1.5 step is to plug the real Firebase project values + allowlist into `.env.local`.
+  documented in `.env.example`. **Local Firebase client config is created (13 Sep 2026):** `.env.local`
+  (gitignored) holds the 6 `NEXT_PUBLIC_FIREBASE_*` vars (fresh project `smart-upload-383bf`) and
+  `FIREBASE_SERVICE_ACCOUNT_JSON` pointing (as a PATH) to the local service-account JSON in
+  `C:\Users\Sagar\SmartUpload-Secrets\` (kept out of the repo). Path values are supported by
+  `lib/firebase-admin.ts` since 13 Sep 2026 (inline JSON blob or filesystem path — see §4).
+  **`ALLOWED_EMAILS` still unset locally.**
 - **Production env var manifest (from code, 13 Sep 2026):** `NEXT_PUBLIC_APP_MODE/_APP_NAME/
   _APP_VERSION/_DEMO_VIDEO_URL`, `NEXT_PUBLIC_FIREBASE_API_KEY/_AUTH_DOMAIN/_PROJECT_ID/
   _STORAGE_BUCKET/_MESSAGING_SENDER_ID/_APP_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON`,
@@ -381,23 +450,37 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 > ALLOWED_EMAILS governs sign-in; API routes stay server-side protected.
 > **STATUS: IMPLEMENTED + VERIFIED (lint/build/sandbox scenarios A–E all pass)** — see §3 history
 > entry "WHOLE-SITE AUTH IMPLEMENTED". No UI/styling/AWS/CloudShell/API behavior changed.
+>
+> **REQUIREMENT (13 Sep 2026, owner):** the / page, when Firebase auth is configured and the visitor
+> is not authenticated, must render ONLY a dedicated polished login screen. No hero, movie posters,
+> Continue Watching, library rails, navigation menu, upload controls, or any other authenticated
+> content may be visible before login. The login screen should show the Smart Upload brand, a clear
+> welcome message, a prominent "Continue with Google" button, and loading/error states. After
+> authentication the existing website renders exactly as before.
+> **STATUS: IMPLEMENTED + VERIFIED (lint+build clean)** — see §3 history entry
+> "FULL-SCREEN AUTH GATE". Authenticated website untouched; UI freeze respected (login gate is an
+> approved addition under §9).
 
 - **State:** Phase 1 (Firebase auth foundation) is implemented, security-reviewed, both security
   fixes applied, and **Phase 1.5 gating machinery verified fail-closed at runtime** — lint clean,
   production build clean. Whole-site page gating now implemented: when `NEXT_PUBLIC_FIREBASE_*`
-  client config is set, middleware redirects ALL no-cookie page requests to `/?signin=1` and the
-  homepage renders only the sign-in prompt (no content) until a valid session exists. With zero
-  Firebase config the app runs in demo mode untouched.
+  client config is set, middleware redirects ALL no-cookie page requests (except `/`) to `/?signin=1`,
+  and the homepage renders only the dedicated **full-screen login gate** (`LoginScreen`) — no header,
+  logout, hero, rails or library content — until a valid session exists. After sign-in the existing
+  website renders exactly as before. With zero Firebase config the app runs in demo mode untouched.
 - **Next step (only remaining blocker on Vercel): add the 6 `NEXT_PUBLIC_FIREBASE_*` client vars
   to Vercel Environment Variables and REDEPLOY (requires a new build — NEXT_PUBLIC_* is inlined at
   build time). Server-side `FIREBASE_SERVICE_ACCOUNT_JSON` + `ALLOWED_EMAILS` are already set.
   After redeploy, whole-site auth is live; then E2E the full sign-in flow in a browser
   (Google popup → `POST /api/auth/session` → `__session` cookie → pages/APIs 200; sign-out revokes).**
-- **Phase 1.5 remaining (the only blocker to end-user sign-in): the REAL Firebase Console
-  configuration.** Full required-config checklist was reported in chat (13 Sep 2026); summary below.
-  Once the values exist, set them in `.env.local` (copy from `.env.example`) and E2E-test the
-  complete flow: Google popup → `POST /api/auth/session` → `__session` cookie → protected pages
-  200 + API 200 with cookie / 401 without → sign-out revokes.
+- **Phase 1.5 remaining (now the only blocker to end-user sign-in): set `ALLOWED_EMAILS` locally and
+  E2E-test.** (DONE 13 Sep 2026) `FIREBASE_SERVICE_ACCOUNT_JSON` path handling implemented in
+  `lib/firebase-admin.ts` — the `.env.local` value is a file path, which the code now reads safely
+  via Node `path.resolve` + `fs.readFileSync` (verified parse ok at runtime; inline JSON blob still
+  supported). Add `ALLOWED_EMAILS` to `.env.local`, restart the dev server, then run the full E2E:
+  Google popup → `POST /api/auth/session` → `__session` cookie → protected pages 200 + API 200
+  with cookie / 401 without → sign-out revokes. Fail-closed behavior preserved (missing/unreadable
+  file or malformed JSON → Admin unconfigured → fail-closed 401).
 - **Firebase Console requirements (no credentials go in AGENTS.md/`.env.example`/source):**
   1. Firebase Authentication ENABLED on the project (use the existing GCP project
      `cinaura-507017` or a new Firebase project).
@@ -413,13 +496,15 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 - **Do not** re-run layout smoke tests or wait on the background dev server. Homepage layout work
   is done and auth gating is verified; only the real credentials above are missing.
 - **Next tasks (in order, ask before starting):**
-  1. **(Recommended) Real Firebase plug-in + E2E** — create/fill `.env.local` with the values from
-     the checklist above, then run the full sign-in E2E in a browser.
+  1. **(Recommended) Set `ALLOWED_EMAILS` + E2E** — the 6 client vars and the service-account path
+     are already configured locally (path-read now supported in code). Add `ALLOWED_EMAILS` to
+     `.env.local`, restart the dev server, then run the full sign-in E2E in a browser.
   2. **Phase 2 — real AWS wiring** (`AWS_LIBRARY_API_URL=https://3-24-215-48.sslip.io`): strict
      no-demo-fallback `getLibrary()` + typed "library unavailable" state; keep UI frozen.
   3. Migrate `middleware.ts` → `proxy` convention (Next 16 deprecation; no behavior change —
      note: the latest build already lists `ƒ Proxy (Middleware)` in its route table).
-  4. `git init` + first commit + push to GitHub (project is still not version-controlled).
+  4. (DONE 13 Sep 2026) `git init` + first commits + push to GitHub — project is version-controlled
+     (`github.com/sagar2waghmare/smart-upload`, branch `main`); keep this file in sync with the repo.
 
 Ask the user which one to start, or continue in the order above if they say "resume project".
 
@@ -448,7 +533,9 @@ Ask the user which one to start, or continue in the order above if they say "res
 
 1. **UI is FROZEN.** No UI/layout/styling/adaptive/responsive changes — especially hero, cards, rails,
    video player, Recently Added / My Media. The only approved additions are the Phase 1 auth controls
-   (AccountButton dropdown, side-menu account group, `.account-*` CSS, SignInPrompt banner).
+   (AccountButton dropdown, side-menu account group, `.account-*` CSS, SignInPrompt banner) and the
+   full-screen login gate (`components/LoginScreen.tsx`, `.login-*` CSS) approved with the
+   FULL-SCREEN AUTH GATE requirement (§7).
 2. **One task at a time, with approval.** Do NOT start a phase or change without explicit user
    approval. For any proposed code change, report findings FIRST, then wait for approval.
 3. **Do NOT touch until told otherwise:** AWS library wiring / `lib/library-service.ts` demo fallback,

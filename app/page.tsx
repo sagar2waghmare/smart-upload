@@ -2,6 +2,7 @@ import { Hero } from "../components/Hero";
 import { Rail } from "../components/Rail";
 import { LibraryTile } from "../components/LibraryTile";
 import { SignInPrompt } from "../components/SignInPrompt";
+import { LoginScreen } from "../components/LoginScreen";
 import { getLibrary } from "../lib/library-service";
 import { featuredMedia, libraries as mockLibraries } from "../lib/mock-data";
 import { isDemoMode } from "../lib/config";
@@ -15,11 +16,7 @@ export default async function Home({
 }) {
   const { signin } = await searchParams;
   if (authIntended() && !(await requireSession())) {
-    return (
-      <main className="page">
-        <SignInPrompt prompt />
-      </main>
-    );
+    return <LoginScreen />;
   }
   const showSignInPrompt = signin === "1";
   const { items, mode } = await getLibrary();
