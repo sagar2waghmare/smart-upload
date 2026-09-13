@@ -1,0 +1,38 @@
+import type { Metadata } from "next";
+import "./globals.css";
+import { Header } from "../components/Header";
+import { AuthProvider } from "../components/AuthProvider";
+import { getAppMode, getAppName, getAppVersion } from "../lib/config";
+import { ICloudUpload } from "../components/icons";
+
+export const metadata: Metadata = {
+  title: { default: "Smart Upload — Private Media Library", template: "%s · Smart Upload" },
+  description: "Your private media library. Upload, organize and watch movies, TV and anime.",
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const mode = getAppMode();
+  return (
+    <html lang="en">
+      <body>
+        <AuthProvider>
+          <Header />
+          {children}
+        <footer className="site-footer">
+          <span className="foot-brand">
+            <span className="brand-mark" style={{ width: "1.7em", height: "1.7em", fontSize: ".9rem" }}>S</span>
+            {getAppName()}
+          </span>
+          <span>Private media library · v{getAppVersion()}</span>
+          <span className="pill pill-neutral mode-pill" title={`Smart Upload is running in ${mode} mode`}>
+            {mode} mode
+          </span>
+          <a href="/upload" style={{ display: "inline-flex", alignItems: "center", gap: ".35em", color: "var(--accent-bright)" }}>
+            <ICloudUpload /> Upload a URL
+          </a>
+        </footer>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}
