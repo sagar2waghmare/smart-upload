@@ -225,6 +225,57 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
     15 lib files, 6 route handlers, 6 public webp, configs + README + AGENTS.md + .env.example.
   - First-deploy note (by design, not a leak): with NO Vercel env vars the site runs in demo mode
     (7 mock titles, public sample video, upload "not-configured"); demo lockdown remains a later phase.
+- **Latest session (13 Sep 2026) — PRODUCTION AUTH-GATE DIAGNOSIS (read-only, no code changes).**
+  - App was deployed to Vercel; `/my-media` was publicly accessible without sign-in. Root cause
+    found + reproduced locally (isolated sandbox, production build): the middleware gate in
+    `middleware.ts:12` (`authConfigured`) requires `NEXT_PUBLIC_FIREBASE_API_KEY` +
+    `NEXT_PUBLIC_FIREBASE_PROJECT_ID` at BUILD time. Vercel had only the server-side
+    `FIREBASE_SERVICE_ACCOUNT_JSON` + `ALLOWED_EMAILS`; no `NEXT_PUBLIC_FIREBASE_*` client config.
+    Result: `authConfigured=false` → middleware `next()` → the static prerendered `/my-media`
+    serves to everyone. API boundary still fails closed (verified 401). Reproduction: build with
+    Admin-only → `/my-media` 200, `/api/library` 401; build with NEXT_PUBLIC trio added →
+    `/my-media` (no cookie) **307 → `/?signin=1`**, with cookie 200. Next 16 `middleware`→`proxy`
+    deprecation is NOT the cause (Proxy function runs normally).
+  - **Smallest safe fix:** add the 6 `NEXT_PUBLIC_FIREBASE_*` client vars (public-by-design Firebase
+    web config: API key, authDomain, projectId, storageBucket, messagingSenderId, appId) to Vercel
+    Environment Variables and REDEPLOY (needs a new build — NEXT_PUBLIC_* is inlined at build time).
+    No code change. NOTE: if the Admin JSON/allowlist were also broken, the middleware would gate but
+    sign-in would fail closed (401) — but sign-in is currently inert anyway because the client app
+    never initializes without the trio.
+- **Latest session (13 Sep 2026) — WHOLE-SITE AUTH IMPLEMENTED (approved requirement), DONE
+  (lint + production build clean; sandbox production verification passed for scenarios A–E).**
+  - **Requirement:** the ENTIRE website must require authentication (Home, My Media, Favorites,
+    Upload, Settings, Play, Browse Movie/Series/Anime); unauthenticated visitors see only the
+    Google Sign In experience; login UI stays reachable; deny-by-default; ALLOWED_EMAILS governs;
+    APIs stay server-side protected.
+  - **Files changed (smallest set, UI/styling untouched):**
+    - `middleware.ts` — removed the hard-coded `guardedRoutes` list; now gates EVERY page route
+      (matcher still excludes `api`, `_next/static`, `_next/image`, favicon, static files). When
+      `authConfigured` (NEXT_PUBLIC_FIREBASE_API_KEY + _PROJECT_ID) and no `__session` cookie →
+      redirect to `/?signin=1`, EXCEPT `pathname === "/" && signin === "1"` (sign-in landing) which
+      passes through (prevents redirect loops). Demo mode (no Firebase client config) unchanged/open.
+    - `lib/auth.ts` — exported `authIntended()` (same trio check as the old private
+      `authIntendedFromClient`); `requireSession()` now uses it.
+    - `app/page.tsx` — when `authIntended() && !(await requireSession())`, returns ONLY the existing
+      `SignInPrompt` (prompt) inside `.page`; no Hero/rails/library/tiles/demo content rendered
+      pre-login. Demo mode (no client config) renders the homepage exactly as before.
+    - `components/AuthProvider.tsx` — `signIn()` and `signOut()` now call `router.refresh()` after
+      success so Server Components re-render with the new/cleared `__session` cookie.
+  - **Verification (isolated sandbox, production builds):**
+    - Prod-like build (client trio + dummy Admin + ALLOWED_EMAILS): every page route without a
+      cookie → **307 to `/?signin=1`**; `/?signin=1` (no cookie) → **200** with sign-in copy only
+      (no hero/rails/library content in HTML); `/my-media` with cookie → **200**; `/api/library`,
+      `/api/metadata`, `POST /api/identify` without session → **401**; `/api/health` → **200**.
+    - Demo build (no Firebase env): all pages → **200** public; homepage renders hero/demo content
+      unchanged. (Prod-build demo APIs fail closed 401 — pre-existing design, unchanged.)
+    - Note: full valid-session render of the dynamic home can only be E2E-tested with REAL Firebase
+      credentials (session cookie must verify against the real project's signing keys); the sandbox
+      dummy-credential path cannot mint one. Middleware cookie-presence behavior was verified.
+  - **Current Firebase auth state:** code is fully implemented; Vercel still lacks the
+    `NEXT_PUBLIC_FIREBASE_*` client vars, so the whole-site gate is OFF on the live deploy until
+    those 6 vars are added + redeployed (build-time inlined). With them set, the entire site gates.
+  - **Remaining limitations:** files under `public/` (poster webp, sample video URL) remain
+    directly fetchable by URL without login (asset-level, not page-level — out of scope).
 - **Latest session (13 Sep 2026) — Phase 1.5 fail-closed verification (runtime test), DONE (lint +
   build clean).** No real Firebase project exists yet, so the E2E gating machinery was verified with
   a temporary production server (`next build` with dummy `NEXT_PUBLIC_FIREBASE_*` client config, NO
@@ -255,6 +306,11 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
   or `ALLOWED_EMAILS` are set on disk (no `.env.local`). Demo mode works untouched (verified 200s);
   once the client Firebase vars are set, protected routes fail closed (401 — verified at runtime)
   until the Admin credential and allowlist are also in place (Phase 1.5).
+- **Deployed on Vercel (13 Sep 2026):** `FIREBASE_SERVICE_ACCOUNT_JSON` + `ALLOWED_EMAILS` are set
+  (server-side vars) but the `NEXT_PUBLIC_FIREBASE_*` client config is MISSING → middleware is
+  disabled and every page is publicly reachable (incl. `/my-media` static prerender). WHOL-SITE
+  AUTH REQUIREMENT now implemented in code; fix = add the 6 `NEXT_PUBLIC_FIREBASE_*` Vercel env
+  vars + redeploy (build-time inlined). See §3 history entries.
 - Runtime `console.error` is expected when AWS is configured but unreachable → falls back to demo
   (by design).
 - Demo-mode playback uses a public Google sample video
@@ -280,6 +336,14 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 - Firebase vars (`NEXT_PUBLIC_FIREBASE_*`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `ALLOWED_EMAILS`) are
   documented in `.env.example`. **No real Firebase credentials are set on disk yet** — the only
   remaining Phase 1.5 step is to plug the real Firebase project values + allowlist into `.env.local`.
+- **Production env var manifest (from code, 13 Sep 2026):** `NEXT_PUBLIC_APP_MODE/_APP_NAME/
+  _APP_VERSION/_DEMO_VIDEO_URL`, `NEXT_PUBLIC_FIREBASE_API_KEY/_AUTH_DOMAIN/_PROJECT_ID/
+  _STORAGE_BUCKET/_MESSAGING_SENDER_ID/_APP_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON`,
+  `FIREBASE_PROJECT_ID`/`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY` (Admin alt triple),
+  `ALLOWED_EMAILS`, `AWS_LIBRARY_API_URL`/`_API_KEY`/`_API_KEY_HEADER`,
+  `CLOUDSHELL_UPLOAD_URL`/`_API_KEY`/`_API_KEY_HEADER`, `ALLOW_DEMO_UPLOAD`, `TMDB_API_KEY`.
+  Full descriptions in `.env.example`. Vercel env config NOT verified: project not linked to Vercel
+  (no `.vercel/`) and no `vercel` CLI installed, so configured Vercel variables could not be read.
 - `next.config.ts` only contains `reactStrictMode: true` and the image hosts whitelist.
 - Scripts: `npm run dev` · `npm run build` · `npm run start` · `npm run lint`.
 - Lint config is ESLint v9 flat config (`eslint.config.mjs`, eslint-config-next 16.3.4).
@@ -312,11 +376,23 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 
 ## 7. Stopping point (START HERE next session)
 
+> **REQUIREMENT (13 Sep 2026, owner):** the ENTIRE website must require authentication; unauthenticated
+> visitors see only the Google Sign In experience; login UI stays accessible; deny-by-default;
+> ALLOWED_EMAILS governs sign-in; API routes stay server-side protected.
+> **STATUS: IMPLEMENTED + VERIFIED (lint/build/sandbox scenarios A–E all pass)** — see §3 history
+> entry "WHOLE-SITE AUTH IMPLEMENTED". No UI/styling/AWS/CloudShell/API behavior changed.
+
 - **State:** Phase 1 (Firebase auth foundation) is implemented, security-reviewed, both security
   fixes applied, and **Phase 1.5 gating machinery verified fail-closed at runtime** — lint clean,
-  production build clean. With dummy `NEXT_PUBLIC_FIREBASE_*` client config and NO Admin credential,
-  every protected API returns 401 without a session cookie, `/my-media` redirects to `/?signin=1`,
-  and home stays public 200; with zero Firebase config the app runs in demo mode untouched.
+  production build clean. Whole-site page gating now implemented: when `NEXT_PUBLIC_FIREBASE_*`
+  client config is set, middleware redirects ALL no-cookie page requests to `/?signin=1` and the
+  homepage renders only the sign-in prompt (no content) until a valid session exists. With zero
+  Firebase config the app runs in demo mode untouched.
+- **Next step (only remaining blocker on Vercel): add the 6 `NEXT_PUBLIC_FIREBASE_*` client vars
+  to Vercel Environment Variables and REDEPLOY (requires a new build — NEXT_PUBLIC_* is inlined at
+  build time). Server-side `FIREBASE_SERVICE_ACCOUNT_JSON` + `ALLOWED_EMAILS` are already set.
+  After redeploy, whole-site auth is live; then E2E the full sign-in flow in a browser
+  (Google popup → `POST /api/auth/session` → `__session` cookie → pages/APIs 200; sign-out revokes).**
 - **Phase 1.5 remaining (the only blocker to end-user sign-in): the REAL Firebase Console
   configuration.** Full required-config checklist was reported in chat (13 Sep 2026); summary below.
   Once the values exist, set them in `.env.local` (copy from `.env.example`) and E2E-test the
@@ -378,6 +454,10 @@ Ask the user which one to start, or continue in the order above if they say "res
 3. **Do NOT touch until told otherwise:** AWS library wiring / `lib/library-service.ts` demo fallback,
    CloudShell uploader (`lib/cloudshell.ts`), DNS/cinaura.tv, deployment/Vercel, git/GitHub.
 4. **Do NOT remove demo/mock functionality yet** — demo-mode lock-down is a later phase.
+5. **Auth phase guardrail:** during the whole-site authentication phase, do NOT modify AWS library
+   wiring, CloudShell uploader, Google Drive, or upload architecture. Keep the `authConfigured`
+   additive gate so demo mode (no Firebase config) stays fully open. Do not print or log any
+   Firebase API keys / service-account JSON / private keys — only env-var NAMES if needed.
 5. **After any code change:** run `npm run lint`, run `npm run build`, re-read the changed files for a
    focused security check, and report exactly what changed and whether lint/build passed. Then STOP
    and wait for approval.

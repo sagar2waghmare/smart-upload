@@ -36,7 +36,7 @@ export function authEnforced(): boolean {
   return firebaseAdminConfigured();
 }
 
-function authIntendedFromClient(): boolean {
+export function authIntended(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
       process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN &&
@@ -58,7 +58,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
 export async function requireSession(): Promise<SessionUser | null> {
   if (authEnforced()) return getSessionUser();
-  if (isProd || authIntendedFromClient()) {
+  if (isProd || authIntended()) {
     // Auth is required (production, or client Firebase config indicates it is
     // intended) but the server-side Firebase Admin credential is missing,
     // malformed, or otherwise unavailable. Fail closed: never synthesize a

@@ -5,6 +5,7 @@ import { SignInPrompt } from "../components/SignInPrompt";
 import { getLibrary } from "../lib/library-service";
 import { featuredMedia, libraries as mockLibraries } from "../lib/mock-data";
 import { isDemoMode } from "../lib/config";
+import { authIntended, requireSession } from "../lib/auth";
 import { ILibrary, IPlay } from "../components/icons";
 
 export default async function Home({
@@ -13,6 +14,13 @@ export default async function Home({
   searchParams: Promise<{ signin?: string }>;
 }) {
   const { signin } = await searchParams;
+  if (authIntended() && !(await requireSession())) {
+    return (
+      <main className="page">
+        <SignInPrompt prompt />
+      </main>
+    );
+  }
   const showSignInPrompt = signin === "1";
   const { items, mode } = await getLibrary();
   const heroItems = mode === "aws" && items.length > 0 ? items.slice(0, 5) : featuredMedia;

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { firebaseClientConfigured, signInWithGoogle, signOutSession } from "../lib/firebase-client";
 
 interface AuthState {
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthState>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [configured] = useState(() => firebaseClientConfigured());
   const [loading, setLoading] = useState(() => !firebaseClientConfigured());
   const [user, setUser] = useState<{ email: string | null } | null>(null);
@@ -43,14 +45,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async () => {
     const res = await signInWithGoogle();
-    if (res.ok) setUser({ email: res.email ?? null });
+    if (res.ok) {
+      setUser({ email: res.email ?? null });
+      router.refresh();
+    }
     return res;
-  }, []);
+  }, [router]);
 
   const signOut = useCallback(async () => {
     await signOutSession();
     setUser(null);
-  }, []);
+    router.refresh();
+  }, [router]);
 
   const value = useMemo(
     () => ({ configured, loading, user, signIn, signOut }),
