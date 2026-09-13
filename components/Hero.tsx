@@ -47,8 +47,6 @@ export function Hero({ items }: { items: MediaItem[] }) {
       className="hero"
       aria-roledescription="carousel"
       aria-label="Featured titles"
-      onPointerEnter={() => setInteracting(true)}
-      onPointerLeave={() => setInteracting(false)}
       onFocusCapture={() => setInteracting(true)}
       onBlurCapture={() => setInteracting(false)}
     >
