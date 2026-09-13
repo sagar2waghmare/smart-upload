@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getLibrary } from "../../../lib/library-service";
+import { authIntended, requireSession } from "../../../lib/auth";
 import { MediaCard } from "../../../components/MediaCard";
 import { IArrowLeft, IFilm, IPlay, ISparkles, ITv } from "../../../components/icons";
 
@@ -21,6 +23,7 @@ const labels: Record<Kind, { title: string; icon: React.ReactNode; help: string 
 export default async function BrowsePage({ params }: { params: Promise<{ kind: string }> }) {
   const { kind } = await params;
   const meta = labels[kind as Kind] ?? labels.movie;
+  if (authIntended() && !(await requireSession())) redirect("/?signin=1");
   const { items, mode } = await getLibrary();
   const list = items.filter((m) => m.kind === kind);
 

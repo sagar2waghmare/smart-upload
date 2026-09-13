@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getLibrary } from "../../lib/library-service";
+import { authIntended, requireSession } from "../../lib/auth";
 import { libraries } from "../../lib/mock-data";
 import { MediaCard } from "../../components/MediaCard";
 import { LibraryTile } from "../../components/LibraryTile";
@@ -9,6 +11,7 @@ import { IArrowLeft, ILibrary, IPlay } from "../../components/icons";
 export const metadata: Metadata = { title: "My Media" };
 
 export default async function MyMediaPage() {
+  if (authIntended() && !(await requireSession())) redirect("/?signin=1");
   const { items, mode } = await getLibrary();
   const continueItems = items.filter((m) => m.progress !== undefined);
   const rest = items.filter((m) => m.progress === undefined);
