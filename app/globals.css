@@ -305,6 +305,7 @@ main { display: block; padding-bottom: 5rem; height: auto; overflow: visible; }
   min-height: 480px;
   max-height: 680px;
   margin-top: 40px;
+  margin-bottom: clamp(1rem, 2vw, 2rem);
   padding-top: 10px;
   background: transparent;
   overflow: hidden;
@@ -330,17 +331,17 @@ main { display: block; padding-bottom: 5rem; height: auto; overflow: visible; }
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 230px;
-  height: 345px;
-  transform: translate(calc(-50% + (var(--posicao) * 250px)), -50%) scale(calc(1 - (var(--distancia) * 0.12)));
+  width: 210px;
+  height: 315px;
+  transform: translate(calc(-50% + (var(--posicao) * 240px)), -50%) scale(calc(1 - (var(--distancia) * 0.12)));
   opacity: calc(1 - (var(--distancia) * 0.18));
   filter: brightness(calc(1 - (var(--distancia) * 0.1)));
   z-index: calc(10 - var(--distancia));
   transition: transform 650ms cubic-bezier(0.16, 1, 0.3, 1), opacity 500ms ease, filter 500ms ease;
 }
 .hero-poster.ativo {
-  width: 350px;
-  height: 525px;
+  width: 320px;
+  height: 440px;
   opacity: 1;
   filter: brightness(1);
   z-index: 20;
@@ -1083,9 +1084,9 @@ main.login-screen::before {
     position: sticky; top: 0; z-index: 30;
   }
   .header-actions { display: flex; margin-left: auto; }
-  .hero-filmes { height: 58vh; min-height: 420px; max-height: none; margin-top: 24px; }
-  .hero-poster { width: 150px; height: 225px; transform: translate(calc(-50% + (var(--posicao) * 170px)), -50%) scale(calc(1 - (var(--distancia) * 0.12))); }
-  .hero-poster.ativo { width: 245px; height: 367px; }
+  .hero-filmes { height: 68vh; min-height: 440px; max-height: none; margin-top: 24px; }
+  .hero-poster { width: 130px; height: 195px; transform: translate(calc(-50% + (var(--posicao) * 160px)), -50%) scale(calc(1 - (var(--distancia) * 0.12))); }
+  .hero-poster.ativo { width: 210px; height: 310px; }
   .hero-info { padding: 80px 18px 18px; }
   .hero-info h1 { font-size: 21px; }
 }
