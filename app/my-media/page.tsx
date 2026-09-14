@@ -15,6 +15,7 @@ export default async function MyMediaPage() {
   const { items, mode } = await getLibrary();
   const continueItems = items.filter((m) => m.progress !== undefined);
   const rest = items.filter((m) => m.progress === undefined);
+  const sourceLabel = mode === "google-drive" ? "synced from Google Drive" : "local demo data";
 
   return (
     <main className="page">
@@ -22,7 +23,7 @@ export default async function MyMediaPage() {
       <div className="page-head">
         <div>
           <h1>My Media</h1>
-          <p className="sub">Everything in your private library · {items.length} titles · {mode === "aws" ? "synced from AWS" : "local demo data"}</p>
+          <p className="sub">Everything in your private library · {items.length} titles · {sourceLabel}</p>
         </div>
       </div>
 
