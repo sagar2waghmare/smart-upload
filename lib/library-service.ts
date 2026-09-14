@@ -11,24 +11,28 @@ export function awsConfigured(): boolean {
 
 function normalizeItem(raw: Record<string, unknown>): MediaItem | null {
   if (!raw || typeof raw !== "object") return null;
-  const id = (raw.id ?? raw._id ?? "") as string;
-  const title = (raw.title ?? "") as string;
+  const id = String(raw.id ?? raw._id ?? "").trim();
+  const title = String(raw.title ?? raw.name ?? "").trim();
   if (!id || !title) return null;
-  const kind = ["movie", "series", "anime"].includes(String(raw.kind)) ? (raw.kind as MediaItem["kind"]) : "movie";
+
+  const rawKind = String(raw.kind ?? raw.type ?? "").toLowerCase();
+  const kind: MediaItem["kind"] = rawKind === "series" ? "series" : rawKind === "anime" ? "anime" : "movie";
   const seasons = Array.isArray(raw.seasons) ? (raw.seasons as MediaItem["seasons"]) : undefined;
+  const thumbnail = (raw.thumbnailLink ?? raw.poster ?? raw.backdrop) as string | undefined;
+
   return {
     id,
     kind,
     title,
     year: (raw.year as MediaItem["year"]) ?? undefined,
     overview: (raw.overview as string) ?? undefined,
-    runtime: typeof raw.runtime === "number" ? (raw.runtime as number) : undefined,
-    rating: typeof raw.rating === "number" ? (raw.rating as number) : undefined,
+    runtime: typeof raw.runtime === "number" ? raw.runtime : undefined,
+    rating: typeof raw.rating === "number" ? raw.rating : undefined,
     genres: Array.isArray(raw.genres) ? (raw.genres as string[]) : undefined,
-    poster: (raw.poster as string) ?? undefined,
-    backdrop: (raw.backdrop ?? raw.poster) as string | undefined,
+    poster: thumbnail,
+    backdrop: (raw.backdrop ?? thumbnail) as string | undefined,
     tag: (raw.tag as string) ?? undefined,
-    progress: typeof raw.progress === "number" ? (raw.progress as number) : undefined,
+    progress: typeof raw.progress === "number" ? raw.progress : undefined,
     mediaUrl: (raw.mediaUrl ?? raw.playbackUrl ?? raw.streamUrl) as string | undefined,
     seasons,
     hasSubtitles: Boolean(raw.hasSubtitles),
