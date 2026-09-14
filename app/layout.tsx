@@ -3,6 +3,7 @@ import "./globals.css";
 import "./abyss-theme.css";
 import "./cinematic-polish.css";
 import "./ui-motion.css";
+import "./player-polish.css";
 import { Header } from "../components/Header";
 import { AuthProvider } from "../components/AuthProvider";
 import { DetailsProvider } from "../components/DetailsProvider";
