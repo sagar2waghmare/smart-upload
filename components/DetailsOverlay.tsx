@@ -20,7 +20,7 @@ export function DetailsOverlay() {
   const priorEpisode = useMemo(() => {
     if (!item) return null;
     const resumeId = getProgress(item.id)?.episodeId;
-    if (!resumeId) return null;
+    if (!resumeId) return allEpisodes[0] ?? null;
     return allEpisodes.find((e) => e.id === resumeId) ?? allEpisodes[0] ?? null;
   }, [item, allEpisodes]);
 
@@ -50,6 +50,9 @@ export function DetailsOverlay() {
   const seasons = item.seasons ?? [];
   const currentSeason = seasons[seasonIdx] ?? seasons[0];
   const list = currentSeason?.episodes ?? [];
+  const totalEpisodes = allEpisodes.length;
+  const seasonCountLabel = seasons.length === 1 ? "1 Season" : `${seasons.length} Seasons`;
+  const episodeCountLabel = totalEpisodes === 1 ? "1 Episode" : `${totalEpisodes} Episodes`;
 
   return (
     <div className="details-overlay" role="dialog" aria-modal="true" aria-label={`${item.title} details`}>
@@ -64,9 +67,11 @@ export function DetailsOverlay() {
         <div className="details-hero-shade" />
 
         <div className="details-copy">
-          <div className="details-poster">
-            <SmartImage src={poster} alt={`${item.title} poster`} sizes="320px" />
-          </div>
+          {poster ? (
+            <div className="details-poster" style={{ position: "relative", aspectRatio: "2 / 3", height: "auto", minHeight: 0 }}>
+              <SmartImage src={poster} alt={`${item.title} poster`} sizes="320px" priority />
+            </div>
+          ) : null}
 
           <div className="details-right">
             <span className="filme-tipo">{kindLabel(item.kind)}</span>
@@ -89,6 +94,12 @@ export function DetailsOverlay() {
                 <div className="meta-item">
                   <span>Duration</span>
                   <strong>{Math.floor(runtime / 60)}h {runtime % 60}m</strong>
+                </div>
+              ) : null}
+              {allEpisodes.length > 0 ? (
+                <div className="meta-item">
+                  <span>Series</span>
+                  <strong>{seasonCountLabel} · {episodeCountLabel}</strong>
                 </div>
               ) : null}
             </div>
@@ -130,14 +141,17 @@ export function DetailsOverlay() {
       {allEpisodes.length > 0 && (
         <section className="details-section" aria-label="Episodes" style={{ maxWidth: 1250, margin: "0 auto", padding: "0 7vw" }}>
           <div className="season-head">
-            <h2>Episodes</h2>
+            <div>
+              <h2>{currentSeason?.title ?? "Episodes"}</h2>
+              <span className="season-summary">{seasonCountLabel} · {episodeCountLabel}</span>
+            </div>
             {seasons.length > 1 && (
               <select className="season-select" aria-label="Season" value={seasonIdx} onChange={(e) => {
                 const i = Number(e.target.value);
                 setSeasonIdx(i);
                 setEpisode(seasons[i]?.episodes?.[0] ?? null);
               }}>
-                {seasons.map((s, i) => <option key={s.season} value={i}>{s.title ?? `Season ${s.season}`}</option>)}
+                {seasons.map((s, i) => <option key={s.season} value={i}>{s.title ?? `Season ${s.season}`} · {s.episodes.length} {s.episodes.length === 1 ? "episode" : "episodes"}</option>)}
               </select>
             )}
           </div>
