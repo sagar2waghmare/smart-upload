@@ -1,0 +1,145 @@
+import { importPKCS8, SignJWT } from "jose";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files";
+const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
+const DEFAULT_MEDIA_FOLDER_ID = "1TEIGqujqwuNnzl_WfdHOYRWU_-4bWRp_";
+const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+
+interface ServiceAccount {
+  client_email: string;
+  private_key: string;
+}
+
+type CachedAccess = { token: string; expiresAt: number };
+type MediaCheck = { id: string; parents?: string[]; mimeType?: string; trashed?: boolean };
+
+let cachedAccess: CachedAccess | null = null;
+const mediaChecks = new Map<string, { valid: boolean; expiresAt: number }>();
+
+function serviceAccount(): ServiceAccount | null {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
+  if (raw) {
+    try {
+      const value = raw.startsWith("{") ? raw : readFileSync(resolve(raw), "utf8");
+      const parsed = JSON.parse(value) as ServiceAccount;
+      if (parsed.client_email && parsed.private_key) return parsed;
+    } catch {
+      // Fall through to split credentials.
+    }
+  }
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  if (clientEmail && privateKey) return { client_email: clientEmail, private_key: privateKey };
+  return null;
+}
+
+async function accessToken(): Promise<string> {
+  if (cachedAccess && Date.now() < cachedAccess.expiresAt) return cachedAccess.token;
+  const sa = serviceAccount();
+  if (!sa) throw new Error("Google Drive service account not configured");
+  const now = Math.floor(Date.now() / 1000);
+  const key = await importPKCS8(sa.private_key, "RS256");
+  const assertion = await new SignJWT({
+    iss: sa.client_email,
+    scope: SCOPE,
+    aud: TOKEN_URL,
+    iat: now,
+    exp: now + 3600,
+  }).setProtectedHeader({ alg: "RS256", typ: "JWT" }).sign(key);
+
+  const body = new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion,
+  });
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  if (!res.ok) {
+    console.error("[google-drive-playback] token exchange failed", res.status);
+    throw new Error("Google Drive authentication failed");
+  }
+  const data = (await res.json()) as { access_token: string };
+  cachedAccess = { token: data.access_token, expiresAt: Date.now() + 50 * 60 * 1000 };
+  return data.access_token;
+}
+
+async function metadata(fileId: string, token: string): Promise<MediaCheck> {
+  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,parents,mimeType,trashed`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  if (res.status === 401) {
+    cachedAccess = null;
+    throw new Error("Google Drive authentication expired");
+  }
+  if (!res.ok) throw new Error("Google Drive media not found");
+  return (await res.json()) as MediaCheck;
+}
+
+async function mediaRoot(token: string): Promise<string> {
+  const configured = process.env.SMART_UPLOAD_DRIVE_MEDIA_ID?.trim();
+  if (configured) return configured;
+  const res = await fetch(`${DRIVE_API_URL}/${DEFAULT_MEDIA_FOLDER_ID}?fields=id,mimeType`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.ok) {
+    const data = (await res.json()) as { id: string; mimeType?: string };
+    if (data.mimeType === DRIVE_FOLDER_MIME) return data.id;
+  }
+  throw new Error("Google Drive MEDIA folder not found");
+}
+
+async function isInsideMedia(fileId: string, token: string): Promise<boolean> {
+  const cached = mediaChecks.get(fileId);
+  if (cached && cached.expiresAt > Date.now()) return cached.valid;
+
+  const root = await mediaRoot(token);
+  let currentId = fileId;
+  const visited = new Set<string>();
+
+  for (let depth = 0; depth < 12; depth += 1) {
+    if (currentId === root) {
+      mediaChecks.set(fileId, { valid: true, expiresAt: Date.now() + 10 * 60 * 1000 });
+      return true;
+    }
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+    const item = await metadata(currentId, token);
+    if (item.trashed) break;
+    const parent = item.parents?.[0];
+    if (!parent) break;
+    currentId = parent;
+  }
+
+  mediaChecks.set(fileId, { valid: false, expiresAt: Date.now() + 60 * 1000 });
+  return false;
+}
+
+export async function drivePlaybackFetch(fileId: string, headers: Record<string, string>): Promise<Response> {
+  const id = fileId.trim();
+  if (!id) throw new Error("Invalid media id");
+
+  let token = await accessToken();
+  const item = await metadata(id, token);
+  if (item.trashed || !item.mimeType?.startsWith("video/")) throw new Error("Media is not a playable video");
+  if (!(await isInsideMedia(id, token))) throw new Error("Media is outside the Smart Upload library");
+
+  const url = `${DRIVE_API_URL}/${encodeURIComponent(id)}?alt=media`;
+  let res = await fetch(url, {
+    headers: { ...headers, Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) {
+    cachedAccess = null;
+    token = await accessToken();
+    res = await fetch(url, {
+      headers: { ...headers, Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+  }
+  return res;
+}
