@@ -7,6 +7,13 @@ import { useDetails } from "./DetailsProvider";
 import { IArrowLeft, IArrowRight, IInfo, IPlay } from "./icons";
 
 const AUTO_DURATION = 7000;
+const AMBIENT_TONES = [
+  "rgba(38, 30, 52, .58)",
+  "rgba(24, 38, 54, .58)",
+  "rgba(52, 30, 34, .56)",
+  "rgba(30, 48, 42, .56)",
+  "rgba(48, 40, 27, .54)",
+];
 const kindLabel = (k?: MediaItem["kind"]) => k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FEATURED MOVIE";
 
 export function Hero({ items }: { items: MediaItem[] }) {
@@ -47,10 +54,11 @@ export function Hero({ items }: { items: MediaItem[] }) {
 
   if (!count) return null;
   const active = items[index];
+  const ambientTone = AMBIENT_TONES[index % AMBIENT_TONES.length];
 
   return (
     <section className="hero-filmes" aria-roledescription="carousel" aria-label="Featured titles">
-      <div className="hero-ambient" aria-hidden="true"><SmartImage src={active.backdrop ?? active.poster} alt="" sizes="100vw" priority /></div>
+      <div className="hero-ambient" aria-hidden="true" style={{ backgroundColor: ambientTone }}><SmartImage src={active.backdrop ?? active.poster} alt="" sizes="100vw" priority /></div>
       <div className="hero-vignette" aria-hidden="true" />
 
       <div className="hero-editorial" key={active.id}>
