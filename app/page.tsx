@@ -19,7 +19,6 @@ export default async function Home({
   const showSignInPrompt = signin === "1";
   const { items } = await getLibrary();
   const heroItems = items.slice(0, 5);
-  const recent = items.slice();
   const movies = items.filter((item) => item.kind === "movie");
   const tvShows = items.filter((item) => item.kind === "series");
   const anime = items.filter((item) => item.kind === "anime");
@@ -29,10 +28,9 @@ export default async function Home({
       <Hero items={heroItems} />
       <div className="page home-content">
         <SignInPrompt prompt={showSignInPrompt} />
-        <ContinueWatchingRail seeAll="/my-media" />
+        <ContinueWatchingRail />
         <Rail title="Movies" items={movies.slice(0, 12)} seeAll="/browse/movie" />
         <Rail title="TV Shows" items={tvShows.slice(0, 12)} seeAll="/browse/series" />
-        <Rail title="Recently Added" items={recent.slice(0, 12)} />
         {anime.length > 0 && (
           <Rail title="Anime" items={anime.slice(0, 12)} seeAll="/browse/anime" />
         )}
