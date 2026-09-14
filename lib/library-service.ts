@@ -1,7 +1,6 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
 import { identifyFilename } from "./identify";
-import { getEpisodeMeta } from "./metadata/tmdb";
-import { tmdbConfigured } from "./metadata/tmdb";
+import { getEpisodeMeta, tmdbConfigured } from "./metadata/tmdb";
 import type { Episode, LibraryResponse, MediaItem, Season } from "./types";
 
 async function normalizeItem(raw: {
@@ -33,6 +32,7 @@ async function normalizeItem(raw: {
 
   try {
     const identified = await identifyFilename(filename);
+    const tmdbId = identified.tmdb?.matched ? identified.tmdb.id : undefined;
     if (identified.tmdb?.matched && identified.tmdb.poster) {
       return {
         ...base,
@@ -41,6 +41,7 @@ async function normalizeItem(raw: {
         kind: identified.kind,
         season: identified.season,
         episode: identified.episode,
+        tmdbId,
         poster: identified.tmdb.poster,
         backdrop: identified.tmdb.backdrop ?? identified.tmdb.poster,
       };
@@ -53,6 +54,7 @@ async function normalizeItem(raw: {
       kind: identified.kind,
       season: identified.season,
       episode: identified.episode,
+      tmdbId,
     };
   } catch {
     return base;
@@ -61,7 +63,8 @@ async function normalizeItem(raw: {
 
 function groupKey(item: MediaItem): string {
   const kind = item.kind === "anime" ? "anime" : "series";
-  return `${kind}|${item.title.toLowerCase().replace(/\s+/g, " ").trim()}`;
+  const identity = item.tmdbId ? `tmdb:${item.tmdbId}` : `title:${item.title.toLowerCase().replace(/\s+/g, " ").trim()}`;
+  return `${kind}|${identity}`;
 }
 
 async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
@@ -83,7 +86,7 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
     const first = group[0];
     if (!first) continue;
 
-    const episodeItems = group.filter((item) => item.season && item.episode);
+    const episodeItems = group.filter((item) => item.season !== undefined && item.episode !== undefined);
     if (!episodeItems.length) {
       output.push(first);
       continue;
@@ -114,34 +117,32 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
         episodes: episodes.sort((a, b) => a.episode - b.episode),
       }));
 
-    if (tmdbConfigured()) {
-      const tmdbId = await identifyFilename(group[0]?.title ?? "").then((r) => r.tmdb?.id).catch(() => undefined);
-      if (tmdbId) {
-        for (const season of seasons) {
-          try {
-            const meta = await getEpisodeMeta(tmdbId, season.season);
-            if (!meta) continue;
-            for (const ep of season.episodes) {
-              const found = meta.find((m) => m.episode === ep.episode);
-              if (!found) continue;
-              ep.title = found.title;
-              ep.overview = found.overview;
-              ep.runtime = found.runtime;
-              ep.thumb = found.thumb ?? ep.thumb;
-            }
-          } catch {
-            // Keep Drive-backed episode data if TMDB episode metadata is unavailable.
+    if (first.tmdbId) {
+      for (const season of seasons) {
+        try {
+          const meta = await getEpisodeMeta(first.tmdbId, season.season);
+          if (!meta) continue;
+          for (const ep of season.episodes) {
+            const found = meta.find((m) => m.episode === ep.episode);
+            if (!found) continue;
+            ep.title = found.title;
+            ep.overview = found.overview;
+            ep.runtime = found.runtime;
+            ep.thumb = found.thumb ?? ep.thumb;
           }
+        } catch {
+          // Keep Drive-backed episode data if TMDB episode metadata is unavailable.
         }
       }
     }
 
+    const totalEpisodes = seasons.reduce((sum, season) => sum + season.episodes.length, 0);
     output.push({
       ...first,
-      id: first.id,
       season: undefined,
       episode: undefined,
       seasons,
+      tag: `${seasons.length} ${seasons.length === 1 ? "Season" : "Seasons"} · ${totalEpisodes} Episodes`,
     });
   }
 
