@@ -1,10 +1,6 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
 import type { LibraryResponse, MediaItem } from "./types";
 
-export function awsConfigured(): boolean {
-  return googleDriveConfigured();
-}
-
 function normalizeItem(raw: {
   id: string;
   name: string;
