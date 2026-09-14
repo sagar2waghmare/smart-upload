@@ -80,10 +80,15 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/gi, "").replace(
 const stripTitle = (t: string) => t.toLowerCase().replace(/\b(the|a|an)\b/g, "").replace(/\s+/g, " ").trim();
 
 function score(query: string, resultTitle: string, resultYear: number | undefined, year?: number): number {
-  const q = norm(query);
+  const q = stripTitle(norm(query));
   const rt = stripTitle(norm(resultTitle));
-  let s = rt === q ? 100 : rt.includes(q) ? 80 : q.includes(rt) ? 60 : 0;
-  if (year && resultYear === year) s += 15;
+  if (!q || !rt) return 0;
+  const qWords = new Set(q.split(" "));
+  const rWords = new Set(rt.split(" "));
+  const overlap = [...qWords].filter((word) => rWords.has(word)).length;
+  let s = rt === q ? 120 : rt.includes(q) ? 95 : q.includes(rt) ? 85 : overlap ? Math.min(75, 35 + overlap * 8) : 0;
+  if (year && resultYear === year) s += 30;
+  else if (year && resultYear && Math.abs(resultYear - year) <= 1) s += 8;
   return s;
 }
 
@@ -91,40 +96,47 @@ type SearchRow = {
   id: number;
   title?: string;
   name?: string;
+  original_title?: string;
+  original_name?: string;
   release_date?: string;
   first_air_date?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
 };
 
 async function searchKind(type: "movie" | "tv", query: string, year?: number): Promise<TmdbResult | null> {
-  const rows = await tmdb<{ results: SearchRow[] }>(`/search/${type}?query=${encodeURIComponent(query)}&include_adult=false&language=en-US`);
+  if (!query.trim()) return null;
+  const yearParam = year ? `&year=${year}` : "";
+  const rows = await tmdb<{ results: SearchRow[] }>(`/search/${type}?query=${encodeURIComponent(query)}&include_adult=false&language=en-US${yearParam}`);
   const scored = rows.results
     .filter((r) => r.id)
     .map((r) => {
-      const title = r.title ?? r.name ?? "";
+      const title = r.title ?? r.name ?? r.original_title ?? r.original_name ?? "";
       const titleYear = Number(((r.release_date ?? r.first_air_date) ?? "").slice(0, 4)) || undefined;
-      return { r, s: score(query, title, titleYear, year) };
+      return { r, title, titleYear, s: score(query, title, titleYear, year) };
     })
-    .filter((x) => x.s > 0)
+    .filter((x) => x.s >= 35)
     .sort((a, b) => b.s - a.s);
 
   if (!scored.length) return null;
 
-  const id = scored[0].r.id;
+  const best = scored[0];
+  const id = best.r.id;
   const detail = await cached<Record<string, unknown>>(`${type}:${id}`, () =>
-    tmdb<Record<string, unknown>>(`${type === "tv" ? "tv" : "movie"}/${id}?language=en-US`)
+    tmdb<Record<string, unknown>>(`/${type === "tv" ? "tv" : "movie"}/${id}?language=en-US`)
   );
 
   const foundYear =
-    Number(((type === "tv" ? detail.first_air_date : detail.release_date) as string | undefined)?.slice(0, 4)) || undefined;
-  const title = (scored[0].r.title ?? scored[0].r.name ?? query).trim();
+    Number(((type === "tv" ? detail.first_air_date : detail.release_date) as string | undefined)?.slice(0, 4)) || best.titleYear;
+  const title = (best.r.title ?? best.r.name ?? best.r.original_title ?? best.r.original_name ?? query).trim();
   const base = {
     title,
     year: foundYear,
     overview: (detail.overview as string) ?? undefined,
     rating: typeof detail.vote_average === "number" ? Number(detail.vote_average.toFixed(1)) : undefined,
     genres: ((detail.genres as { name?: string }[]) ?? []).map((g) => g.name ?? "").filter(Boolean),
-    poster: img(detail.poster_path as string | null),
-    backdrop: img(detail.backdrop_path as string | null, "w1280"),
+    poster: img((detail.poster_path as string | null) ?? best.r.poster_path),
+    backdrop: img((detail.backdrop_path as string | null) ?? best.r.backdrop_path, "w1280"),
   };
 
   if (type === "tv") {
