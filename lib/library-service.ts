@@ -8,6 +8,7 @@ async function normalizeItem(raw: {
   name: string;
   type: "movie" | "series" | "anime";
   modifiedTime?: string;
+  thumbnailLink?: string;
 }): Promise<MediaItem | null> {
   const id = raw.id.trim();
   const filename = raw.name.trim();
@@ -21,8 +22,8 @@ async function normalizeItem(raw: {
     id,
     kind: raw.type,
     title: fallbackTitle,
-    poster: fallbackPoster,
-    backdrop: fallbackPoster,
+    poster: raw.thumbnailLink?.trim() || fallbackPoster,
+    backdrop: raw.thumbnailLink?.trim() || fallbackPoster,
     tag: raw.modifiedTime ? "Recently Added" : undefined,
     source: "google-drive",
   };
