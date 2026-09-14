@@ -19,9 +19,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const dragRef = useRef({ startX: 0, dragging: false });
 
   const go = useCallback(
-    (next: number) => {
-      setIndex(((next % count) + count) % count);
-    },
+    (next: number) => setIndex(((next % count) + count) % count),
     [count],
   );
 
@@ -44,8 +42,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
   }, []);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
     dragRef.current = { startX: e.clientX, dragging: true };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }, []);
 
   const onPointerUp = useCallback(
@@ -58,7 +56,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
     [index, go],
   );
 
-  if (count === 0) return null;
+  if (!count) return null;
 
   const active = items[index];
 
@@ -68,6 +66,11 @@ export function Hero({ items }: { items: MediaItem[] }) {
       aria-roledescription="carousel"
       aria-label="Featured titles"
     >
+      <div className="hero-ambient" aria-hidden="true">
+        <SmartImage src={active.backdrop ?? active.poster} alt="" sizes="100vw" priority />
+      </div>
+      <div className="hero-vignette" aria-hidden="true" />
+
       <div
         className="hero-track"
         onPointerDown={onPointerDown}
@@ -84,26 +87,22 @@ export function Hero({ items }: { items: MediaItem[] }) {
             <article
               key={item.id}
               className={`hero-poster ${ativo ? "ativo" : ""}`}
-              style={
-                {
-                  "--posicao": posicao,
-                  "--distancia": distancia,
-                  top: "40%",
-                  width: ativo ? "300px" : "195px",
-                  height: ativo ? "410px" : "292px",
-                } as React.CSSProperties
-              }
+              style={{
+                "--posicao": posicao,
+                "--distancia": distancia,
+              } as React.CSSProperties}
               aria-hidden={!ativo}
             >
               <SmartImage
-                src={item.backdrop ?? item.poster}
-                alt=""
-                sizes="300px"
+                src={item.poster}
+                alt={`${item.title} poster`}
+                sizes="(max-width: 600px) 190px, (max-width: 900px) 225px, 270px"
                 priority={ativo}
               />
-              {ativo && active && (
+              <div className="hero-poster-sheen" aria-hidden="true" />
+              {ativo && (
                 <div className="hero-info">
-                  <span>{kindLabel(active.kind)}</span>
+                  <span className="hero-kind">{kindLabel(active.kind)}</span>
                   <h1>{active.title}</h1>
                   <p className="hero-star">
                     {active.rating ? `${active.rating.toFixed(1)} / 10` : ""}
@@ -138,7 +137,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
         })}
       </div>
 
-      <div className="hero-nav">
+      <div className="hero-nav" aria-label="Featured navigation">
         <button
           className="hero-nav-btn"
           onClick={() => go(index - 1)}
@@ -155,7 +154,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
         </button>
       </div>
 
-      <div className="hero-dots">
+      <div className="hero-dots" role="tablist" aria-label="Featured titles">
         {items.map((item, i) => (
           <button
             key={item.id}
@@ -167,77 +166,6 @@ export function Hero({ items }: { items: MediaItem[] }) {
           />
         ))}
       </div>
-
-      <style jsx>{`
-        .hero-poster {
-          top: 40% !important;
-          transform: translate(calc(-50% + (var(--posicao) * 240px)), -50%)
-            scale(calc(1 - (var(--distancia) * 0.12)))
-            rotateY(calc(var(--posicao) * -2deg));
-          transform-origin: center center;
-          transition:
-            transform 700ms cubic-bezier(0.16, 1, 0.3, 1),
-            opacity 500ms ease,
-            filter 500ms ease;
-          will-change: transform, opacity, filter;
-        }
-        .hero-poster img {
-          transition:
-            transform 500ms cubic-bezier(0.16, 1, 0.3, 1),
-            box-shadow 500ms ease,
-            filter 500ms ease;
-        }
-        .hero-poster:hover img {
-          transform: scale(1.035) translateY(-3px);
-          filter: saturate(1.06) brightness(1.04);
-          box-shadow: 0 42px 95px rgba(0, 0, 0, 0.96);
-        }
-        .hero-poster.ativo:hover img {
-          transform: scale(1.018) translateY(-2px);
-        }
-        .hero-poster::after {
-          content: "";
-          position: absolute;
-          left: 12%;
-          right: 12%;
-          bottom: -28px;
-          height: 46px;
-          border-radius: 50%;
-          background: radial-gradient(ellipse, rgba(124, 58, 237, 0.34), transparent 68%);
-          filter: blur(14px);
-          opacity: 0.55;
-          pointer-events: none;
-          transform: scaleX(0.86);
-          transition: opacity 500ms ease, transform 700ms ease;
-        }
-        .hero-poster.ativo::after {
-          opacity: 0.9;
-          transform: scaleX(1);
-        }
-        .hero-info {
-          z-index: 22;
-          pointer-events: none;
-        }
-        .hero-info .hero-actions,
-        .hero-info .hero-actions button {
-          pointer-events: auto;
-        }
-        @media (max-width: 768px) {
-          .hero-poster {
-            top: 40% !important;
-            transform: translate(calc(-50% + (var(--posicao) * 170px)), -50%)
-              scale(calc(1 - (var(--distancia) * 0.12)))
-              rotateY(calc(var(--posicao) * -1.5deg));
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .hero-poster,
-          .hero-poster img,
-          .hero-poster::after {
-            transition: none !important;
-          }
-        }
-      `}</style>
     </section>
   );
 }
