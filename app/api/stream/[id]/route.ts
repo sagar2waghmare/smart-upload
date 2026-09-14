@@ -3,6 +3,7 @@ import { drivePlaybackFetch } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -48,7 +49,10 @@ export async function GET(req: Request, { params }: Params) {
     const v = upstream.headers.get(h);
     if (v) responseHeaders.set(h, v);
   }
-  responseHeaders.set("cache-control", "private, no-store");
+  // Allow the browser to reuse media byte ranges briefly. The URL is still
+  // protected by Firebase auth, and Google Drive remains the source of truth.
+  responseHeaders.set("cache-control", "private, max-age=60, stale-while-revalidate=30");
+  responseHeaders.set("x-content-type-options", "nosniff");
 
   return new Response(upstream.body, {
     status: upstream.status,
