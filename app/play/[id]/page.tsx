@@ -109,7 +109,7 @@ export default function PlayPage() {
           <h1>{item.title}</h1>
           <div className="hero-meta">
             {item.year ?? "—"}
-            {item.rating ? <><b className="dot">•</b><span style={{ display: "inline-flex", alignItems: "center", gap: ".3em" }}><IStar style={{ width: ".95em", height: ".95em", color: "var(--warn)" }} /> {item.rating.toFixed(1)}</span></> : null}
+            {item.rating ? <><b className="dot">•</b><span style={{ display: "inline-flex", alignItems: "center", gap: ".3em" }}><IStar style={{ width: ".95em", height: ".95em", color: "var(--cor-nota)" }} /> {item.rating.toFixed(1)}</span></> : null}
             {item.runtime ? <><b className="dot">•</b><span style={{ display: "inline-flex", alignItems: "center", gap: ".3em" }}><IClock style={{ width: ".95em", height: ".95em" }} /> {Math.floor(item.runtime / 60)}h {item.runtime % 60}m</span></> : null}
           </div>
           {hasEpisodes && episode && (

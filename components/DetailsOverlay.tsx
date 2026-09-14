@@ -4,20 +4,18 @@ import type { Episode, MediaItem } from "../lib/types";
 import { useDetails } from "./DetailsProvider";
 import { FavButton } from "./FavButton";
 import { SmartImage } from "./SmartImage";
-import { IArrowLeft, IChevronRight, IClock, IPlay, IStar } from "./icons";
+import { IArrowLeft, IChevronRight, IPlay } from "./icons";
 import { useTmdbMeta } from "../lib/use-tmdb-metadata";
 import { formatPosition, getProgress, progressPercent, useWatchProgress, watchMode } from "../lib/watch-progress";
 
 const kindLabel = (k?: MediaItem["kind"]) =>
-  k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FEATURED MOVIE";
+  k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FILME";
 
 export function DetailsOverlay() {
   const { item, openPlayer, closeDetails } = useDetails();
   const progressMap = useWatchProgress();
   const tmdb = useTmdbMeta(item);
 
-  // This overlay is keyed by the current item id in DetailsProvider, so this
-  // state re-initialises (fresh) whenever a different title is opened.
   const allEpisodes = useMemo(() => item?.seasons?.flatMap((s) => s.episodes) ?? [], [item]);
   const priorEpisode = useMemo(() => {
     if (!item) return null;
@@ -59,74 +57,80 @@ export function DetailsOverlay() {
       </button>
 
       <div className="details-hero">
-        <SmartImage className="details-hero-bg" src={backdrop} alt="" sizes="100vw" priority />
+        <div className="details-hero-bg">
+          <SmartImage src={backdrop} alt="" sizes="100vw" priority />
+        </div>
         <div className="details-hero-shade" />
+
         <div className="details-copy">
-          <span className="eyebrow">{kindLabel(item.kind)}</span>
-          <h1>{item.title}</h1>
-          <div className="hero-meta">
-            {year ?? "—"}
-            {rating ? (
-              <>
-                <b className="dot">•</b>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: ".3em" }}>
-                  <IStar style={{ width: ".95em", height: ".95em", color: "var(--warn)" }} />
-                  {Number(rating.toFixed(1))}
-                </span>
-              </>
-            ) : null}
-            {runtime ? (
-              <>
-                <b className="dot">•</b>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: ".3em" }}>
-                  <IClock style={{ width: ".95em", height: ".95em" }} />
-                  {Math.floor(runtime / 60)}h {runtime % 60}m
-                </span>
-              </>
-            ) : null}
-            </div>
-
-          {genres.length > 0 && (
-            <div className="details-genres" style={{ marginTop: ".9rem" }}>
-              {genres.slice(0, 4).map((g) => (
-                <span key={g} className="pill pill-neutral">{g}</span>
-              ))}
-            </div>
-          )}
-
-          {playEp && (
-            <span className="pill pill-primary" style={{ marginTop: ".7em" }}>
-              S{String(playEp.season).padStart(2, "0")} · E{String(playEp.episode).padStart(2, "0")} — {playEp.title}
-            </span>
-          )}
-
-          {overview && <p className="details-overview">{overview}</p>}
-
-          <div className="details-actions">
-            <button className="btn btn-primary" onClick={() => openPlayer(playEp ?? undefined)} aria-label={playLabel}>
-              <IPlay /> {playLabel}
-            </button>
-            <FavButton id={item.id} labelStyle="chip" />
+          <div className="details-poster">
+            <SmartImage src={item.poster} alt={`${item.title} poster`} sizes="320px" />
           </div>
 
-          {progress && progressPercent(progress) > 0.5 && (
-            <div className="resume-row">
-              <span className="pill pill-neutral resume-chip">
-                {mode === "replay" ? "Completed" : `Resume at ${formatPosition(progress.position)}`}
-              </span>
-              <div className="progress-bar resume-bar">
-                <span style={{ width: `${Math.min(100, progressPercent(progress))}%` }} />
-              </div>
+          <div className="details-right">
+            <span className="filme-tipo">{kindLabel(item.kind)}</span>
+            <h1>{item.title}</h1>
+
+            <div className="details-stats">
+              {rating ? (
+                <div className="nota-tmdb">
+                  <span>TMDB</span>
+                  <strong>{rating.toFixed(1)}</strong>
+                </div>
+              ) : null}
+              {year ? (
+                <div className="meta-item">
+                  <span>Year</span>
+                  <strong>{year}</strong>
+                </div>
+              ) : null}
+              {runtime ? (
+                <div className="meta-item">
+                  <span>Duration</span>
+                  <strong>{Math.floor(runtime / 60)}h {runtime % 60}m</strong>
+                </div>
+              ) : null}
             </div>
-          )}
-        </div>
-        <div className="details-poster">
-          <SmartImage src={item.poster} alt={`${item.title} poster`} sizes="320px" />
+
+            {genres.length > 0 && (
+              <div className="details-genres">
+                {genres.slice(0, 4).map((g) => (
+                  <span key={g} className="genero">{g}</span>
+                ))}
+              </div>
+            )}
+
+            {overview && <p className="details-overview">{overview}</p>}
+
+            {playEp && (
+              <span className="pill pill-primary" style={{ marginTop: ".7em" }}>
+                S{String(playEp.season).padStart(2, "0")} · E{String(playEp.episode).padStart(2, "0")} — {playEp.title}
+              </span>
+            )}
+
+            <div className="details-actions">
+              <button className="btn btn-primary" onClick={() => openPlayer(playEp ?? undefined)} aria-label={playLabel}>
+                <IPlay /> {playLabel}
+              </button>
+              <FavButton id={item.id} labelStyle="chip" />
+            </div>
+
+            {progress && progressPercent(progress) > 0.5 && (
+              <div className="resume-row">
+                <span className="pill pill-neutral resume-chip">
+                  {mode === "replay" ? "Completed" : `Resume at ${formatPosition(progress.position)}`}
+                </span>
+                <div className="progress-bar resume-bar">
+                  <span style={{ width: `${Math.min(100, progressPercent(progress))}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {allEpisodes.length > 0 && (
-        <section className="details-section" aria-label="Episodes">
+        <section className="details-section" aria-label="Episodes" style={{ maxWidth: 1250, margin: "0 auto", padding: "0 7vw" }}>
           <div className="season-head">
             <h2>Episodes</h2>
             {seasons.length > 1 && (

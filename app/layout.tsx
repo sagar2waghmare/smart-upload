@@ -32,7 +32,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                 <span className="pill pill-neutral mode-pill" title={`Smart Upload is running in ${mode} mode`}>
                   {mode} mode
                 </span>
-                <a href="/upload" style={{ display: "inline-flex", alignItems: "center", gap: ".35em", color: "var(--accent-bright)" }}>
+                <a href="/upload" style={{ display: "inline-flex", alignItems: "center", gap: ".35em", color: "var(--laranja)" }}>
                   <ICloudUpload /> Upload a URL
                 </a>
               </footer>

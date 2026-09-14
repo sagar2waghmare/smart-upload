@@ -1,24 +1,34 @@
+"use client";
 import Link from "next/link";
+import { useRef } from "react";
 import type { MediaItem } from "../lib/types";
 import { MediaCard } from "./MediaCard";
-import { IArrowRight } from "./icons";
 
-export function Rail({ title, items, seeAll, icon, fill }: { title: string; items: MediaItem[]; seeAll?: string; icon?: React.ReactNode; fill?: boolean }) {
+export function Rail({ title, items, seeAll }: { title: string; items: MediaItem[]; seeAll?: string }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   if (!items.length) return null;
+
+  const scroll = (dir: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "left" ? -600 : 600, behavior: "smooth" });
+  };
+
   return (
-    <section className="section rail-edge" aria-label={title}>
-      <div className="section-head">
-        <h2>
-          {icon}
-          {title}
-        </h2>
-        {seeAll && (
-          <Link href={seeAll} className="see-all">
-            See all <IArrowRight />
-          </Link>
+    <section className="secao-conteudos" aria-label={title}>
+      <div className="titulo-secao">
+        <h2>{title}</h2>
+        {seeAll ? (
+          <Link href={seeAll}>Ver tudo</Link>
+        ) : (
+          <div className="controles-carrossel">
+            <button onClick={() => scroll("left")} aria-label="Scroll left">‹</button>
+            <button onClick={() => scroll("right")} aria-label="Scroll right">›</button>
+          </div>
         )}
       </div>
-      <div className={`rail${fill ? " rail--fluid" : ""}`}>
+      <div className="lista-conteudos" ref={scrollRef}>
         {items.map((m) => (
           <MediaCard key={m.id} item={m} />
         ))}

@@ -45,10 +45,10 @@ export function SmartImage({
             inset: 0,
             display: "grid",
             placeItems: "center",
-            background: "var(--surface-2)",
+            background: "var(--fundo-card)",
           }}
         >
-          <IImage width={26} height={26} style={{ color: "var(--muted)", opacity: 0.45 }} />
+          <IImage width={26} height={26} style={{ color: "var(--texto-claro)", opacity: 0.45 }} />
         </div>
       )}
     </div>

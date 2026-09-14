@@ -51,7 +51,7 @@ export default function SettingsPage() {
               <ISettings /> Refresh
             </button>
           </div>
-          {error && <p style={{ color: "var(--danger)", marginTop: ".8rem", fontSize: ".82rem" }}>{error}</p>}
+          {error && <p style={{ color: "#fecdd3", marginTop: ".8rem", fontSize: ".82rem" }}>{error}</p>}
           {snap && (
             <div style={{ marginTop: ".9rem" }}>
               {rows.map((r) => (

@@ -1,23 +1,14 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { NavigationMenu } from "./NavigationMenu";
 import { SearchOverlay } from "./SearchOverlay";
 import { AccountButton } from "./AccountButton";
 import { ICloudUpload, IMenu, ISearch } from "./icons";
 
-const desktopNav = [
-  { href: "/", label: "Home" },
-];
-
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const pathname = usePathname();
-
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <header className="header">
@@ -28,14 +19,6 @@ export function Header() {
         <Link href="/" className="brand-mark" aria-label="Smart Upload home">S</Link>
         <Link href="/" className="brand-name">Smart Upload</Link>
       </div>
-
-      <nav className="header-nav" aria-label="Primary">
-        {desktopNav.map((n) => (
-          <Link key={n.href} href={n.href} className={`navlink ${isActive(n.href) ? "active" : ""}`}>
-            {n.label}
-          </Link>
-        ))}
-      </nav>
 
       <div className="header-actions">
         <button className="icon-btn" aria-label="Search library" aria-expanded={searchOpen} onClick={() => setSearchOpen(true)}>

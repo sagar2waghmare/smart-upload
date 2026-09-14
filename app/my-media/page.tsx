@@ -28,7 +28,7 @@ export default async function MyMediaPage() {
 
       <section className="section" aria-label="Continue watching">
         <div className="section-head">
-          <h2><IPlay style={{ color: "var(--accent-bright)", width: "1.05em", height: "1.05em" }} /> Continue Watching</h2>
+          <h2><IPlay style={{ color: "var(--laranja)", width: "1.05em", height: "1.05em" }} /> Continue Watching</h2>
         </div>
         {continueItems.length ? (
           <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
@@ -42,7 +42,7 @@ export default async function MyMediaPage() {
       {rest.length > 0 && (
         <section className="section" aria-label="Library">
           <div className="section-head">
-            <h2><ILibrary style={{ color: "var(--accent-bright)", width: "1.05em", height: "1.05em" }} /> Library</h2>
+            <h2><ILibrary style={{ color: "var(--laranja)", width: "1.05em", height: "1.05em" }} /> Library</h2>
           </div>
           <div className="card-grid">
             {rest.map((m) => <MediaCard key={m.id} item={m} />)}

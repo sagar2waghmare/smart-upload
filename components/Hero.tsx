@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { MediaItem } from "../lib/types";
 import { FavButton } from "./FavButton";
@@ -16,8 +16,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const { openDetails } = useDetails();
   const count = items.length;
   const [index, setIndex] = useState(0);
-  const [interacting, setInteracting] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const dragRef = useRef({ startX: 0, dragging: false });
 
   const go = useCallback(
     (next: number) => {
@@ -31,12 +31,12 @@ export function Hero({ items }: { items: MediaItem[] }) {
   }, [count]);
 
   useEffect(() => {
-    if (count < 2 || interacting || hidden) return;
+    if (count < 2 || hidden) return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (mq.matches) return;
     const id = window.setInterval(advance, AUTO_DURATION);
     return () => window.clearInterval(id);
-  }, [count, interacting, hidden, advance]);
+  }, [count, hidden, advance]);
 
   useEffect(() => {
     const onVis = () => setHidden(document.hidden);
@@ -44,65 +44,119 @@ export function Hero({ items }: { items: MediaItem[] }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      dragRef.current = { startX: e.clientX, dragging: true };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [],
+  );
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragRef.current.dragging) return;
+      dragRef.current.dragging = false;
+      const dx = e.clientX - dragRef.current.startX;
+      if (Math.abs(dx) > 50) {
+        go(dx < 0 ? index + 1 : index - 1);
+      }
+    },
+    [index, go],
+  );
+
   if (count === 0) return null;
 
   return (
     <section
-      className="hero"
+      className="hero-filmes"
       aria-roledescription="carousel"
       aria-label="Featured titles"
-      onFocusCapture={() => setInteracting(true)}
-      onBlurCapture={() => setInteracting(false)}
     >
-      {items.map((item, i) => {
-        const on = i === index;
-        return (
-          <div key={item.id} className={`hero-layer ${on ? "on" : ""}`} aria-hidden={!on}>
-            <SmartImage
-              className="hero-bg"
-              src={item.backdrop ?? item.poster}
-              alt=""
-              sizes="100vw"
-              priority={on}
-            />
-            <div className="hero-gradient" />
-            <div key={on ? item.id : `${item.id}-off`} className="hero-content">
-              <span className="eyebrow">{kindLabel(item.kind)}</span>
-              <h1>{item.title}</h1>
-              <p className="hero-meta">
-                {item.year ?? "—"} <b className="dot">•</b>
-                {item.runtime ? `${Math.floor(item.runtime / 60)}h ${item.runtime % 60}m` : "Feature"}{" "}
-                <b className="dot">•</b> {(item.genres ?? ["Drama"]).slice(0, 2).join(" · ")}
-                {item.rating ? (
-                  <>
-                    <b className="dot">•</b> {item.rating.toFixed(1)} / 10
-                  </>
-                ) : null}
+      <div
+        className="hero-track"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+      >
+        {items.map((item, i) => {
+          let posicao = i - index;
+          if (posicao > count / 2) posicao -= count;
+          if (posicao < -count / 2) posicao += count;
+          const distancia = Math.abs(posicao);
+          const ativo = posicao === 0;
+
+          return (
+            <div
+              key={item.id}
+              className={`hero-poster ${ativo ? "ativo" : ""}`}
+              style={
+                {
+                  "--posicao": posicao,
+                  "--distancia": distancia,
+                } as React.CSSProperties
+              }
+              aria-hidden={!ativo}
+            >
+              <SmartImage
+                src={item.backdrop ?? item.poster}
+                alt=""
+                sizes="350px"
+                priority={ativo}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hero-info">
+        {(() => {
+          const active = items[index];
+          if (!active) return null;
+          return (
+            <>
+              <span>{kindLabel(active.kind)}</span>
+              <h1>{active.title}</h1>
+              <p className="hero-star">
+                {active.rating ? `${active.rating.toFixed(1)} / 10` : ""}
+                {active.year ? ` · ${active.year}` : ""}
+                {active.runtime
+                  ? ` · ${Math.floor(active.runtime / 60)}h ${active.runtime % 60}m`
+                  : ""}
               </p>
-              {item.overview && <p className="hero-copy">{item.overview}</p>}
               <div className="hero-actions">
-                <Link href={`/play/${item.id}`} className="btn btn-primary">
+                <Link href={`/play/${active.id}`} className="btn btn-primary">
                   <IPlay /> Play
                 </Link>
-                <FavButton id={item.id} labelStyle="chip" />
-                <button className="btn btn-secondary" onClick={() => openDetails(item)} aria-label="View details and episodes">
+                <FavButton id={active.id} labelStyle="chip" />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => openDetails(active)}
+                  aria-label="View details and episodes"
+                >
                   <IInfo /> Details
                 </button>
               </div>
-              <p className="hero-tagline">Media source: {item.mediaUrl ? "stream ready" : "demo preview stream"}</p>
-            </div>
-          </div>
-        );
-      })}
+            </>
+          );
+        })()}
+      </div>
 
       <div className="hero-nav">
-        <button className="hero-nav-btn" onClick={() => go(index - 1)} aria-label="Previous featured title">
+        <button
+          className="hero-nav-btn"
+          onClick={() => go(index - 1)}
+          aria-label="Previous featured title"
+        >
           <IArrowLeft />
         </button>
-        <button className="hero-nav-btn" onClick={() => go(index + 1)} aria-label="Next featured title">
+        <button
+          className="hero-nav-btn"
+          onClick={() => go(index + 1)}
+          aria-label="Next featured title"
+        >
           <IArrowRight />
         </button>
       </div>
+
       <div className="hero-dots">
         {items.map((item, i) => (
           <button

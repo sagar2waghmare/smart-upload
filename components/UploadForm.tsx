@@ -108,6 +108,7 @@ export function UploadForm() {
   const statusTone =
     status === "success" ? "pill-ok" : status === "queued" ? "pill-warn" : status === "failed" || status === "not-configured" ? "pill-danger" : "pill-neutral";
 
+
   return (
     <section className="form-card" aria-label="Upload a URL">
       <div className="eyebrow">PRIVATE LIBRARY</div>
@@ -189,7 +190,7 @@ export function UploadForm() {
             <div className="status-row"><span className="spinner" /> Sending to the upload API…</div>
           ) : (
             <div className="status-row">
-              <span style={{ color: status === "success" ? "var(--ok)" : status === "failed" || status === "not-configured" ? "var(--danger)" : "var(--warn)", width: "1.15em", height: "1.15em", flex: "none" }}>
+              <span style={{ color: status === "success" ? "#86efac" : status === "failed" || status === "not-configured" ? "#fecdd3" : "#fde68a", width: "1.15em", height: "1.15em", flex: "none" }}>
                 {statusIcon()}
               </span>
               <div>
@@ -208,8 +209,8 @@ export function UploadForm() {
         </div>
       )}
 
-      <div style={{ marginTop: "1.8rem", borderTop: "1px dashed var(--border)", paddingTop: "1.2rem" }}>
-        <p style={{ margin: 0, fontSize: ".74rem", fontWeight: 700, letterSpacing: ".08em", color: "var(--muted)" }}>
+      <div style={{ marginTop: "1.8rem", borderTop: "1px dashed rgba(255,255,255,.08)", paddingTop: "1.2rem" }}>
+        <p style={{ margin: 0, fontSize: ".74rem", fontWeight: 700, letterSpacing: ".08em", color: "var(--texto-claro)" }}>
           CLOUDSHELL PIPELINE
         </p>
         <ul className="checklist">

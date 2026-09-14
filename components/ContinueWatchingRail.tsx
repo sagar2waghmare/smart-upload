@@ -1,15 +1,16 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { MediaItem } from "../lib/types";
 import { loadLibrary } from "../lib/client-library";
 import { MediaCard } from "./MediaCard";
-import { IArrowRight, IPlay } from "./icons";
+import { IPlay } from "./icons";
 import { progressPercent, useWatchProgress, type WatchProgress } from "../lib/watch-progress";
 
 export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { title?: string; seeAll?: string }) {
   const progress = useWatchProgress();
   const [items, setItems] = useState<MediaItem[] | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -35,14 +36,17 @@ export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { 
     .sort((a, b) => b.p.updatedAt - a.p.updatedAt)
     .map((x) => x.m);
 
+  const scroll = (dir: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === "left" ? -600 : 600, behavior: "smooth" });
+  };
+
   if (!active.length) {
     return (
-      <section className="section continue-watching-section" aria-label={title}>
-        <div className="section-head">
-          <h2>
-            <IPlay style={{ color: "var(--accent-bright)", width: "1.1em", height: "1.1em" }} />
-            {title}
-          </h2>
+      <section className="secao-conteudos" aria-label={title}>
+        <div className="titulo-secao">
+          <h2><IPlay style={{ width: "1.1em", height: "1.1em" }} /> {title}</h2>
         </div>
         <div className="continue-empty">
           <p className="continue-empty-text">
@@ -50,7 +54,7 @@ export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { 
           </p>
           {seeAll && (
             <Link href={seeAll} className="continue-empty-link">
-              Browse library <IArrowRight />
+              Browse library
             </Link>
           )}
         </div>
@@ -59,19 +63,19 @@ export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { 
   }
 
   return (
-    <section className="section rail-edge" aria-label={title}>
-      <div className="section-head">
-        <h2>
-          <IPlay style={{ color: "var(--accent-bright)", width: "1.1em", height: "1.1em" }} />
-          {title}
-        </h2>
-        {seeAll && (
-          <Link href={seeAll} className="see-all">
-            See all <IArrowRight />
-          </Link>
+    <section className="secao-conteudos" aria-label={title}>
+      <div className="titulo-secao">
+        <h2><IPlay style={{ width: "1.1em", height: "1.1em" }} /> {title}</h2>
+        {seeAll ? (
+          <Link href={seeAll}>Ver tudo</Link>
+        ) : (
+          <div className="controles-carrossel">
+            <button onClick={() => scroll("left")} aria-label="Scroll left">‹</button>
+            <button onClick={() => scroll("right")} aria-label="Scroll right">›</button>
+          </div>
         )}
       </div>
-      <div className="rail">
+      <div className="lista-conteudos" ref={scrollRef}>
         {active.map((m) => (
           <MediaCard key={m.id} item={m} />
         ))}

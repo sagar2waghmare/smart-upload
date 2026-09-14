@@ -5,7 +5,7 @@ import { SmartImage } from "./SmartImage";
 import { useDetails } from "./DetailsProvider";
 import { formatPosition, progressPercent, useWatchProgress, watchMode } from "../lib/watch-progress";
 
-export function MediaCard({ item, landscape = false }: { item: MediaItem; landscape?: boolean }) {
+export function MediaCard({ item }: { item: MediaItem }) {
   const { openDetails } = useDetails();
   const progress = useWatchProgress()[item.id] ?? null;
   const pct = progress ? progressPercent(progress) : 0;
@@ -14,41 +14,28 @@ export function MediaCard({ item, landscape = false }: { item: MediaItem; landsc
 
   const kindLabel =
     item.kind === "series"
-      ? `S${(item.seasons?.[0]?.season ?? 1).toString().padStart(2, "0")}`
+      ? `TV Series`
       : item.kind === "anime"
         ? "Anime"
-        : "Movie";
-  const meta = item.year ? `${item.year} • ${kindLabel}` : kindLabel;
-  const tagStyle = item.tagStyle ? `tag-${item.tagStyle}` : "";
+        : "Filme";
+  const meta = item.year ? `${item.year} · ${kindLabel}` : kindLabel;
 
   const open = () => openDetails(item);
 
   return (
-    <article className={`media-card ${landscape ? "landscape" : ""}`}>
-      <div className="art">
-        <button className="art-open" onClick={open} aria-label={`Open details for ${item.title}`}>
-          <SmartImage src={item.poster} alt={`${item.title} poster`} />
-        </button>
-        <div className="shine" aria-hidden />
-        {(item.tag || item.kind === "anime") && (
-          <div className="card-tags" aria-hidden>
-            {item.tag && <span className={`tag ${tagStyle}`}>{item.tag}</span>}
-            {item.kind === "anime" && <span className="tag">ANIME</span>}
-          </div>
-        )}
-        <div className="card-overlay">
-          <FavButton id={item.id} />
-        </div>
-      </div>
-      <div className="card-info">
-        <button className="card-title" onClick={open} aria-label={item.title}>
-          {item.title}
-        </button>
-        <div className="card-meta">{meta}</div>
+    <article className="card-conteudo">
+      <button className="poster" onClick={open} aria-label={`Open details for ${item.title}`}>
+        <SmartImage src={item.poster} alt={`${item.title} poster`} />
+      </button>
+      <FavButton id={item.id} />
+      <div className="info-conteudo">
+        <h3>{item.title}</h3>
+        <span>{meta}</span>
+        {item.rating && <strong>{item.rating.toFixed(1)} ★</strong>}
         {showBar && progress && (
-          <div className="card-progress">
+          <div className="media-card-progress">
             {mode === "resume" && (
-              <span className="card-progress-label">Resume at {formatPosition(progress.position)}</span>
+              <span className="media-card-progress-label">Resume at {formatPosition(progress.position)}</span>
             )}
             <div className="progress-bar" aria-hidden>
               <span style={{ width: `${Math.min(100, pct)}%` }} />
