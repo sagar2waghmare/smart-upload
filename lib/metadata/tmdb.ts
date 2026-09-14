@@ -64,10 +64,25 @@ function cached<T>(key: string, producer: () => Promise<T>): Promise<T> {
 }
 
 async function tmdb<T>(path: string): Promise<T> {
-  const res = await fetch(`${TMDB_BASE}${path}`, {
-    headers: { accept: "application/json", Authorization: `Bearer ${TMDB_API_KEY}` },
+  if (!TMDB_API_KEY) throw new Error("TMDB API key not configured");
+
+  // TMDB v3 API keys use the api_key query parameter. Some deployments may
+  // provide a v4 Read Access Token instead, so fall back to Bearer auth if
+  // the v3 request is rejected as unauthorized.
+  const separator = path.includes("?") ? "&" : "?";
+  const apiKeyUrl = `${TMDB_BASE}${path}${separator}api_key=${encodeURIComponent(TMDB_API_KEY)}`;
+  let res = await fetch(apiKeyUrl, {
+    headers: { accept: "application/json" },
     cache: "no-store",
   });
+
+  if ((res.status === 401 || res.status === 403) && TMDB_API_KEY) {
+    res = await fetch(`${TMDB_BASE}${path}`, {
+      headers: { accept: "application/json", Authorization: `Bearer ${TMDB_API_KEY}` },
+      cache: "no-store",
+    });
+  }
+
   if (!res.ok) throw new Error(`TMDB responded ${res.status}`);
   return (await res.json()) as T;
 }
