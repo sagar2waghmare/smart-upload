@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDriveThumbnail } from "../../../../../lib/google-drive";
-import { requireSession, unauthorized } from "../../../../../lib/auth";
+import { getDriveThumbnail } from "../../../../lib/google-drive";
+import { requireSession, unauthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
