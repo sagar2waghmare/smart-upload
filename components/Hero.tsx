@@ -26,13 +26,17 @@ export function Hero({ items }: { items: MediaItem[] }) {
     [count],
   );
 
+  const advance = useCallback(() => {
+    setIndex((prev) => (prev + 1) % count);
+  }, [count]);
+
   useEffect(() => {
     if (count < 2 || interacting || hidden) return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (mq.matches) return;
-    const t = setTimeout(() => setIndex((prev) => (prev + 1) % count), AUTO_DURATION);
-    return () => clearTimeout(t);
-  }, [count, index, interacting, hidden]);
+    const id = window.setInterval(advance, AUTO_DURATION);
+    return () => window.clearInterval(id);
+  }, [count, interacting, hidden, advance]);
 
   useEffect(() => {
     const onVis = () => setHidden(document.hidden);
@@ -47,8 +51,6 @@ export function Hero({ items }: { items: MediaItem[] }) {
       className="hero"
       aria-roledescription="carousel"
       aria-label="Featured titles"
-      onPointerEnter={() => setInteracting(true)}
-      onPointerLeave={() => setInteracting(false)}
       onFocusCapture={() => setInteracting(true)}
       onBlurCapture={() => setInteracting(false)}
     >

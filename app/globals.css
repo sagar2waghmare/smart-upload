@@ -294,14 +294,15 @@ main{display:block;padding-bottom:5rem}
    ============================================================ */
 .hero{
   position:relative;overflow:hidden;isolation:isolate;
-  min-height:min(62vh,540px);border-radius:0 0 var(--radius-xl) var(--radius-xl);
+  min-height:min(62vh,540px);margin-bottom:.2em;
+  border-radius:0 0 var(--radius-xl) var(--radius-xl);
   box-shadow:0 30px 80px rgba(0,0,0,.45);
 }
 .hero-bg{position:absolute;inset:0;z-index:-4}
 .hero-bg img{width:100%;height:100%;object-fit:cover;filter:saturate(.85) brightness(.6)}
 .hero-layer{position:absolute;inset:0;isolation:isolate;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(8px);
-  transition:opacity var(--hero-fade),transform var(--hero-fade),visibility 0s linear var(--hero-fade)}
-.hero-layer.on{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:opacity var(--hero-fade),transform var(--hero-fade)}
+  transition:opacity .4s ease-in,transform .4s ease-in,visibility 0s linear .4s}
+.hero-layer.on{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:opacity .5s ease-out,transform .5s ease-out}
 .hero-gradient{position:absolute;inset:0;z-index:-2;
   background:linear-gradient(90deg,rgba(8,12,20,.97) 0%,rgba(8,12,20,.8) 38%,rgba(8,12,20,.25) 72%,rgba(8,12,20,.45) 100%),
              linear-gradient(0deg,var(--bg-0) 0%,transparent 32%);
@@ -315,15 +316,17 @@ main{display:block;padding-bottom:5rem}
 .hero:hover .hero-nav-btn,.hero-nav-btn:focus-visible{opacity:1}
 .hero-nav-btn:hover{background:rgba(10,14,22,.85);transform:scale(1.06);border-color:var(--accent-bright)}
 .hero-dots{position:absolute;right:clamp(1.1rem,4vw,2.2rem);bottom:1.15rem;z-index:2;display:flex;gap:.45rem}
-.hero-dot{width:.55rem;height:.55rem;border-radius:999px;border:0;background:rgba(255,255,255,.35);cursor:pointer;padding:0;transition:background var(--t-fast),width var(--t-fast)}
+.hero-dot{width:.55rem;height:.55rem;border-radius:999px;border:0;background:rgba(255,255,255,.35);cursor:pointer;padding:0;transition:background var(--t-fast),width var(--t-fast),transform var(--t-fast)}
+.hero-dot:hover{transform:scale(1.35)}
 .hero-dot.on{background:#fff;width:1.5rem}
 .eyebrow{font-size:.72rem;letter-spacing:.2em;color:var(--accent-bright);font-weight:700}
 .hero h1{font-size:var(--text-3xl);line-height:.98;margin:.32em 0 .22em;color:#f5f6fa;letter-spacing:-.045em}
 .hero-meta{color:var(--text-2);font-size:var(--text-md);display:flex;flex-wrap:wrap;align-items:center;gap:.5em}
 .hero-meta b{color:var(--muted);font-weight:500}
 .hero-meta .dot{opacity:.5}
-.hero-copy{color:#b6bfd1;line-height:1.55;max-width:560px;font-size:var(--text-md);margin:.85rem 0 0 0}
+.hero-copy{color:#b6bfd1;line-height:1.55;max-width:560px;font-size:var(--text-md);margin:.85rem 0 0 0;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;display:-webkit-box}
 .hero-actions{display:flex;flex-wrap:wrap;gap:.7rem;margin-top:1.4rem}
+.hero-actions .btn:hover{transform:translateY(-1px)}
 .hero-tagline{color:var(--muted);font-size:var(--text-xs)}
 
 /* ============================================================
