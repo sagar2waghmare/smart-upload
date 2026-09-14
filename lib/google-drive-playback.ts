@@ -10,10 +10,13 @@ const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 
 interface ServiceAccount { client_email: string; private_key: string; }
 type CachedAccess = { token: string; expiresAt: number };
-type MediaCheck = { id: string; parents?: string[]; mimeType?: string; trashed?: boolean };
+type MediaCheck = { id: string; parents?: string[]; mimeType?: string; trashed?: boolean; size?: string };
+type CachedMedia = { item: MediaCheck; expiresAt: number };
 
 let cachedAccess: CachedAccess | null = null;
+let tokenPromise: Promise<string> | null = null;
 const mediaChecks = new Map<string, { valid: boolean; expiresAt: number }>();
+const mediaMetadata = new Map<string, CachedMedia>();
 
 function serviceAccount(): ServiceAccount | null {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
@@ -32,32 +35,40 @@ function serviceAccount(): ServiceAccount | null {
 
 async function accessToken(): Promise<string> {
   if (cachedAccess && Date.now() < cachedAccess.expiresAt) return cachedAccess.token;
-  const sa = serviceAccount();
-  if (!sa) throw new Error("Google Drive service account not configured");
-  const now = Math.floor(Date.now() / 1000);
-  const key = await importPKCS8(sa.private_key, "RS256");
-  const assertion = await new SignJWT({ iss: sa.client_email, scope: SCOPE, aud: TOKEN_URL, iat: now, exp: now + 3600 })
-    .setProtectedHeader({ alg: "RS256", typ: "JWT" }).sign(key);
-  const body = new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion });
-  const res = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-  if (!res.ok) { console.error("[google-drive-playback] token exchange failed", res.status); throw new Error("Google Drive authentication failed"); }
-  const data = (await res.json()) as { access_token: string };
-  cachedAccess = { token: data.access_token, expiresAt: Date.now() + 50 * 60 * 1000 };
-  return data.access_token;
+  if (tokenPromise) return tokenPromise;
+  tokenPromise = (async () => {
+    const sa = serviceAccount();
+    if (!sa) throw new Error("Google Drive service account not configured");
+    const now = Math.floor(Date.now() / 1000);
+    const key = await importPKCS8(sa.private_key, "RS256");
+    const assertion = await new SignJWT({ iss: sa.client_email, scope: SCOPE, aud: TOKEN_URL, iat: now, exp: now + 3600 })
+      .setProtectedHeader({ alg: "RS256", typ: "JWT" }).sign(key);
+    const body = new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion });
+    const res = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+    if (!res.ok) { console.error("[google-drive-playback] token exchange failed", res.status); throw new Error("Google Drive authentication failed"); }
+    const data = (await res.json()) as { access_token: string };
+    cachedAccess = { token: data.access_token, expiresAt: Date.now() + 50 * 60 * 1000 };
+    return data.access_token;
+  })();
+  try { return await tokenPromise; } finally { tokenPromise = null; }
 }
 
 async function metadata(fileId: string, token: string): Promise<MediaCheck> {
-  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,parents,mimeType,trashed`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  const cached = mediaMetadata.get(fileId);
+  if (cached && cached.expiresAt > Date.now()) return cached.item;
+  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,parents,mimeType,trashed,size`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "force-cache", next: { revalidate: 300 } });
   if (res.status === 401) { cachedAccess = null; throw new Error("Google Drive authentication expired"); }
   if (!res.ok) throw new Error("Google Drive media not found");
-  return (await res.json()) as MediaCheck;
+  const item = (await res.json()) as MediaCheck;
+  mediaMetadata.set(fileId, { item, expiresAt: Date.now() + 5 * 60 * 1000 });
+  return item;
 }
 
 async function mediaRoot(token: string): Promise<string> {
   const configured = process.env.SMART_UPLOAD_DRIVE_MEDIA_ID?.trim();
   if (configured) return configured;
-  const res = await fetch(`${DRIVE_API_URL}/${DEFAULT_MEDIA_FOLDER_ID}?fields=id,mimeType`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  const res = await fetch(`${DRIVE_API_URL}/${DEFAULT_MEDIA_FOLDER_ID}?fields=id,mimeType`, { headers: { Authorization: `Bearer ${token}` }, cache: "force-cache", next: { revalidate: 3600 } });
   if (res.ok) {
     const data = (await res.json()) as { id: string; mimeType?: string };
     if (data.mimeType === DRIVE_FOLDER_MIME) return data.id;
@@ -73,7 +84,7 @@ async function isInsideMedia(fileId: string, token: string): Promise<boolean> {
   const visited = new Set<string>();
   for (let depth = 0; depth < 12; depth += 1) {
     if (currentId === root) {
-      mediaChecks.set(fileId, { valid: true, expiresAt: Date.now() + 10 * 60 * 1000 });
+      mediaChecks.set(fileId, { valid: true, expiresAt: Date.now() + 30 * 60 * 1000 });
       return true;
     }
     if (visited.has(currentId)) break;
