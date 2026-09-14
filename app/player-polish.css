@@ -26,7 +26,15 @@
 @keyframes heroGlow { to { transform: rotate(360deg); } }
 @keyframes heroAura { 0% { transform: translate3d(-2%,0,0) scale(.96); opacity:.45; } 100% { transform: translate3d(2%,-2%,0) scale(1.05); opacity:.8; } }
 
+/* Keep one primary play control: the bottom transport remains the pause/play control.
+   The center control is reserved for the initial poster and replay state. */
 .player-poster.hidden ~ .player-center { display: none !important; }
+.player-poster.hidden ~ .player-center:has(.big-play[aria-label="Replay"]) { display: flex !important; }
+.player-wrap,
+.player-video,
+.player-controls { contain: layout paint; }
+.player-video { transform: translateZ(0); backface-visibility: hidden; }
+.player-controls { will-change: opacity, transform; }
 
 .pc-pop { width: min(220px, 70vw) !important; max-height: min(360px, 55vh) !important; overflow-y: auto !important; padding: .45rem !important; border-radius: 12px !important; }
 .pc-pop-head { font-size: .62rem !important; line-height: 1.15 !important; letter-spacing: .08em !important; text-transform: uppercase !important; color: rgba(245,245,245,.48) !important; padding: .45rem .55rem .3rem !important; }
