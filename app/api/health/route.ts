@@ -10,13 +10,14 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const lib = await getLibrary();
-  const snapshot: ConfigSnapshot = {
+  const snapshot: ConfigSnapshot & { libraryError?: string } = {
     mode: getAppMode(),
     version: getAppVersion(),
     mediaSource: googleDriveConfigured() ? "google-drive" : "demo",
     uploader: cloudShellConfigured() ? "cloudshell" : "none",
     metadata: tmdbConfigured() ? "tmdb" : "none",
     libraryCount: lib.count,
+    ...(lib.error ? { libraryError: lib.error } : {}),
   };
   return NextResponse.json(snapshot);
 }
