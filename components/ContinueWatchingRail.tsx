@@ -35,7 +35,26 @@ export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { 
     .sort((a, b) => b.p.updatedAt - a.p.updatedAt)
     .map((x) => x.m);
 
-  if (!active.length) return null;
+  if (!active.length) {
+    return (
+      <section className="section rail-edge" aria-label={title}>
+        <div className="section-head">
+          <h2>
+            <IPlay style={{ color: "var(--accent-bright)", width: "1.1em", height: "1.1em" }} />
+            {title}
+          </h2>
+        </div>
+        <div className="cw-empty">
+          <p className="cw-empty-text">Nothing in progress yet. Pick something from your library and unfinished titles will appear here.</p>
+          {seeAll && (
+            <Link href={seeAll} className="btn btn-ghost cw-empty-btn">
+              Browse library <IArrowRight />
+            </Link>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="section rail-edge" aria-label={title}>

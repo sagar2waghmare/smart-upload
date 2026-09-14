@@ -4,6 +4,8 @@ import { LibraryTile } from "../components/LibraryTile";
 import { SignInPrompt } from "../components/SignInPrompt";
 import { LoginScreen } from "../components/LoginScreen";
 import { ContinueWatchingRail } from "../components/ContinueWatchingRail";
+import { LibrarySnapshot } from "../components/LibrarySnapshot";
+import { QuickAccess } from "../components/QuickAccess";
 import { getLibrary } from "../lib/library-service";
 import { featuredMedia, libraries as mockLibraries } from "../lib/mock-data";
 import { isDemoMode } from "../lib/config";
@@ -45,6 +47,8 @@ export default async function Home({
             ))}
           </div>
         </section>
+        <LibrarySnapshot items={items} />
+        <QuickAccess />
         {isDemoMode() && (
           <section className="section" aria-label="Demo mode notice">
             <p className="empty-note">

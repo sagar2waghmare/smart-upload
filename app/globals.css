@@ -753,6 +753,80 @@ input[type=range].slider.volume{max-width:104px}
 .play-loading .spinner{width:48px;height:48px}
 
 /* ============================================================
+   Section entrance animation
+   ============================================================ */
+.section{animation:section-reveal .4s ease both}
+@keyframes section-reveal{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.section{animation:none}}
+
+/* ============================================================
+   Continue Watching empty state
+   ============================================================ */
+.cw-empty{
+  padding:1.8rem 1.4rem;border-radius:var(--radius-xl);
+  border:1px dashed var(--border-strong);background:var(--surface);
+  display:flex;flex-direction:column;align-items:flex-start;gap:.8rem;
+  max-width:540px;
+}
+.cw-empty-text{margin:0;color:var(--text-2);font-size:var(--text-sm);line-height:1.55}
+.cw-empty-btn{font-size:.82rem;padding:.55em 1.1em}
+
+/* ============================================================
+   Library at a glance — premium bento stats
+   ============================================================ */
+.snapshot-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem;
+}
+.snapshot-card{
+  position:relative;overflow:hidden;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);
+  padding:clamp(1.2rem,2.5vw,1.6rem);display:flex;flex-direction:column;gap:.35rem;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  box-shadow:0 10px 26px rgba(0,0,0,.12);
+  transition:transform var(--t-fast),border-color var(--t-med),box-shadow var(--t-med);
+}
+.snapshot-card::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(200px 120px at 20% 10%,rgba(124,115,230,.08),transparent 60%);
+  border-radius:inherit;
+}
+.snapshot-card:hover{transform:translateY(-2px);border-color:var(--border-strong);box-shadow:0 16px 36px rgba(0,0,0,.22)}
+.snapshot-icon{color:var(--accent-bright);margin-bottom:.2rem}
+.snapshot-value{
+  font-size:clamp(1.6rem,3vw,2.2rem);font-weight:800;color:var(--text);
+  letter-spacing:-.03em;line-height:1;
+}
+.snapshot-label{font-size:var(--text-xs);color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+
+/* ============================================================
+   Quick access pills
+   ============================================================ */
+.quick-grid{display:flex;flex-wrap:wrap;gap:.55rem}
+.quick-pill{
+  display:inline-flex;align-items:center;gap:.5em;
+  padding:.65em 1.15em;border-radius:var(--radius-pill);
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--text-2);font-size:var(--text-sm);font-weight:600;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast),transform var(--t-fast);
+}
+.quick-pill:hover{background:var(--accent-soft);border-color:rgba(124,115,230,.35);color:var(--text);transform:translateY(-1px)}
+.quick-pill-icon{color:var(--accent-bright);display:inline-flex}
+.quick-pill-label{white-space:nowrap}
+
+/* ============================================================
+   Scroll edge fade on horizontal rails
+   ============================================================ */
+.rail-edge{position:relative}
+.rail-edge::after{
+  content:"";position:absolute;top:0;bottom:0;right:0;width:3.5rem;
+  background:linear-gradient(90deg,transparent,var(--bg-0));
+  pointer-events:none;z-index:1;opacity:0;transition:opacity var(--t-med);
+  border-radius:0 0 var(--radius-xl) 0;
+}
+.rail-edge:hover::after{opacity:1}
+
+/* ============================================================
    Responsive
    ============================================================ */
 @media(min-width:1024px){
@@ -782,6 +856,9 @@ input[type=range].slider.volume{max-width:104px}
   .search-results{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
   .pc-time{display:none}
   .form-actions .btn{flex:1}
+  .snapshot-grid{grid-template-columns:repeat(2,1fr);gap:.5rem}
+  .quick-grid{flex-direction:column}
+  .quick-pill{width:100%;justify-content:center}
 }
 @media(max-width:400px){
   :root{--pad:.8rem}
