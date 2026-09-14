@@ -1,7 +1,8 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
 import { identifyFilename } from "./identify";
+import { getEpisodeMeta } from "./metadata/tmdb";
 import { tmdbConfigured } from "./metadata/tmdb";
-import type { LibraryResponse, MediaItem } from "./types";
+import type { Episode, LibraryResponse, MediaItem, Season } from "./types";
 
 async function normalizeItem(raw: {
   id: string;
@@ -38,6 +39,8 @@ async function normalizeItem(raw: {
         title: identified.title || fallbackTitle,
         year: identified.year,
         kind: identified.kind,
+        season: identified.season,
+        episode: identified.episode,
         poster: identified.tmdb.poster,
         backdrop: identified.tmdb.backdrop ?? identified.tmdb.poster,
       };
@@ -48,10 +51,101 @@ async function normalizeItem(raw: {
       title: identified.title || fallbackTitle,
       year: identified.year,
       kind: identified.kind,
+      season: identified.season,
+      episode: identified.episode,
     };
   } catch {
     return base;
   }
+}
+
+function groupKey(item: MediaItem): string {
+  const kind = item.kind === "anime" ? "anime" : "series";
+  return `${kind}|${item.title.toLowerCase().replace(/\s+/g, " ").trim()}`;
+}
+
+async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
+  const output: MediaItem[] = [];
+  const groups = new Map<string, MediaItem[]>();
+
+  for (const item of items) {
+    if (item.kind === "movie") {
+      output.push(item);
+      continue;
+    }
+    const key = groupKey(item);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+
+  for (const group of groups.values()) {
+    const first = group[0];
+    if (!first) continue;
+
+    const episodeItems = group.filter((item) => item.season && item.episode);
+    if (!episodeItems.length) {
+      output.push(first);
+      continue;
+    }
+
+    const seasonsMap = new Map<number, Episode[]>();
+    for (const item of episodeItems) {
+      const season = item.season!;
+      const episode = item.episode!;
+      const list = seasonsMap.get(season) ?? [];
+      if (list.some((ep) => ep.episode === episode)) continue;
+      list.push({
+        id: item.id,
+        title: `Episode ${episode}`,
+        season,
+        episode,
+        thumb: item.backdrop ?? item.poster,
+        mediaUrl: `/api/stream/${encodeURIComponent(item.id)}`,
+      });
+      seasonsMap.set(season, list);
+    }
+
+    const seasons: Season[] = [...seasonsMap.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([season, episodes]) => ({
+        season,
+        title: `Season ${season}`,
+        episodes: episodes.sort((a, b) => a.episode - b.episode),
+      }));
+
+    if (tmdbConfigured()) {
+      const tmdbId = await identifyFilename(group[0]?.title ?? "").then((r) => r.tmdb?.id).catch(() => undefined);
+      if (tmdbId) {
+        for (const season of seasons) {
+          try {
+            const meta = await getEpisodeMeta(tmdbId, season.season);
+            if (!meta) continue;
+            for (const ep of season.episodes) {
+              const found = meta.find((m) => m.episode === ep.episode);
+              if (!found) continue;
+              ep.title = found.title;
+              ep.overview = found.overview;
+              ep.runtime = found.runtime;
+              ep.thumb = found.thumb ?? ep.thumb;
+            }
+          } catch {
+            // Keep Drive-backed episode data if TMDB episode metadata is unavailable.
+          }
+        }
+      }
+    }
+
+    output.push({
+      ...first,
+      id: first.id,
+      season: undefined,
+      episode: undefined,
+      seasons,
+    });
+  }
+
+  return output.sort((a, b) => a.title.localeCompare(b.title));
 }
 
 export async function getLibrary(): Promise<LibraryResponse> {
@@ -63,8 +157,9 @@ export async function getLibrary(): Promise<LibraryResponse> {
     const rawItems = await listDriveLibrary();
     const normalized = await Promise.all(rawItems.map(normalizeItem));
     const items = normalized.filter((item): item is MediaItem => item !== null);
-    console.log(`[library] Google Drive returned ${items.length} media items`);
-    return { mode: "google-drive", items, count: items.length };
+    const grouped = await groupSeries(items);
+    console.log(`[library] Google Drive returned ${items.length} files as ${grouped.length} library entries`);
+    return { mode: "google-drive", items: grouped, count: grouped.length };
   } catch (err) {
     console.error("[library] Google Drive fetch failed", err);
     return { mode: "google-drive", items: [], count: 0, error: err instanceof Error ? err.message : "Google Drive library unavailable" };
