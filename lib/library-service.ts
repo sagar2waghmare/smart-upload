@@ -115,6 +115,7 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
         season,
         title: `Season ${season}`,
         episodes: episodes.sort((a, b) => a.episode - b.episode),
+        totalEpisodes: episodes.length,
       }));
 
     if (first.tmdbId) {
@@ -122,6 +123,7 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
         try {
           const meta = await getEpisodeMeta(first.tmdbId, season.season);
           if (!meta) continue;
+          season.totalEpisodes = meta.length;
           for (const ep of season.episodes) {
             const found = meta.find((m) => m.episode === ep.episode);
             if (!found) continue;
@@ -136,13 +138,15 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
       }
     }
 
-    const totalEpisodes = seasons.reduce((sum, season) => sum + season.episodes.length, 0);
+    const availableEpisodes = seasons.reduce((sum, season) => sum + season.episodes.length, 0);
+    const totalEpisodes = seasons.reduce((sum, season) => sum + (season.totalEpisodes ?? season.episodes.length), 0);
     output.push({
       ...first,
       season: undefined,
       episode: undefined,
       seasons,
       tag: `${seasons.length} ${seasons.length === 1 ? "Season" : "Seasons"} · ${totalEpisodes} Episodes`,
+      progress: availableEpisodes > 0 ? first.progress : undefined,
     });
   }
 
