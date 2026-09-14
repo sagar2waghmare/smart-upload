@@ -28,7 +28,7 @@ export default async function Home({
       <div className="page">
         <SignInPrompt prompt={showSignInPrompt} />
         <ContinueWatchingRail seeAll="/my-media" />
-        <Rail title="Recently Added" items={recent.slice(0, 8)} seeAll={heroItems[0].kind === "movie" ? "/browse/movie" : "/browse/series"} fill />
+        <Rail title="Recently Added" items={recent.slice(0, 8)} seeAll={heroItems[0].kind === "movie" ? "/browse/movie" : "/browse/series"} />
         {isDemoMode() && (
           <section className="section" aria-label="Demo mode notice">
             <p className="empty-note">
