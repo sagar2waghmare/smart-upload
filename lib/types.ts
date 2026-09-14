@@ -41,6 +41,7 @@ export interface LibraryResponse {
   mode: "demo" | "google-drive";
   items: MediaItem[];
   count: number;
+  error?: string;
 }
 
 export type UploadStatus =
