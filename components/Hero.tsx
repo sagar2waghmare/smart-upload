@@ -89,6 +89,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
                   "--posicao": posicao,
                   "--distancia": distancia,
                   top: "40%",
+                  width: ativo ? "300px" : "195px",
+                  height: ativo ? "410px" : "292px",
                 } as React.CSSProperties
               }
               aria-hidden={!ativo}
@@ -96,7 +98,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
               <SmartImage
                 src={item.backdrop ?? item.poster}
                 alt=""
-                sizes="320px"
+                sizes="300px"
                 priority={ativo}
               />
               {ativo && active && (
