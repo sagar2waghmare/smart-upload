@@ -4,7 +4,6 @@ import { SignInPrompt } from "../components/SignInPrompt";
 import { LoginScreen } from "../components/LoginScreen";
 import { ContinueWatchingRail } from "../components/ContinueWatchingRail";
 import { getLibrary } from "../lib/library-service";
-import { featuredMedia } from "../lib/mock-data";
 import { isDemoMode } from "../lib/config";
 import { authIntended, requireSession } from "../lib/auth";
 
@@ -18,8 +17,8 @@ export default async function Home({
     return <LoginScreen />;
   }
   const showSignInPrompt = signin === "1";
-  const { items, mode } = await getLibrary();
-  const heroItems = mode === "aws" && items.length > 0 ? items.slice(0, 5) : featuredMedia;
+  const { items } = await getLibrary();
+  const heroItems = items.slice(0, 5);
   const recent = items.slice();
   const movies = items.filter((item) => item.kind === "movie");
   const tvShows = items.filter((item) => item.kind === "series");
@@ -40,7 +39,7 @@ export default async function Home({
         {isDemoMode() && (
           <section className="section home-demo-note" aria-label="Demo mode notice">
             <p className="empty-note">
-              Demo mode: the library below is sample data. Point <code>AWS_LIBRARY_API_URL</code> at your API to load your real media.
+              Demo mode is enabled. Configure the application for real media to populate the library.
             </p>
           </section>
         )}
