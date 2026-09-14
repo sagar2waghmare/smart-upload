@@ -1,18 +1,56 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
+import { identifyFilename } from "./identify";
+import { tmdbConfigured } from "./metadata/tmdb";
 import type { LibraryResponse, MediaItem } from "./types";
 
-function normalizeItem(raw: {
+async function normalizeItem(raw: {
   id: string;
   name: string;
   type: "movie" | "series" | "anime";
   modifiedTime?: string;
-}): MediaItem | null {
+}): Promise<MediaItem | null> {
   const id = raw.id.trim();
-  if (!id || !raw.name.trim()) return null;
-  const title = raw.name.replace(/\.[^.]+$/, "").trim();
-  if (!title) return null;
-  const poster = `/api/thumbnail/${encodeURIComponent(id)}`;
-  return { id, kind: raw.type, title, poster, backdrop: poster, tag: raw.modifiedTime ? "Recently Added" : undefined, source: "google-drive" };
+  const filename = raw.name.trim();
+  if (!id || !filename) return null;
+
+  const fallbackTitle = filename.replace(/\.[^.]+$/, "").trim();
+  if (!fallbackTitle) return null;
+
+  const fallbackPoster = `/api/thumbnail/${encodeURIComponent(id)}`;
+  const base: MediaItem = {
+    id,
+    kind: raw.type,
+    title: fallbackTitle,
+    poster: fallbackPoster,
+    backdrop: fallbackPoster,
+    tag: raw.modifiedTime ? "Recently Added" : undefined,
+    source: "google-drive",
+  };
+
+  if (!tmdbConfigured()) return base;
+
+  try {
+    const identified = await identifyFilename(filename);
+    if (identified.tmdb?.matched && identified.tmdb.poster) {
+      return {
+        ...base,
+        title: identified.title || fallbackTitle,
+        year: identified.year,
+        kind: identified.kind,
+        poster: identified.tmdb.poster,
+        backdrop: identified.tmdb.backdrop ?? identified.tmdb.poster,
+      };
+    }
+
+    return {
+      ...base,
+      title: identified.title || fallbackTitle,
+      year: identified.year,
+      kind: identified.kind,
+    };
+  } catch {
+    return base;
+  }
 }
 
 export async function getLibrary(): Promise<LibraryResponse> {
@@ -22,7 +60,8 @@ export async function getLibrary(): Promise<LibraryResponse> {
   }
   try {
     const rawItems = await listDriveLibrary();
-    const items = rawItems.map(normalizeItem).filter((item): item is MediaItem => item !== null);
+    const normalized = await Promise.all(rawItems.map(normalizeItem));
+    const items = normalized.filter((item): item is MediaItem => item !== null);
     console.log(`[library] Google Drive returned ${items.length} media items`);
     return { mode: "google-drive", items, count: items.length };
   } catch (err) {
