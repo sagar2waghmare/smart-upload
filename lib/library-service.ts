@@ -33,7 +33,7 @@ function normalizeItem(raw: {
 export async function getLibrary(): Promise<LibraryResponse> {
   if (!googleDriveConfigured()) {
     console.error("[library] Google Drive is not configured");
-    return { mode: "aws", items: [], count: 0 };
+    return { mode: "google-drive", items: [], count: 0 };
   }
 
   try {
@@ -41,10 +41,10 @@ export async function getLibrary(): Promise<LibraryResponse> {
     const items = rawItems
       .map(normalizeItem)
       .filter((item): item is MediaItem => item !== null);
-    return { mode: "aws", items, count: items.length };
+    return { mode: "google-drive", items, count: items.length };
   } catch (err) {
     console.error("[library] Google Drive fetch failed", err);
-    return { mode: "aws", items: [], count: 0 };
+    return { mode: "google-drive", items: [], count: 0 };
   }
 }
 
