@@ -35,6 +35,7 @@ export interface MediaItem {
   seasons?: Season[];
   season?: number;
   episode?: number;
+  tmdbId?: number;
   hasSubtitles?: boolean;
   source?: string;
 }
