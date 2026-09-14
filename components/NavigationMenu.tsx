@@ -11,11 +11,10 @@ import {
   IGear,
   IHeart,
   IHome,
-  ILibrary,
-  IMenu,
   ISearch,
   ISparkles,
   ITv,
+  IMenu,
 } from "./icons";
 
 const groups: { label: string; items: { href: string; label: string; icon: typeof IHome; accent?: boolean }[] }[] = [
@@ -23,7 +22,6 @@ const groups: { label: string; items: { href: string; label: string; icon: typeo
     label: "Main",
     items: [
       { href: "/", label: "Home", icon: IHome },
-      { href: "/my-media", label: "My Media", icon: ILibrary },
       { href: "/favorites", label: "Favorites", icon: IHeart },
     ],
   },
