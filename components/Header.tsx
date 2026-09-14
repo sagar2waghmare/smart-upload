@@ -11,9 +11,15 @@ export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
 
   return (
-    <header className="header">
+    <header className="header nav-hover-zone">
       <div className="brand">
-        <button className="icon-btn" aria-label="Open navigation menu" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
+        <button
+          className="icon-btn nav-trigger"
+          aria-label="Open navigation menu"
+          aria-haspopup="dialog"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
           <IMenu />
         </button>
         <Link href="/" className="brand-mark" aria-label="Smart Upload home">S</Link>
@@ -30,7 +36,11 @@ export function Header() {
         <AccountButton />
       </div>
 
-      <NavigationMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <NavigationMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onSearchOpen={() => setSearchOpen(true)}
+      />
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );

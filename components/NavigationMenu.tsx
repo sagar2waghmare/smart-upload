@@ -13,6 +13,7 @@ import {
   IHome,
   ILibrary,
   IMenu,
+  ISearch,
   ISparkles,
   ITv,
 } from "./icons";
@@ -36,7 +37,7 @@ const groups: { label: string; items: { href: string; label: string; icon: typeo
   },
 ];
 
-export function NavigationMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function NavigationMenu({ open, onClose, onSearchOpen }: { open: boolean; onClose: () => void; onSearchOpen: () => void }) {
   const pathname = usePathname();
   const panelRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -44,6 +45,25 @@ export function NavigationMenu({ open, onClose }: { open: boolean; onClose: () =
   const titleId = useId();
   const { configured, loading, user, signIn, signOut } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const isDesktop = useRef(false);
+  const suppressHover = useRef(false);
+  const prevOpen = useRef(open);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 769px)");
+    isDesktop.current = mq.matches;
+    const handler = (e: MediaQueryListEvent) => { isDesktop.current = e.matches; };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  useEffect(() => {
+    if (prevOpen.current && !open) suppressHover.current = true;
+    prevOpen.current = open;
+  }, [open]);
+
+  const isOpen = hovered || open;
 
   useEffect(() => {
     if (open) {
@@ -61,6 +81,7 @@ export function NavigationMenu({ open, onClose }: { open: boolean; onClose: () =
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
+      setHovered(false);
       onClose();
     }
     if (e.key === "Tab" && open && panelRef.current) {
@@ -78,33 +99,40 @@ export function NavigationMenu({ open, onClose }: { open: boolean; onClose: () =
     }
   };
 
+  const handleClose = () => {
+    setHovered(false);
+    onClose();
+  };
+
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <>
       <div
-        className={`menu-backdrop ${open ? "open" : ""}`}
-        onClick={onClose}
+        className={`menu-backdrop ${isOpen ? "open" : ""}`}
+        onClick={handleClose}
         aria-hidden="true"
       />
       <aside
         ref={panelRef}
         id={titleId}
         role="dialog"
-        aria-modal="true"
+        aria-modal={open}
         aria-label="Navigation menu"
-        className={`side-menu ${open ? "open" : ""}`}
+        className={`side-menu ${isOpen ? "open" : ""}`}
         onKeyDown={onKey}
-        aria-hidden={!open}
+        aria-hidden={!isOpen}
+        onMouseEnter={() => { if (isDesktop.current && !suppressHover.current) setHovered(true); }}
+        onMouseLeave={() => { if (isDesktop.current) { setHovered(false); suppressHover.current = false; } }}
       >
         <div className="side-menu-header">
-          <button className="icon-btn" aria-label="Menu" onClick={onClose}>
+          <button className="icon-btn" aria-label="Menu" onClick={handleClose}>
             <IMenu />
           </button>
           <span className="brand-mark">S</span>
           <span className="brand-name">Smart Upload</span>
-          <button ref={closeRef} className="icon-btn side-menu-close" aria-label="Close menu" onClick={onClose}>
+          <button ref={closeRef} className="icon-btn side-menu-close" aria-label="Close menu" onClick={handleClose}>
             <IClose />
           </button>
         </div>
@@ -120,7 +148,7 @@ export function NavigationMenu({ open, onClose }: { open: boolean; onClose: () =
                     key={it.href}
                     href={it.href}
                     className={`menu-item ${isActive(it.href) ? "active" : ""}`}
-                    onClick={onClose}
+                    onClick={handleClose}
                   >
                     <Icon />
                     <span>{it.label}</span>
@@ -130,12 +158,17 @@ export function NavigationMenu({ open, onClose }: { open: boolean; onClose: () =
             </div>
           ))}
           <div className="menu-divider" />
-          <Link href="/upload" className="menu-item menu-item-upload" onClick={onClose}>
+          <button className="menu-item" onClick={() => { onSearchOpen(); handleClose(); }}>
+            <ISearch />
+            <span>Search</span>
+          </button>
+          <div className="menu-divider" />
+          <Link href="/upload" className="menu-item menu-item-upload" onClick={handleClose}>
             <ICloudUpload />
             <span>Upload URL</span>
           </Link>
           <div className="menu-divider" />
-          <Link href="/settings" className="menu-item" onClick={onClose}>
+          <Link href="/settings" className="menu-item" onClick={handleClose}>
             <IGear />
             <span>Settings</span>
           </Link>
@@ -147,13 +180,13 @@ export function NavigationMenu({ open, onClose }: { open: boolean; onClose: () =
               <p className="menu-item" style={{ opacity: ".7", cursor: "default", pointerEvents: "none" }}>
                 {user.email ?? "Signed in"}
               </p>
-              <button className="menu-item" disabled={busy} onClick={async () => { setBusy(true); await signOut(); setBusy(false); onClose(); }}>
+              <button className="menu-item" disabled={busy} onClick={async () => { setBusy(true); await signOut(); setBusy(false); handleClose(); }}>
                 <IGear />
                 <span>{busy ? "Signing out…" : "Sign out"}</span>
               </button>
             </>
           ) : configured ? (
-            <button className="menu-item menu-item-upload" disabled={busy} onClick={async () => { setBusy(true); await signIn(); setBusy(false); onClose(); }}>
+            <button className="menu-item menu-item-upload" disabled={busy} onClick={async () => { setBusy(true); await signIn(); setBusy(false); handleClose(); }}>
               <IGear />
               <span>{busy ? "Signing in…" : "Sign in with Google"}</span>
             </button>

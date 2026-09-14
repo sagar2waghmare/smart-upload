@@ -143,6 +143,27 @@ main { display: block; padding-bottom: 5rem; height: auto; overflow: visible; }
 .brand-name { font-weight: 800; font-size: 1.5rem; letter-spacing: -.01em; white-space: nowrap; color: var(--texto-destaque); }
 .brand-name::first-letter { color: var(--laranja); }
 .header-actions { margin-left: auto; }
+
+/* Desktop: compact floating hamburger, hide header bar */
+@media (min-width: 769px) {
+  .header {
+    height: auto; padding: .6rem .8rem;
+    background: transparent; border: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+    border-bottom: none;
+  }
+  .header-actions { display: none; }
+  .nav-trigger {
+    width: 2.4em; height: 2.4em; border-radius: 10px;
+    background: rgba(16, 14, 18, .88); border: 1px solid rgba(124, 58, 237, .18);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
+    transition: background .2s ease, border-color .2s ease, transform .2s ease;
+  }
+  .nav-trigger:hover {
+    background: rgba(124, 58, 237, .18); border-color: rgba(124, 58, 237, .35);
+    transform: scale(1.06);
+  }
+}
 .icon-btn {
   border: 0; color: var(--texto-claro); background: transparent;
   width: 2.6em; height: 2.6em; border-radius: 50%; display: inline-grid; place-items: center;
@@ -1055,6 +1076,13 @@ main.login-screen::before {
   .details-right h1 { font-size: 3rem; letter-spacing: -1px; }
 }
 @media (max-width: 768px) {
+  .header {
+    height: var(--bar); padding: 0 5%;
+    border-bottom: 1px solid rgba(124, 58, 237, 0.12);
+    background: rgba(16, 14, 18, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .header-actions { display: flex; margin-left: auto; }
   .hero-filmes { height: 58vh; min-height: 420px; max-height: none; margin-top: 24px; }
   .hero-poster { width: 150px; height: 225px; transform: translate(calc(-50% + (var(--posicao) * 170px)), -50%) scale(calc(1 - (var(--distancia) * 0.12))); }
   .hero-poster.ativo { width: 245px; height: 367px; }
