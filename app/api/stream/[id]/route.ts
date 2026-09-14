@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMediaById } from "../../../../lib/library-service";
-import { driveMediaUrl, driveFetch } from "../../../../lib/google-drive";
+import { drivePlaybackFetch } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -21,22 +20,15 @@ export async function GET(req: Request, { params }: Params) {
   if (!user) return unauthorized();
 
   const { id } = await params;
-  const item = await getMediaById(id);
-  if (!item) {
-    return NextResponse.json({ error: "not-found", message: "Media not found" }, { status: 404 });
-  }
-
-  const driveUrl = driveMediaUrl(item.id);
-
   const forwardHeaders: Record<string, string> = {};
   const range = req.headers.get("range");
   if (range) forwardHeaders.Range = range;
 
   let upstream: Response;
   try {
-    upstream = await driveFetch(driveUrl, forwardHeaders);
+    upstream = await drivePlaybackFetch(id, forwardHeaders);
   } catch (err) {
-    console.error("[stream] Drive fetch failed", err);
+    console.error("[stream] Drive playback validation failed", err instanceof Error ? err.message : "unknown error");
     return NextResponse.json(
       { error: "upstream-error", message: "Google Drive playback unavailable" },
       { status: 502 }
@@ -56,6 +48,7 @@ export async function GET(req: Request, { params }: Params) {
     const v = upstream.headers.get(h);
     if (v) responseHeaders.set(h, v);
   }
+  responseHeaders.set("cache-control", "private, no-store");
 
   return new Response(upstream.body, {
     status: upstream.status,
