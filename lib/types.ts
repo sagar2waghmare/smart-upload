@@ -38,7 +38,7 @@ export interface MediaItem {
 }
 
 export interface LibraryResponse {
-  mode: "demo" | "aws";
+  mode: "demo" | "google-drive";
   items: MediaItem[];
   count: number;
 }
@@ -94,7 +94,7 @@ export type AppMode = "demo" | "real";
 
 export interface ConfigSnapshot {
   mode: AppMode;
-  mediaSource: "aws" | "demo";
+  mediaSource: "google-drive" | "demo";
   uploader: "cloudshell" | "demo" | "none";
   metadata: "tmdb" | "none";
   libraryCount: number;
