@@ -40,6 +40,7 @@ export function DetailsOverlay() {
 
   const meta = tmdb.meta;
   const backdrop = meta?.backdrop || item.backdrop || item.poster;
+  const poster = meta?.poster || item.poster;
   const overview = meta?.overview || item.overview || "";
   const genres = (meta?.genres && meta.genres.length ? meta.genres : item.genres) ?? [];
   const rating = meta?.rating ?? item.rating;
@@ -64,12 +65,12 @@ export function DetailsOverlay() {
 
         <div className="details-copy">
           <div className="details-poster">
-            <SmartImage src={item.poster} alt={`${item.title} poster`} sizes="320px" />
+            <SmartImage src={poster} alt={`${item.title} poster`} sizes="320px" />
           </div>
 
           <div className="details-right">
             <span className="filme-tipo">{kindLabel(item.kind)}</span>
-            <h1>{item.title}</h1>
+            <h1>{meta?.title || item.title}</h1>
 
             <div className="details-stats">
               {rating ? (
@@ -94,13 +95,14 @@ export function DetailsOverlay() {
 
             {genres.length > 0 && (
               <div className="details-genres">
-                {genres.slice(0, 4).map((g) => (
-                  <span key={g} className="genero">{g}</span>
-                ))}
+                {genres.slice(0, 4).map((g) => <span key={g} className="genero">{g}</span>)}
               </div>
             )}
 
             {overview && <p className="details-overview">{overview}</p>}
+
+            {tmdb.loading && <span className="tmdb-source">Updating metadata from TMDB…</span>}
+            {tmdb.matched && !tmdb.loading && <span className="tmdb-source">TMDB metadata</span>}
 
             {playEp && (
               <span className="pill pill-primary" style={{ marginTop: ".7em" }}>
@@ -117,12 +119,8 @@ export function DetailsOverlay() {
 
             {progress && progressPercent(progress) > 0.5 && (
               <div className="resume-row">
-                <span className="pill pill-neutral resume-chip">
-                  {mode === "replay" ? "Completed" : `Resume at ${formatPosition(progress.position)}`}
-                </span>
-                <div className="progress-bar resume-bar">
-                  <span style={{ width: `${Math.min(100, progressPercent(progress))}%` }} />
-                </div>
+                <span className="pill pill-neutral resume-chip">{mode === "replay" ? "Completed" : `Resume at ${formatPosition(progress.position)}`}</span>
+                <div className="progress-bar resume-bar"><span style={{ width: `${Math.min(100, progressPercent(progress))}%` }} /></div>
               </div>
             )}
           </div>
@@ -134,19 +132,12 @@ export function DetailsOverlay() {
           <div className="season-head">
             <h2>Episodes</h2>
             {seasons.length > 1 && (
-              <select
-                className="season-select"
-                aria-label="Season"
-                value={seasonIdx}
-                onChange={(e) => {
-                  const i = Number(e.target.value);
-                  setSeasonIdx(i);
-                  setEpisode(seasons[i]?.episodes?.[0] ?? null);
-                }}
-              >
-                {seasons.map((s, i) => (
-                  <option key={s.season} value={i}>{s.title ?? `Season ${s.season}`}</option>
-                ))}
+              <select className="season-select" aria-label="Season" value={seasonIdx} onChange={(e) => {
+                const i = Number(e.target.value);
+                setSeasonIdx(i);
+                setEpisode(seasons[i]?.episodes?.[0] ?? null);
+              }}>
+                {seasons.map((s, i) => <option key={s.season} value={i}>{s.title ?? `Season ${s.season}`}</option>)}
               </select>
             )}
           </div>
@@ -155,29 +146,14 @@ export function DetailsOverlay() {
               const active = episode?.id === ep.id;
               const isResume = mode === "resume" && progress?.episodeId === ep.id;
               return (
-                <button
-                  key={ep.id}
-                  className={`episode-card ${active ? "playing" : ""}`}
-                  onClick={() => {
-                    setEpisode(ep);
-                    openPlayer(ep);
-                  }}
-                  aria-pressed={active}
-                >
+                <button key={ep.id} className={`episode-card ${active ? "playing" : ""}`} onClick={() => { setEpisode(ep); openPlayer(ep); }} aria-pressed={active}>
                   <span className="episode-thumb">
                     <SmartImage src={ep.thumb ?? item.backdrop} alt="" sizes="104px" />
                     <span className="play-mini"><IPlay /></span>
                   </span>
                   <span className="episode-info">
-                    <span className="episode-title">
-                      {ep.title}
-                      {isResume && <span className="episode-resume">Resume</span>}
-                    </span>
-                    <span className="episode-sub">
-                      S{String(ep.season).padStart(2, "0")} · E{String(ep.episode).padStart(2, "0")}
-                      {ep.runtime ? ` · ${ep.runtime}m` : ""}
-                      {isResume && progress ? ` · ${formatPosition(progress.position)}` : ""}
-                    </span>
+                    <span className="episode-title">{ep.title}{isResume && <span className="episode-resume">Resume</span>}</span>
+                    <span className="episode-sub">S{String(ep.season).padStart(2, "0")} · E{String(ep.episode).padStart(2, "0")}{ep.runtime ? ` · ${ep.runtime}m` : ""}{isResume && progress ? ` · ${formatPosition(progress.position)}` : ""}</span>
                     {ep.overview && <span className="episode-overview">{ep.overview}</span>}
                   </span>
                   <IChevronRight className="episode-check" />
