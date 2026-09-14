@@ -1,16 +1,12 @@
 import { Hero } from "../components/Hero";
 import { Rail } from "../components/Rail";
-import { LibraryTile } from "../components/LibraryTile";
 import { SignInPrompt } from "../components/SignInPrompt";
 import { LoginScreen } from "../components/LoginScreen";
 import { ContinueWatchingRail } from "../components/ContinueWatchingRail";
-import { LibrarySnapshot } from "../components/LibrarySnapshot";
-import { QuickAccess } from "../components/QuickAccess";
 import { getLibrary } from "../lib/library-service";
-import { featuredMedia, libraries as mockLibraries } from "../lib/mock-data";
+import { featuredMedia } from "../lib/mock-data";
 import { isDemoMode } from "../lib/config";
 import { authIntended, requireSession } from "../lib/auth";
-import { ILibrary } from "../components/icons";
 
 export default async function Home({
   searchParams,
@@ -33,22 +29,6 @@ export default async function Home({
         <SignInPrompt prompt={showSignInPrompt} />
         <ContinueWatchingRail seeAll="/my-media" />
         <Rail title="Recently Added" items={recent.slice(0, 8)} seeAll={heroItems[0].kind === "movie" ? "/browse/movie" : "/browse/series"} fill />
-        <section className="section">
-          <div className="section-head">
-            <h2>
-              <ILibrary style={{ color: "var(--accent-bright)", width: "1.1em", height: "1.1em" }} />
-              My Media
-            </h2>
-            <span className="see-all">{mode === "aws" ? "synced with AWS library" : "local demo library"}</span>
-          </div>
-          <div className="rail rail--fluid">
-            {mockLibraries.map((x) => (
-              <LibraryTile key={x.title} item={x} />
-            ))}
-          </div>
-        </section>
-        <LibrarySnapshot items={items} />
-        <QuickAccess />
         {isDemoMode() && (
           <section className="section" aria-label="Demo mode notice">
             <p className="empty-note">

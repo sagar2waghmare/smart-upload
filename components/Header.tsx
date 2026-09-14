@@ -9,9 +9,6 @@ import { ICloudUpload, IMenu, ISearch } from "./icons";
 
 const desktopNav = [
   { href: "/", label: "Home" },
-  { href: "/browse/movie", label: "Movies" },
-  { href: "/browse/series", label: "TV Shows" },
-  { href: "/browse/anime", label: "Anime" },
 ];
 
 export function Header() {
