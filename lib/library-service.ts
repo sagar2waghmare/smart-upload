@@ -1,8 +1,6 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
 import type { LibraryResponse, MediaItem } from "./types";
 
-// Kept as a compatibility helper for existing health/settings consumers.
-// The catalog source is now Google Drive; no AWS request is made.
 export function awsConfigured(): boolean {
   return googleDriveConfigured();
 }
@@ -11,7 +9,6 @@ function normalizeItem(raw: {
   id: string;
   name: string;
   type: "movie" | "series" | "anime";
-  thumbnailLink?: string;
   modifiedTime?: string;
 }): MediaItem | null {
   const id = raw.id.trim();
@@ -20,12 +17,14 @@ function normalizeItem(raw: {
   const title = raw.name.replace(/\.[^.]+$/, "").trim();
   if (!title) return null;
 
+  const poster = `/api/thumbnail/${encodeURIComponent(id)}`;
+
   return {
     id,
     kind: raw.type,
     title,
-    poster: raw.thumbnailLink,
-    backdrop: raw.thumbnailLink,
+    poster,
+    backdrop: poster,
     tag: raw.modifiedTime ? "Recently Added" : undefined,
     source: "google-drive",
   };
