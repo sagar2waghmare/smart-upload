@@ -15,6 +15,7 @@ export interface Season {
   season: number;
   title?: string;
   episodes: Episode[];
+  totalEpisodes?: number;
 }
 
 export interface MediaItem {
