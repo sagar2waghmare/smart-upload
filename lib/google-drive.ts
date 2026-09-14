@@ -56,11 +56,7 @@ function parseServiceAccount(): ServiceAccount | null {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
   if (clientEmail && privateKey) {
-    return {
-      project_id: projectId ?? "",
-      client_email: clientEmail,
-      private_key: privateKey,
-    };
+    return { project_id: projectId ?? "", client_email: clientEmail, private_key: privateKey };
   }
   return null;
 }
@@ -119,20 +115,15 @@ export function driveMediaUrl(fileId: string): string {
   return `${DRIVE_API_URL}/${fileId}?alt=media`;
 }
 
-export async function driveFetch(
-  url: string,
-  headers: Record<string, string>
-): Promise<Response> {
+export async function driveFetch(url: string, headers: Record<string, string>): Promise<Response> {
   let token = await getAccessToken();
   let res = await fetch(url, { headers: { ...headers, Authorization: `Bearer ${token}` } });
-
   if (res.status === 401) {
     cachedToken = null;
     tokenExpiresAt = 0;
     token = await getAccessToken();
     res = await fetch(url, { headers: { ...headers, Authorization: `Bearer ${token}` } });
   }
-
   return res;
 }
 
@@ -142,10 +133,8 @@ const VIDEO_EXTENSIONS = new Set([
 
 function mediaTypeFromPath(path: string): DriveLibraryItem["type"] {
   const parts = path.split("/").filter(Boolean).slice(1);
-  const category = (parts[0] ?? "").toLowerCase();
-  if (["series", "serieses", "tv", "shows", "show", "tvshows", "tv-shows"].includes(category)) {
-    return "series";
-  }
+  const category = (parts[0] ?? "").toLowerCase().replace(/[ _-]/g, "");
+  if (["series", "tv", "shows", "tvshows"].includes(category)) return "series";
   if (["anime", "animes"].includes(category)) return "anime";
   return "movie";
 }
@@ -169,7 +158,6 @@ async function driveList(params: URLSearchParams, token: string): Promise<DriveL
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
-
   if (res.status === 401) {
     cachedToken = null;
     tokenExpiresAt = 0;
@@ -179,8 +167,21 @@ async function driveList(params: URLSearchParams, token: string): Promise<DriveL
     console.error("[google-drive] Library listing failed", res.status);
     throw new Error(`Google Drive library unavailable (${res.status})`);
   }
-
   return (await res.json()) as DriveListResponse;
+}
+
+async function driveFileMetadata(fileId: string, token: string): Promise<{ id: string; name?: string; mimeType?: string }> {
+  const res = await fetch(
+    `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,name,mimeType`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+  );
+  if (res.status === 401) {
+    cachedToken = null;
+    tokenExpiresAt = 0;
+    throw new Error("Google Drive authentication expired");
+  }
+  if (!res.ok) throw new Error(`Google Drive media folder unavailable (${res.status})`);
+  return (await res.json()) as { id: string; name?: string; mimeType?: string };
 }
 
 async function findMediaFolderId(token: string): Promise<string> {
@@ -188,30 +189,24 @@ async function findMediaFolderId(token: string): Promise<string> {
   if (configured) return configured;
 
   try {
-    const probe = new URLSearchParams({
-      q: `'${DEFAULT_MEDIA_FOLDER_ID}' in parents and trashed = false`,
-      spaces: "drive",
-      pageSize: "1",
-      fields: "files(id,mimeType)",
-      includeItemsFromAllDrives: "true",
-      supportsAllDrives: "true",
-    });
-    await driveList(probe, token);
-    return DEFAULT_MEDIA_FOLDER_ID;
+    const root = await driveFileMetadata(DEFAULT_MEDIA_FOLDER_ID, token);
+    if (root.mimeType === DRIVE_FOLDER_MIME) return root.id;
   } catch {
-    const search = new URLSearchParams({
-      q: `name = 'MEDIA' and mimeType = '${DRIVE_FOLDER_MIME}' and trashed = false`,
-      spaces: "drive",
-      pageSize: "20",
-      fields: "files(id,name,mimeType,parents)",
-      includeItemsFromAllDrives: "true",
-      supportsAllDrives: "true",
-    });
-    const data = await driveList(search, token);
-    const folder = data.files?.find((file) => file.id && file.mimeType === DRIVE_FOLDER_MIME);
-    if (!folder?.id) throw new Error("Google Drive MEDIA folder not found");
-    return folder.id;
+    // Fall through to folder-name discovery for deployments using a different Drive root.
   }
+
+  const search = new URLSearchParams({
+    q: `name = 'MEDIA' and mimeType = '${DRIVE_FOLDER_MIME}' and trashed = false`,
+    spaces: "drive",
+    pageSize: "50",
+    fields: "files(id,name,mimeType,parents)",
+    includeItemsFromAllDrives: "true",
+    supportsAllDrives: "true",
+  });
+  const data = await driveList(search, token);
+  const folder = data.files?.find((file) => file.id && file.mimeType === DRIVE_FOLDER_MIME);
+  if (!folder?.id) throw new Error("Google Drive MEDIA folder not found");
+  return folder.id;
 }
 
 export async function getDriveThumbnail(fileId: string): Promise<Response> {
@@ -227,10 +222,8 @@ export async function getDriveThumbnail(fileId: string): Promise<Response> {
     return getDriveThumbnail(fileId);
   }
   if (!metadata.ok) return metadata;
-
   const data = (await metadata.json()) as { thumbnailLink?: string };
   if (!data.thumbnailLink) return new Response(null, { status: 404 });
-
   return fetch(data.thumbnailLink, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
@@ -262,13 +255,11 @@ export async function listDriveLibrary(): Promise<DriveLibraryItem[]> {
       if (pageToken) params.set("pageToken", pageToken);
 
       const data = await driveList(params, token);
-
       for (const file of data.files ?? []) {
         const name = file.name?.trim() ?? "";
         if (!name || !file.id) continue;
         const mimeType = file.mimeType ?? "";
         const childPath = `${current.path}/${name}`;
-
         if (mimeType === DRIVE_FOLDER_MIME) {
           stack.push({ id: file.id, path: childPath });
           continue;
@@ -290,7 +281,6 @@ export async function listDriveLibrary(): Promise<DriveLibraryItem[]> {
           thumbnailLink: file.thumbnailLink,
         });
       }
-
       pageToken = data.nextPageToken;
     } while (pageToken);
   }
