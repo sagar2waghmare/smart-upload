@@ -33,6 +33,8 @@ export interface MediaItem {
   progress?: number;
   mediaUrl?: string;
   seasons?: Season[];
+  season?: number;
+  episode?: number;
   hasSubtitles?: boolean;
   source?: string;
 }
