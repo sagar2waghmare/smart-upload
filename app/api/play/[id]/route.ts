@@ -11,6 +11,23 @@ export async function GET(_req: Request, { params }: Params) {
   const { id } = await params;
   const item = await getMediaById(id);
   if (!item) return NextResponse.json({ error: "not-found", message: "Media not found" }, { status: 404 });
+  if (item.mediaUrl) {
+    const resolved = resolvePlaybackUrl(item.mediaUrl);
+    return NextResponse.json({
+      item,
+      demo: resolved.demo,
+      canPlay: resolved.canPlay,
+      defaultUrl: resolved.url,
+    });
+  }
+  if (item.source === "aws") {
+    return NextResponse.json({
+      item,
+      demo: false,
+      canPlay: true,
+      defaultUrl: `/api/stream/${item.id}`,
+    });
+  }
   const resolved = resolvePlaybackUrl(item.mediaUrl);
   return NextResponse.json({
     item,
