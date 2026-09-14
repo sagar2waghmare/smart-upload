@@ -21,16 +21,24 @@ export default async function Home({
   const { items, mode } = await getLibrary();
   const heroItems = mode === "aws" && items.length > 0 ? items.slice(0, 5) : featuredMedia;
   const recent = items.slice();
+  const movies = items.filter((item) => item.kind === "movie");
+  const tvShows = items.filter((item) => item.kind === "series");
+  const anime = items.filter((item) => item.kind === "anime");
 
   return (
-    <main>
+    <main className="home-main">
       <Hero items={heroItems} />
-      <div className="page">
+      <div className="page home-content">
         <SignInPrompt prompt={showSignInPrompt} />
         <ContinueWatchingRail seeAll="/my-media" />
-        <Rail title="Recently Added" items={recent.slice(0, 8)} seeAll={heroItems[0].kind === "movie" ? "/browse/movie" : "/browse/series"} />
+        <Rail title="Movies" items={movies.slice(0, 12)} seeAll="/browse/movie" />
+        <Rail title="TV Shows" items={tvShows.slice(0, 12)} seeAll="/browse/series" />
+        <Rail title="Recently Added" items={recent.slice(0, 12)} />
+        {anime.length > 0 && (
+          <Rail title="Anime" items={anime.slice(0, 12)} seeAll="/browse/anime" />
+        )}
         {isDemoMode() && (
-          <section className="section" aria-label="Demo mode notice">
+          <section className="section home-demo-note" aria-label="Demo mode notice">
             <p className="empty-note">
               Demo mode: the library below is sample data. Point <code>AWS_LIBRARY_API_URL</code> at your API to load your real media.
             </p>
