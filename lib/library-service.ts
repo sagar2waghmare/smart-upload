@@ -9,47 +9,32 @@ function normalizeItem(raw: {
 }): MediaItem | null {
   const id = raw.id.trim();
   if (!id || !raw.name.trim()) return null;
-
   const title = raw.name.replace(/\.[^.]+$/, "").trim();
   if (!title) return null;
-
   const poster = `/api/thumbnail/${encodeURIComponent(id)}`;
-
-  return {
-    id,
-    kind: raw.type,
-    title,
-    poster,
-    backdrop: poster,
-    tag: raw.modifiedTime ? "Recently Added" : undefined,
-    source: "google-drive",
-  };
+  return { id, kind: raw.type, title, poster, backdrop: poster, tag: raw.modifiedTime ? "Recently Added" : undefined, source: "google-drive" };
 }
 
 export async function getLibrary(): Promise<LibraryResponse> {
   if (!googleDriveConfigured()) {
     console.error("[library] Google Drive is not configured");
-    return { mode: "google-drive", items: [], count: 0 };
+    return { mode: "google-drive", items: [], count: 0, error: "Google Drive is not configured" };
   }
-
   try {
     const rawItems = await listDriveLibrary();
-    const items = rawItems
-      .map(normalizeItem)
-      .filter((item): item is MediaItem => item !== null);
+    const items = rawItems.map(normalizeItem).filter((item): item is MediaItem => item !== null);
+    console.log(`[library] Google Drive returned ${items.length} media items`);
     return { mode: "google-drive", items, count: items.length };
   } catch (err) {
     console.error("[library] Google Drive fetch failed", err);
-    return { mode: "google-drive", items: [], count: 0 };
+    return { mode: "google-drive", items: [], count: 0, error: err instanceof Error ? err.message : "Google Drive library unavailable" };
   }
 }
 
 export async function getPublished(): Promise<MediaItem[]> {
-  const lib = await getLibrary();
-  return lib.items;
+  return (await getLibrary()).items;
 }
 
 export async function getMediaById(id: string): Promise<MediaItem | undefined> {
-  const items = await getPublished();
-  return items.find((m) => m.id === id);
+  return (await getPublished()).find((m) => m.id === id);
 }
