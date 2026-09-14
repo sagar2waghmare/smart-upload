@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""AWS-free Smart Upload Google Drive -> HLS processor.
-
-Run in Google Cloud Shell on a machine with ffmpeg and a Google service-account
-JSON file. The source MEDIA folder remains the source of truth. Each processed
-asset is written back into a sibling HLS folder in Drive.
-"""
+"""AWS-free Smart Upload Google Drive -> HLS processor."""
 from __future__ import annotations
 import argparse, json, os, re, subprocess, tempfile
 from pathlib import Path
@@ -71,9 +66,11 @@ def process(src: Path, out: Path):
 
 def upload_tree(drive, parent: str, root: Path):
     folder_ids={"":parent}
-    for d in sorted([p for p in root.rglob("*") if p.is_dir()], key=lambda x: len(x.parts)):
+    dirs=sorted([p for p in root.rglob("*") if p.is_dir()], key=lambda x: len(x.parts))
+    for d in dirs:
         rel=str(d.relative_to(root)).replace(os.sep,"/"); par=str(Path(rel).parent).replace(os.sep,"/")
-        if par==".": par=""; folder_ids[rel]=ensure_folder(drive,folder_ids[par],d.name)
+        if par==".": par=""
+        folder_ids[rel]=ensure_folder(drive,folder_ids[par],d.name)
     for f in root.rglob("*"):
         if not f.is_file(): continue
         rel=str(f.parent.relative_to(root)).replace(os.sep,"/"); rel="" if rel=="." else rel
