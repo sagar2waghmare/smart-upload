@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./abyss-theme.css";
 import { Header } from "../components/Header";
 import { AuthProvider } from "../components/AuthProvider";
 import { DetailsProvider } from "../components/DetailsProvider";
