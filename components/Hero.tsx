@@ -26,13 +26,20 @@ export function Hero({ items }: { items: MediaItem[] }) {
     [count],
   );
 
+  const advance = useCallback(() => {
+    setIndex((prev) => (prev + 1) % count);
+  }, [count]);
+
+  // Autoplay runs on a single interval independent of `index`, so unrelated
+  // re-renders never reset the countdown. It pauses on hover/focus, hidden
+  // tabs, and prefers-reduced-motion; cleaned up on unmount/deps change.
   useEffect(() => {
     if (count < 2 || interacting || hidden) return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (mq.matches) return;
-    const t = setTimeout(() => setIndex((prev) => (prev + 1) % count), AUTO_DURATION);
-    return () => clearTimeout(t);
-  }, [count, index, interacting, hidden]);
+    const id = window.setInterval(advance, AUTO_DURATION);
+    return () => window.clearInterval(id);
+  }, [count, interacting, hidden, advance]);
 
   useEffect(() => {
     const onVis = () => setHidden(document.hidden);

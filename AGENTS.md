@@ -482,6 +482,44 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
   - **Verification:** `npm run lint` clean; `npm run build` clean (only pre-existing middleware→proxy
     deprecation warning). Not committed; `c75dbab` still HEAD, main ahead 1 of origin. Working tree =
     this + the two prior UX entries (§6 notes kept in sync).
+- **Latest session (14 Sep 2026) — FINAL PRE-COMMIT REVIEW + COMMIT-SAFETY CHECK (read-only, NO code
+  changes; verdict PASS / COMMIT SAFE: YES).**
+  - Reviewed ALL 13 files together (7 tracked via `git diff` — AGENTS.md, globals.css, layout, page,
+    Hero, MediaCard, VideoPlayer — plus full reads of the 6 new files: ContinueWatchingRail,
+    DetailsOverlay, DetailsProvider, PlaybackOverlay, use-tmdb-metadata, watch-progress) + supporting
+    `/api/play/[id]`, `/api/metadata`, `client-library`, `playback.ts`, `tmdb.ts`. Verdict: the 3
+    fixes from the prior entry are intact and correct; no new issues found, no code changes needed.
+  - Confirmed-correct: namespaced overlay keys (no stale/remount); resume band 5–95% at
+    `PlaybackOverlay.tsx:99` (Watch Again ≥95% starts at 0); `endedRef` replay reset
+    (`PlaybackOverlay.tsx:83`); `initialTime` seek once via `initialedRef`; 4s progress throttle +
+    pause/seeked/unmount flush; ended clears progress; closing player returns to details; hero/card
+    poster click → details only (no immediate playback); `ContinueWatchingRail` filters 5–95 with
+    `duration>0`, sorted by `updatedAt` desc, null when empty, single cached `/api/library` fetch;
+    `useTmdbMeta` matches `/api/metadata` contract with graceful fallback and no invented IMDb data;
+    `.details-copy`/`.details-hero` used only by overlay (line-433 `.details-hero` reset check safe);
+    z-index hierarchy details 80 < player 90; `scrollbar-gutter:stable` prevents scroll-shift;
+    reduced-motion guards present; hooks all unconditionally before early return in DetailsOverlay.
+  - **Commit-safety gate (same session):** working tree = EXACTLY the 13 expected files, nothing
+    extra; `git diff --check` clean; secret-pattern scans — zero hits in the 6 new files, only
+    env-var NAMES in AGENTS.md prose; `.env.local` untouched; no auth/security/AWS/CloudShell/
+    Google Drive/DNS/dependency (package.json/package-lock) changes; `c75dbab` still HEAD + untouched;
+    nothing staged. lint + build both clean this session.
+  - Result: the entire cinematic details/player/resume work is **ready to commit as one unit**, awaiting
+    owner approval. Not committed.
+- **Latest session (14 Sep 2026) — Hero layout spacing + auto-carousel fix (DONE, lint + build clean).**
+  - `app/globals.css` — `.hero` gains `margin-bottom:.2em` so "Recently Added" begins clearly below
+    the complete hero with no overlap. `.hero-copy` gains `-webkit-line-clamp:4;
+    -webkit-box-orient:vertical; overflow:hidden; display:-webkit-box` for a predictable 4-line
+    desktop clamp (3-line on mobile via existing `@media(max-width:640px)` override). Hero
+    `min-height:min(74vh,600px)` unchanged.
+  - `components/Hero.tsx` — removed `onPointerEnter`/`onPointerLeave` handlers from the carousel
+    `<section>`. Mouse hover no longer pauses the auto-rotation timer. `onFocusCapture`/`onBlurCapture`
+    retained for keyboard accessibility. Autoplay `useEffect` unchanged (interval-based, pauses on
+    `hidden` tab + `prefers-reduced-motion` only).
+  - Scope: globals.css hero block + Hero.tsx carousel props only. No auth/security/API/AWS/CloudShell/
+    player/details/overlay changes. No new files.
+  - Verification: `npm run lint` clean; `npm run build` clean (only pre-existing middleware→proxy
+    deprecation warning). `git diff --check` clean (CRLF warnings only).
 
 ---
 
@@ -602,6 +640,15 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
   UI pieces verified statically (type-checked) and their CSS/JSX structure consistency checked (all
   `.details-*`/`.episode-*`/`.play-*` classes referenced by the overlays exist in `globals.css`;
   every icon name imported by the new components exists in `components/icons.tsx`).
+- **Final pre-commit review (14 Sep 2026):** all 13 overlay/player/resume files reviewed together
+  (differences + full reads), verdict PASS, no code changes. Covered: overlay keys, resume/Watch
+  Again thresholds, playback + progress lifecycle, details behavior, Continue Watching, TMDB
+  contract, responsive/a11y/reduced-motion, security, architecture, CSS/z-index. `npm run lint`
+  clean; `npm run build` clean (only pre-existing `middleware`→`proxy` deprecation warning).
+- **Commit-safety check (14 Sep 2026):** COMMIT SAFE YES — working tree = exactly the 13 expected
+  files (7 modified + 6 new), no unrelated changes, `git diff --check` clean, no secrets, no
+  `.env.local`/auth/security/AWS/CloudShell/DNS/dependency changes, `c75dbab` unchanged, nothing
+  staged. Ready to commit as one unit pending owner approval.
 
 ---
 
