@@ -1,0 +1,106 @@
+/* Cinematic hero motion */
+.hero-filmes::before,
+.hero-filmes::after {
+  content: "";
+  position: absolute;
+  inset: 8% 10% 5%;
+  pointer-events: none;
+  border-radius: 32px;
+  background: radial-gradient(circle at 50% 45%, rgba(124,58,237,.16), transparent 48%);
+  filter: blur(36px);
+  opacity: .7;
+  animation: heroAura 8s ease-in-out infinite alternate;
+}
+.hero-filmes::after {
+  background: radial-gradient(circle at 52% 58%, rgba(255,107,53,.10), transparent 45%);
+  animation-duration: 11s;
+  animation-direction: alternate-reverse;
+}
+.hero-poster.ativo img {
+  animation: heroPosterFloat 6s cubic-bezier(.45,0,.25,1) infinite alternate;
+}
+.hero-poster.ativo::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 18px;
+  background: conic-gradient(from 180deg, transparent, rgba(255,255,255,.14), transparent 35%, rgba(124,58,237,.22), transparent 70%);
+  filter: blur(12px);
+  opacity: .55;
+  z-index: -1;
+  animation: heroGlow 7s linear infinite;
+}
+@keyframes heroPosterFloat {
+  0% { transform: translate3d(0,0,0) scale(1); }
+  45% { transform: translate3d(0,-4px,0) scale(1.012); }
+  100% { transform: translate3d(0,2px,0) scale(1.006); }
+}
+@keyframes heroGlow { to { transform: rotate(360deg); } }
+@keyframes heroAura {
+  0% { transform: translate3d(-2%,0,0) scale(.96); opacity:.45; }
+  100% { transform: translate3d(2%,-2%,0) scale(1.05); opacity:.8; }
+}
+
+/* Player: remove duplicate center play/pause controls once playback has started. */
+.player-poster.hidden ~ .player-center { display: none !important; }
+
+/* Compact popup menus; keep subtitles/quality/speed readable without oversized text. */
+.pc-pop {
+  width: min(220px, 70vw) !important;
+  max-height: min(360px, 55vh) !important;
+  overflow-y: auto !important;
+  padding: .45rem !important;
+  border-radius: 12px !important;
+}
+.pc-pop-head {
+  font-size: .62rem !important;
+  line-height: 1.15 !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+  color: rgba(245,245,245,.48) !important;
+  padding: .45rem .55rem .3rem !important;
+}
+.pc-option {
+  min-height: 31px !important;
+  padding: .38rem .55rem !important;
+  font-size: .72rem !important;
+  line-height: 1.15 !important;
+  border-radius: 7px !important;
+}
+.pc-option .sub.small { font-size: .62rem !important; }
+
+/* Loading state: cinematic breathing ring instead of a static logo/spinner. */
+.play-loading {
+  position: relative;
+  overflow: hidden;
+}
+.play-loading::before {
+  content: "";
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124,58,237,.24), transparent 64%);
+  filter: blur(8px);
+  animation: loadingAura 2s ease-in-out infinite;
+}
+.play-loading .spinner,
+.player-spinner .spinner {
+  width: 46px !important;
+  height: 46px !important;
+  border: 2px solid rgba(255,255,255,.12) !important;
+  border-top-color: rgba(255,255,255,.95) !important;
+  border-right-color: rgba(124,58,237,.85) !important;
+  border-radius: 50% !important;
+  animation: cinematicSpin .85s linear infinite, loadingPulse 1.4s ease-in-out infinite !important;
+  box-shadow: 0 0 34px rgba(124,58,237,.3);
+}
+.play-loading span { position: relative; z-index: 1; margin-top: .75rem; font-size: .72rem; color: rgba(245,245,245,.58); letter-spacing: .08em; text-transform: uppercase; }
+@keyframes cinematicSpin { to { transform: rotate(360deg); } }
+@keyframes loadingPulse { 50% { filter: brightness(1.35); opacity: .72; } }
+@keyframes loadingAura { 50% { transform: scale(1.18); opacity: .65; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-filmes::before, .hero-filmes::after, .hero-poster.ativo img, .hero-poster.ativo::before,
+  .play-loading::before, .play-loading .spinner, .player-spinner .spinner { animation: none !important; }
+}
