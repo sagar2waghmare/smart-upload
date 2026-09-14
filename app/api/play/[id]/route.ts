@@ -20,7 +20,7 @@ export async function GET(_req: Request, { params }: Params) {
       defaultUrl: resolved.url,
     });
   }
-  if (item.source === "aws") {
+  if (item.source === "google-drive") {
     return NextResponse.json({
       item,
       demo: false,
