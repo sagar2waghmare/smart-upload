@@ -7,13 +7,11 @@
 .card-conteudo .info-conteudo { padding-top: 7px !important; }
 .card-conteudo .info-conteudo h3 { font-size: .8rem !important; }
 
-/* Remove the unused horizontal header strip/background on desktop. */
 @media (min-width: 769px) {
   .header { background: transparent !important; border-bottom: 0 !important; box-shadow: none !important; }
-  .header::before, .header::after { display: none !important; }
+  .header::before, .header::after { display:none !important; }
 }
 
-/* Clean page rhythm and remove dead space beneath content. */
 .page { padding-top: .75rem !important; padding-bottom: .15rem !important; }
 main { padding-bottom: .25rem !important; }
 .page .secao-conteudos { padding-block: .8rem .45rem !important; }
@@ -27,19 +25,21 @@ main { padding-bottom: .25rem !important; }
 .page .card-grid .card-conteudo { width: 100% !important; max-width: 164px; }
 .page .library-grid { gap: .7rem !important; }
 
-/* Hero: slightly larger focal poster while preserving the current composition. */
+/* Hero: smooth cinematic movement with a restrained color wash behind the artwork. */
 .hero-filmes { height: clamp(420px, 46vw, 545px) !important; min-height: 420px !important; margin: 0 auto !important; }
 .hero-track { max-width: 1240px; margin: 0 auto; }
-.hero-poster { width: 136px !important; height: 190px !important; top: 47% !important; transform: translate(calc(-50% + (var(--posicao) * 178px)), -50%) scale(calc(1 - (var(--distancia) * .07))) rotateY(calc(var(--posicao) * -6deg)) !important; transition: transform 520ms cubic-bezier(.16,1,.3,1), opacity 360ms ease, filter 360ms ease !important; }
+.hero-ambient { transition: background-color 1.15s cubic-bezier(.16,1,.3,1), filter 1.15s ease, opacity 1.15s ease !important; background-clip: padding-box; }
+.hero-ambient img { transition: opacity .9s ease, transform 1.2s cubic-bezier(.16,1,.3,1), filter 1.15s ease !important; }
+.hero-poster { width: 136px !important; height: 190px !important; top: 47% !important; transform: translate(calc(-50% + (var(--posicao) * 178px)), -50%) scale(calc(1 - (var(--distancia) * .07))) rotateY(calc(var(--posicao) * -6deg)) !important; transition: transform 680ms cubic-bezier(.16,1,.3,1), opacity 520ms ease, filter 520ms ease !important; will-change: transform, opacity; }
 .hero-poster.ativo { width: 255px !important; height: 355px !important; transform: translate(calc(-50% + 250px), -50%) !important; }
 .hero-poster.ativo::after { bottom: -25px !important; }
-.hero-poster, .hero-poster:hover, .hero-poster:focus { appearance: none !important; -webkit-appearance: none !important; border: 0 !important; padding: 0 !important; margin: 0 !important; background: transparent !important; color: inherit !important; }
-.hero-poster-sheen, .hero-poster img { border-radius: 12px !important; }
-.hero-poster img { transition: transform 420ms cubic-bezier(.16,1,.3,1), box-shadow 420ms ease !important; }
-.hero-poster:hover img { transform: scale(1.018) translateY(-3px) !important; }
-.hero-poster.ativo .hero-info { display: none !important; }
+.hero-poster, .hero-poster:hover, .hero-poster:focus { appearance:none !important; -webkit-appearance:none !important; border:0 !important; padding:0 !important; margin:0 !important; background:transparent !important; color:inherit !important; }
+.hero-poster-sheen, .hero-poster img { border-radius:12px !important; }
+.hero-poster img { transition: transform 620ms cubic-bezier(.16,1,.3,1), box-shadow 620ms ease !important; }
+.hero-poster:hover img { transform:scale(1.018) translateY(-3px) !important; }
+.hero-poster.ativo .hero-info { display:none !important; }
 
-.hero-editorial { position:absolute; left:clamp(1.5rem,6vw,6rem); top:50%; z-index:35; width:min(390px,31vw); transform:translateY(-50%); text-align:left; pointer-events:none; animation:heroEditorialIn .45s var(--abyss-ease) both; }
+.hero-editorial { position:absolute; left:clamp(1.5rem,6vw,6rem); top:50%; z-index:35; width:min(390px,31vw); transform:translateY(-50%); text-align:left; pointer-events:none; animation:heroEditorialIn .55s var(--abyss-ease) both; }
 .hero-editorial > * { pointer-events:auto; }
 .hero-editorial-kicker { display:inline-flex; align-items:center; gap:.45rem; margin-bottom:.65rem; color:rgba(245,245,245,.62); font-size:.68rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; }
 .hero-editorial-kicker::before { content:""; width:22px; height:1px; background:rgba(245,245,245,.55); }
@@ -49,16 +49,15 @@ main { padding-bottom: .25rem !important; }
 .hero-editorial-actions { display:flex; align-items:center; gap:.55rem; margin-top:1.15rem; }
 .hero-editorial-actions .btn { min-height:40px !important; }
 .hero-editorial-actions .btn-secondary { background:rgba(255,255,255,.08) !important; }
-@keyframes heroEditorialIn { from { opacity:0; transform:translateY(calc(-50% + 8px)); } to { opacity:1; transform:translateY(-50%); } }
+@keyframes heroEditorialIn { from { opacity:0; transform:translateY(calc(-50% + 10px)); filter:blur(2px); } to { opacity:1; transform:translateY(-50%); filter:blur(0); } }
 
-/* TV details: clean episode section with consistent landscape thumbnails and cards. */
 .details-hero { min-height:min(690px,72vh) !important; }
 .details-copy { padding:4rem 6vw 2rem !important; }
 .details-poster { width:min(280px,24vw) !important; max-height:390px !important; }
 .details-poster img { object-fit:cover !important; }
 .details-right { max-width:680px !important; }
 .details-overview { max-width:62ch !important; line-height:1.6 !important; }
-.details-section { width:min(1250px, 100%) !important; max-width:1250px !important; margin:0 auto !important; padding:1.25rem 7vw 2rem !important; }
+.details-section { width:min(1250px,100%) !important; max-width:1250px !important; margin:0 auto !important; padding:1.25rem 7vw 2rem !important; }
 .details-section .season-head { display:flex !important; align-items:center !important; justify-content:space-between !important; gap:1rem !important; margin:0 0 .9rem !important; }
 .details-section .season-head h2 { margin:0 !important; font-size:1.35rem !important; color:#f5f5f7 !important; }
 .episode-grid { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:.7rem !important; align-items:stretch !important; }
@@ -77,7 +76,6 @@ main { padding-bottom: .25rem !important; }
 .episode-check { width:16px !important; height:16px !important; color:rgba(245,245,245,.35) !important; flex:none !important; }
 .season-select { min-height:36px !important; padding:.45rem 2rem .45rem .7rem !important; border-radius:9px !important; }
 .details-section + * { margin-top:0 !important; }
-
 .details-actions { margin-top:.8rem !important; }
 .resume-row { margin-top:.65rem !important; }
 .tmdb-source { display:inline-flex; align-items:center; width:max-content; margin-top:.7rem; padding:.28rem .55rem; border:1px solid rgba(255,255,255,.09); border-radius:999px; background:rgba(255,255,255,.045); color:rgba(245,245,245,.52); font-size:.64rem; letter-spacing:.04em; }
@@ -130,4 +128,4 @@ main { padding-bottom: .25rem !important; }
   .episode-check { width:13px !important; height:13px !important; }
 }
 
-@media (prefers-reduced-motion: reduce) { .hero-editorial, .hero-poster, .hero-poster img, .episode-card { animation:none !important; transition:none !important; } }
+@media (prefers-reduced-motion: reduce) { .hero-editorial, .hero-ambient, .hero-ambient img, .hero-poster, .hero-poster img, .episode-card { animation:none !important; transition:none !important; } }
