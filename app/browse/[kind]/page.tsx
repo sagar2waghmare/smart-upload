@@ -26,6 +26,7 @@ export default async function BrowsePage({ params }: { params: Promise<{ kind: s
   if (authIntended() && !(await requireSession())) redirect("/?signin=1");
   const { items, mode } = await getLibrary();
   const list = items.filter((m) => m.kind === kind);
+  const sourceLabel = mode === "google-drive" ? "synced from Google Drive" : "in demo library";
 
   return (
     <main className="page">
@@ -38,7 +39,7 @@ export default async function BrowsePage({ params }: { params: Promise<{ kind: s
             {meta.icon} {meta.title}
           </h1>
           <p className="sub">
-            {meta.help} · {list.length} {mode === "aws" ? "synced from AWS" : "in demo library"}
+            {meta.help} · {list.length} {sourceLabel}
           </p>
         </div>
       </div>
@@ -46,7 +47,7 @@ export default async function BrowsePage({ params }: { params: Promise<{ kind: s
         <div className="state-box" style={{ marginTop: "1.5rem" }}>
           <IPlay style={{ width: "2.8rem", height: "2.8rem", opacity: 0.55 }} />
           <h3>Nothing here yet</h3>
-          <p>No {meta.title.toLowerCase()} found{mode === "aws" ? " in the connected AWS library" : " in the demo library"}.</p>
+          <p>No {meta.title.toLowerCase()} found{mode === "google-drive" ? " in the connected Google Drive library" : " in the demo library"}.</p>
           <Link href="/upload" className="btn btn-primary">
             Upload URL
           </Link>
