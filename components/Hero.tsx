@@ -6,10 +6,8 @@ import { SmartImage } from "./SmartImage";
 import { useDetails } from "./DetailsProvider";
 import { IArrowLeft, IArrowRight, IInfo, IPlay } from "./icons";
 
-const AUTO_DURATION = 8500;
-
-const kindLabel = (k?: MediaItem["kind"]) =>
-  k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FEATURED MOVIE";
+const AUTO_DURATION = 7000;
+const kindLabel = (k?: MediaItem["kind"]) => k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FEATURED MOVIE";
 
 export function Hero({ items }: { items: MediaItem[] }) {
   const { openDetails } = useDetails();
@@ -22,13 +20,10 @@ export function Hero({ items }: { items: MediaItem[] }) {
     if (!count) return;
     setIndex(((next % count) + count) % count);
   }, [count]);
-
   const advance = useCallback(() => setIndex((prev) => (prev + 1) % count), [count]);
 
   useEffect(() => {
-    if (count < 2 || hidden) return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (mq.matches) return;
+    if (count < 2 || hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = window.setInterval(advance, AUTO_DURATION);
     return () => window.clearInterval(id);
   }, [count, hidden, advance]);
@@ -43,7 +38,6 @@ export function Hero({ items }: { items: MediaItem[] }) {
     if ((e.target as HTMLElement).closest("button")) return;
     dragRef.current = { startX: e.clientX, dragging: true };
   }, []);
-
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.dragging) return;
     dragRef.current.dragging = false;
@@ -56,9 +50,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
 
   return (
     <section className="hero-filmes" aria-roledescription="carousel" aria-label="Featured titles">
-      <div className="hero-ambient" aria-hidden="true">
-        <SmartImage src={active.backdrop ?? active.poster} alt="" sizes="100vw" priority />
-      </div>
+      <div className="hero-ambient" aria-hidden="true"><SmartImage src={active.backdrop ?? active.poster} alt="" sizes="100vw" priority /></div>
       <div className="hero-vignette" aria-hidden="true" />
 
       <div className="hero-editorial" key={active.id}>
@@ -71,13 +63,9 @@ export function Hero({ items }: { items: MediaItem[] }) {
         </div>
         {active.overview ? <p className="hero-editorial-overview">{active.overview}</p> : null}
         <div className="hero-editorial-actions">
-          <button type="button" className="btn btn-primary" onClick={() => openDetails(active)}>
-            <IPlay /> Play
-          </button>
+          <button type="button" className="btn btn-primary" onClick={() => openDetails(active)}><IPlay /> Play</button>
           <FavButton id={active.id} labelStyle="chip" />
-          <button type="button" className="btn btn-secondary" onClick={() => openDetails(active)}>
-            <IInfo /> Details
-          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => openDetails(active)}><IInfo /> Details</button>
         </div>
       </div>
 
@@ -89,15 +77,19 @@ export function Hero({ items }: { items: MediaItem[] }) {
           const distancia = Math.abs(posicao);
           const ativo = posicao === 0;
           return (
-            <article
+            <button
               key={item.id}
+              type="button"
               className={`hero-poster ${ativo ? "ativo" : ""}`}
               style={{ "--posicao": posicao, "--distancia": distancia } as React.CSSProperties}
+              aria-label={`Open ${item.title} details`}
               aria-hidden={!ativo}
+              tabIndex={ativo ? 0 : -1}
+              onClick={() => openDetails(item)}
             >
               <SmartImage src={item.poster} alt={`${item.title} poster`} sizes="(max-width: 600px) 180px, 235px" priority={ativo} />
-              <div className="hero-poster-sheen" aria-hidden="true" />
-            </article>
+              <span className="hero-poster-sheen" aria-hidden="true" />
+            </button>
           );
         })}
       </div>
@@ -106,11 +98,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
         <button className="hero-nav-btn" onClick={() => go(index - 1)} aria-label="Previous featured title"><IArrowLeft /></button>
         <button className="hero-nav-btn" onClick={() => go(index + 1)} aria-label="Next featured title"><IArrowRight /></button>
       </div>
-
       <div className="hero-dots" role="tablist" aria-label="Featured titles">
-        {items.map((item, i) => (
-          <button key={item.id} className={`hero-dot ${i === index ? "on" : ""}`} onClick={() => go(i)} aria-label={`Show ${item.title}`} aria-selected={i === index} role="tab" />
-        ))}
+        {items.map((item, i) => <button key={item.id} className={`hero-dot ${i === index ? "on" : ""}`} onClick={() => go(i)} aria-label={`Show ${item.title}`} aria-selected={i === index} role="tab" />)}
       </div>
     </section>
   );
