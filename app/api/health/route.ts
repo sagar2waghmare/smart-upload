@@ -12,7 +12,7 @@ export async function GET() {
   const snapshot: ConfigSnapshot = {
     mode: getAppMode(),
     version: getAppVersion(),
-    mediaSource: awsConfigured() ? "aws" : "demo",
+    mediaSource: awsConfigured() ? "google-drive" : "demo",
     uploader: cloudShellConfigured() ? "cloudshell" : "none",
     metadata: tmdbConfigured() ? "tmdb" : "none",
     libraryCount: lib.count,
