@@ -459,11 +459,17 @@ main { display: block; padding-bottom: 5rem; height: auto; overflow: visible; }
    Content rails — CineLog App.css
    ============================================================ */
 .secao-conteudos {
-  opacity: 0;
-  transform: translateY(60px);
-  animation: aparecerSecao linear forwards;
-  animation-timeline: view();
-  animation-range: entry 10% cover 35%;
+  opacity: 1;
+  transform: none;
+}
+@supports (animation-timeline: view()) {
+  .secao-conteudos {
+    opacity: 0;
+    transform: translateY(60px);
+    animation: aparecerSecao linear forwards;
+    animation-timeline: view();
+    animation-range: entry 10% cover 35%;
+  }
 }
 @keyframes aparecerSecao {
   from { opacity: 0; transform: translateY(60px); }
@@ -531,6 +537,7 @@ main { display: block; padding-bottom: 5rem; height: auto; overflow: visible; }
   background: #151515;
   border-radius: 12px;
   overflow: hidden;
+  position: relative;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 .card-conteudo:hover { transform: translateY(-8px); }
@@ -881,7 +888,7 @@ input[type=range].slider.volume { max-width: 104px; }
 .page-head h1 { margin: 0; font-size: var(--text-2xl); letter-spacing: -.03em; color: var(--texto-destaque); }
 .page-head .sub { color: var(--texto-claro); font-size: var(--text-sm); margin-top: .35rem; }
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 1.6em 1em; }
-.card-grid .card-conteudo { width: 100%; }
+.card-grid .card-conteudo { width: 100%; min-width: 0; }
 .card-grid .info-conteudo h3 { white-space: normal; overflow: visible; line-height: 1.3; }
 .back-link { display: inline-flex; align-items: center; gap: .4em; color: var(--texto-claro); font-size: .8rem; margin: 1.4rem 0 0; cursor: pointer; padding: .5em; border-radius: var(--radius-md); }
 .back-link:hover { color: var(--texto-destaque); }

@@ -26,8 +26,8 @@ export default async function MyMediaPage() {
         </div>
       </div>
 
-      <section className="section" aria-label="Continue watching">
-        <div className="section-head">
+      <section className="secao-conteudos" aria-label="Continue watching">
+        <div className="titulo-secao">
           <h2><IPlay style={{ color: "var(--laranja)", width: "1.05em", height: "1.05em" }} /> Continue Watching</h2>
         </div>
         {continueItems.length ? (
@@ -40,8 +40,8 @@ export default async function MyMediaPage() {
       </section>
 
       {rest.length > 0 && (
-        <section className="section" aria-label="Library">
-          <div className="section-head">
+        <section className="secao-conteudos" aria-label="Library">
+          <div className="titulo-secao">
             <h2><ILibrary style={{ color: "var(--laranja)", width: "1.05em", height: "1.05em" }} /> Library</h2>
           </div>
           <div className="card-grid">
@@ -50,8 +50,8 @@ export default async function MyMediaPage() {
         </section>
       )}
 
-      <section className="section" aria-label="Library categories">
-        <div className="section-head">
+      <section className="secao-conteudos" aria-label="Library categories">
+        <div className="titulo-secao">
           <h2>Collections</h2>
         </div>
         <div className="library-grid">

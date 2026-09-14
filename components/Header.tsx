@@ -17,7 +17,6 @@ export function Header() {
           <IMenu />
         </button>
         <Link href="/" className="brand-mark" aria-label="Smart Upload home">S</Link>
-        <Link href="/" className="brand-name">Smart Upload</Link>
       </div>
 
       <div className="header-actions">
