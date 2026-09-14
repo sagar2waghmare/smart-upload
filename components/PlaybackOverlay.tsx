@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MediaItem } from "../lib/types";
 import { useDetails } from "./DetailsProvider";
 import { VideoPlayer } from "./VideoPlayer";
+import { AudioLanguageControl } from "./AudioLanguageControl";
 import { IAlert, IArrowLeft } from "./icons";
 import { clearProgress, getProgress, progressPercent, saveProgress } from "../lib/watch-progress";
 
@@ -23,8 +24,6 @@ export function PlaybackOverlay() {
 
   const id = item?.id ?? null;
 
-  // Reset per play-request (title, open/close, episode switch) during render —
-  // the documented pattern for deriving fresh state from changing context.
   const epoch = playerOpen ? `${id}:${episode?.id ?? "movie"}` : null;
   const [lastEpoch, setLastEpoch] = useState(epoch);
   if (epoch !== lastEpoch) {
@@ -75,8 +74,6 @@ export function PlaybackOverlay() {
   const handleProgress = useCallback(
     (p: { position: number; duration: number }) => {
       if (!id) return;
-      // A late flush after "ended" (position at/near duration) must not re-save
-      // a completed watch, but a fresh play after Replay should resume tracking.
       if (endedRef.current) {
         const nearEnd = p.duration > 0 && p.position >= p.duration * 0.95;
         if (nearEnd) return;
@@ -119,21 +116,24 @@ export function PlaybackOverlay() {
             <button className="btn btn-secondary" onClick={closePlayer}>Back to details</button>
           </div>
         ) : ready && src ? (
-          <VideoPlayer
-            key={src}
-            src={src}
-            poster={item.poster}
-            backdrop={item.backdrop}
-            title={item.title}
-            episodeTitle={episode?.title}
-            demo={demo}
-            item={item}
-            episode={episode}
-            onEpisode={hasEpisodes ? (ep) => openPlayer(ep) : undefined}
-            initialTime={resume || undefined}
-            onProgress={handleProgress}
-            onEnded={handleEnded}
-          />
+          <>
+            <VideoPlayer
+              key={src}
+              src={src}
+              poster={item.poster}
+              backdrop={item.backdrop}
+              title={item.title}
+              episodeTitle={episode?.title}
+              demo={demo}
+              item={item}
+              episode={episode}
+              onEpisode={hasEpisodes ? (ep) => openPlayer(ep) : undefined}
+              initialTime={resume || undefined}
+              onProgress={handleProgress}
+              onEnded={handleEnded}
+            />
+            <AudioLanguageControl />
+          </>
         ) : (
           <div className="play-loading" role="status">
             <div className="spinner" />
