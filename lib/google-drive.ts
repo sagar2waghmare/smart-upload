@@ -6,6 +6,7 @@ const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files";
 const DEFAULT_MEDIA_FOLDER_ID = "1TEIGqujqwuNnzl_WfdHOYRWU_-4bWRp_";
+const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
 
 interface ServiceAccount {
   project_id: string;
@@ -140,19 +141,108 @@ const VIDEO_EXTENSIONS = new Set([
 ]);
 
 function mediaTypeFromPath(path: string): DriveLibraryItem["type"] {
-  const parts = path.split("/").filter(Boolean);
-  const category = (parts[1] ?? parts[0] ?? "").toLowerCase();
-  if (category === "series" || category === "tv" || category === "shows") return "series";
-  if (category === "anime") return "anime";
+  const parts = path.split("/").filter(Boolean).slice(1);
+  const category = (parts[0] ?? "").toLowerCase();
+  if (["series", "serieses", "tv", "shows", "show", "tvshows", "tv-shows"].includes(category)) {
+    return "series";
+  }
+  if (["anime", "animes"].includes(category)) return "anime";
   return "movie";
 }
 
+interface DriveFile {
+  id: string;
+  name?: string;
+  mimeType?: string;
+  size?: string;
+  modifiedTime?: string;
+  thumbnailLink?: string;
+}
+
+interface DriveListResponse {
+  nextPageToken?: string;
+  files?: DriveFile[];
+}
+
+async function driveList(params: URLSearchParams, token: string): Promise<DriveListResponse> {
+  const res = await fetch(`${DRIVE_API_URL}?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  if (res.status === 401) {
+    cachedToken = null;
+    tokenExpiresAt = 0;
+    throw new Error("Google Drive authentication expired");
+  }
+  if (!res.ok) {
+    console.error("[google-drive] Library listing failed", res.status);
+    throw new Error(`Google Drive library unavailable (${res.status})`);
+  }
+
+  return (await res.json()) as DriveListResponse;
+}
+
+async function findMediaFolderId(token: string): Promise<string> {
+  const configured = process.env.SMART_UPLOAD_DRIVE_MEDIA_ID?.trim();
+  if (configured) return configured;
+
+  try {
+    const probe = new URLSearchParams({
+      q: `'${DEFAULT_MEDIA_FOLDER_ID}' in parents and trashed = false`,
+      spaces: "drive",
+      pageSize: "1",
+      fields: "files(id,mimeType)",
+      includeItemsFromAllDrives: "true",
+      supportsAllDrives: "true",
+    });
+    await driveList(probe, token);
+    return DEFAULT_MEDIA_FOLDER_ID;
+  } catch {
+    const search = new URLSearchParams({
+      q: `name = 'MEDIA' and mimeType = '${DRIVE_FOLDER_MIME}' and trashed = false`,
+      spaces: "drive",
+      pageSize: "20",
+      fields: "files(id,name,mimeType,parents)",
+      includeItemsFromAllDrives: "true",
+      supportsAllDrives: "true",
+    });
+    const data = await driveList(search, token);
+    const folder = data.files?.find((file) => file.id && file.mimeType === DRIVE_FOLDER_MIME);
+    if (!folder?.id) throw new Error("Google Drive MEDIA folder not found");
+    return folder.id;
+  }
+}
+
+export async function getDriveThumbnail(fileId: string): Promise<Response> {
+  const token = await getAccessToken();
+  const metadataUrl = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=thumbnailLink`;
+  const metadata = await fetch(metadataUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (metadata.status === 401) {
+    cachedToken = null;
+    tokenExpiresAt = 0;
+    return getDriveThumbnail(fileId);
+  }
+  if (!metadata.ok) return metadata;
+
+  const data = (await metadata.json()) as { thumbnailLink?: string };
+  if (!data.thumbnailLink) return new Response(null, { status: 404 });
+
+  return fetch(data.thumbnailLink, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+}
+
 export async function listDriveLibrary(): Promise<DriveLibraryItem[]> {
-  const rootId = process.env.SMART_UPLOAD_DRIVE_MEDIA_ID?.trim() || DEFAULT_MEDIA_FOLDER_ID;
   const items: DriveLibraryItem[] = [];
+  const token = await getAccessToken();
+  const rootId = await findMediaFolderId(token);
   const stack: Array<{ id: string; path: string }> = [{ id: rootId, path: "MEDIA" }];
   const visited = new Set<string>();
-  const token = await getAccessToken();
 
   while (stack.length) {
     const current = stack.pop();
@@ -171,31 +261,7 @@ export async function listDriveLibrary(): Promise<DriveLibraryItem[]> {
       });
       if (pageToken) params.set("pageToken", pageToken);
 
-      const res = await fetch(`${DRIVE_API_URL}?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      if (res.status === 401) {
-        cachedToken = null;
-        tokenExpiresAt = 0;
-        return listDriveLibrary();
-      }
-      if (!res.ok) {
-        console.error("[google-drive] Library listing failed", res.status);
-        throw new Error("Google Drive library unavailable");
-      }
-
-      const data = (await res.json()) as {
-        nextPageToken?: string;
-        files?: Array<{
-          id: string;
-          name?: string;
-          mimeType?: string;
-          size?: string;
-          modifiedTime?: string;
-          thumbnailLink?: string;
-        }>;
-      };
+      const data = await driveList(params, token);
 
       for (const file of data.files ?? []) {
         const name = file.name?.trim() ?? "";
@@ -203,7 +269,7 @@ export async function listDriveLibrary(): Promise<DriveLibraryItem[]> {
         const mimeType = file.mimeType ?? "";
         const childPath = `${current.path}/${name}`;
 
-        if (mimeType === "application/vnd.google-apps.folder") {
+        if (mimeType === DRIVE_FOLDER_MIME) {
           stack.push({ id: file.id, path: childPath });
           continue;
         }
