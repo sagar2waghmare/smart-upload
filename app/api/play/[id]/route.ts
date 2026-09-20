@@ -3,6 +3,7 @@ import { getMediaById } from "../../../../lib/library-service";
 import { resolvePlaybackUrl } from "../../../../lib/playback";
 import { validateDriveMedia } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
+import { cloudflarePlaybackConfigured, createCloudflarePlaybackUrl } from "../../../../lib/cloudflare-playback";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,11 +15,12 @@ export async function GET(_req: Request, { params }: Params) {
   // Google Drive is now the production playback source. Validate the file
   // directly instead of rebuilding the full TMDB-enriched library on every play.
   if (await validateDriveMedia(id)) {
+    const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(id) : null;
     return NextResponse.json({
       item: { id, kind: "movie", title: id, poster: null, backdrop: null, source: "google-drive" },
       demo: false,
       canPlay: true,
-      defaultUrl: `/api/stream/${encodeURIComponent(id)}`,
+      defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(id)}`,
     });
   }
 
