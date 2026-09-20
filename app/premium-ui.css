@@ -316,3 +316,202 @@ body::after {
     scroll-behavior:auto !important;
   }
 }
+
+
+/* --- Premium v2: touch-first home hero + stronger motion --- */
+.hero-filmes {
+  touch-action: pan-y;
+  overscroll-behavior-x: contain;
+}
+.hero-track {
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.hero-track.is-dragging {
+  cursor: grabbing !important;
+}
+.hero-poster {
+  transform: translate(calc(-50% + (var(--posicao) * 178px) + var(--drag-x, 0px)), -50%) scale(calc(1 - (var(--distancia) * .07))) rotateY(calc(var(--posicao) * -6deg)) !important;
+  transition: transform 680ms cubic-bezier(.16,1,.3,1), opacity 520ms ease, filter 520ms ease, box-shadow 520ms ease !important;
+  will-change: transform;
+}
+.hero-poster.ativo {
+  transform: translate(calc(-50% + 250px + var(--drag-x, 0px)), -50%) !important;
+}
+.hero-track.is-dragging .hero-poster {
+  transition: none !important;
+}
+.hero-track.is-dragging .hero-poster img {
+  transform: scale(.985) !important;
+}
+.hero-poster.ativo img {
+  box-shadow: 0 34px 80px rgba(0,0,0,.72), 0 0 55px rgba(124,58,237,.12) !important;
+}
+.hero-poster.ativo::after {
+  opacity:.85;
+  animation: premiumPosterAura 3.8s ease-in-out infinite alternate;
+}
+@keyframes premiumPosterAura {
+  from { transform:scale(.94); opacity:.45; }
+  to { transform:scale(1.05); opacity:.85; }
+}
+.hero-editorial {
+  transition: opacity .38s ease, transform .68s cubic-bezier(.16,1,.3,1), filter .38s ease !important;
+}
+.hero-filmes:has(.hero-track.is-dragging) .hero-editorial {
+  opacity:.72;
+  transform:translateY(-50%) scale(.985);
+  filter:blur(.6px);
+}
+.hero-dots {
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  padding:.38rem .55rem;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:999px;
+  background:rgba(10,10,12,.24);
+}
+.hero-dot {
+  min-width:6px;
+  min-height:6px;
+  box-shadow:0 0 0 0 rgba(255,255,255,0);
+}
+.hero-dot.on {
+  box-shadow:0 0 18px rgba(255,255,255,.28);
+}
+.hero-nav-btn {
+  width:42px !important;
+  height:42px !important;
+  border-radius:14px !important;
+  background:rgba(20,20,24,.52) !important;
+  border-color:rgba(255,255,255,.12) !important;
+  box-shadow:0 12px 34px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.08) !important;
+}
+.hero-nav-btn:hover {
+  transform:translateY(-2px) scale(1.04) !important;
+}
+
+/* Home rails: softer touch scrolling and momentum. */
+.lista-conteudos {
+  scroll-snap-type:x proximity;
+  scroll-padding-inline:1rem;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+  touch-action:pan-x;
+  cursor:grab;
+}
+.lista-conteudos:active { cursor:grabbing; }
+.lista-conteudos > * {
+  scroll-snap-align:start;
+  scroll-snap-stop:normal;
+}
+
+/* Stronger section reveal without fighting the existing !important theme rules. */
+.home-content .secao-conteudos {
+  animation:premiumRailReveal .7s cubic-bezier(.16,1,.3,1) both;
+  animation-timeline:view();
+  animation-range:entry 0% cover 24%;
+}
+@keyframes premiumRailReveal {
+  from { opacity:.2; transform:translateY(24px) scale(.992); filter:blur(3px); }
+  to { opacity:1; transform:none; filter:none; }
+}
+
+/* Player v2: visually distinct controls, still the same functionality. */
+.player-controls {
+  background:linear-gradient(180deg,rgba(8,8,12,.04),rgba(8,8,12,.72) 38%,rgba(8,8,12,.94)) !important;
+  padding:1.1rem 1.1rem .8rem !important;
+}
+.pc-row {
+  gap:.38rem !important;
+}
+.pc-btn {
+  width:40px !important;
+  height:40px !important;
+  min-width:40px !important;
+  display:inline-grid !important;
+  place-items:center !important;
+  border:1px solid rgba(255,255,255,.09) !important;
+  background:rgba(255,255,255,.055) !important;
+  border-radius:13px !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.06), 0 6px 20px rgba(0,0,0,.18) !important;
+  transition:transform .22s cubic-bezier(.16,1,.3,1),background .22s ease,border-color .22s ease,box-shadow .22s ease !important;
+}
+.pc-btn:hover {
+  transform:translateY(-2px) scale(1.035) !important;
+  background:rgba(255,255,255,.12) !important;
+  border-color:rgba(255,255,255,.18) !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.1),0 10px 28px rgba(0,0,0,.28) !important;
+}
+.pc-btn:active {
+  transform:scale(.92) !important;
+}
+.pc-btn svg {
+  width:18px !important;
+  height:18px !important;
+}
+.pc-btn:first-child {
+  width:44px !important;
+  height:44px !important;
+  min-width:44px !important;
+  border-radius:50% !important;
+  background:rgba(255,255,255,.92) !important;
+  color:#111 !important;
+  border-color:rgba(255,255,255,.5) !important;
+  box-shadow:0 7px 28px rgba(0,0,0,.3),0 0 24px rgba(255,255,255,.08) !important;
+}
+.pc-btn:first-child:hover {
+  background:#fff !important;
+  transform:translateY(-2px) scale(1.06) !important;
+}
+.pc-btn.wide {
+  width:auto !important;
+  min-width:auto !important;
+  padding:0 .7rem !important;
+  border-radius:999px !important;
+  gap:.35rem;
+  font-size:.68rem !important;
+  font-weight:650 !important;
+}
+.pc-time {
+  padding:0 .45rem !important;
+  color:rgba(255,255,255,.62) !important;
+  font-variant-numeric:tabular-nums;
+}
+.pc-seek {
+  height:5px !important;
+  border-radius:999px !important;
+}
+.pc-seek::-webkit-slider-thumb {
+  width:13px !important;
+  height:13px !important;
+}
+.pc-pop {
+  border-radius:16px !important;
+  background:rgba(18,18,22,.88) !important;
+  backdrop-filter:blur(22px) saturate(130%) !important;
+  -webkit-backdrop-filter:blur(22px) saturate(130%) !important;
+  border:1px solid rgba(255,255,255,.12) !important;
+}
+.pc-option {
+  min-height:38px !important;
+  border-radius:10px !important;
+}
+.pc-option:hover {
+  background:rgba(255,255,255,.09) !important;
+  transform:translateX(2px) !important;
+}
+.pc-option.active {
+  background:rgba(124,58,237,.16) !important;
+  color:#fff !important;
+}
+@media (max-width:650px) {
+  .hero-poster.ativo { transform:translate(-50%,-50%) !important; }
+  .hero-editorial { transition-duration:.45s !important; }
+  .lista-conteudos { scroll-snap-type:x mandatory; }
+  .pc-row { gap:.28rem !important; }
+  .pc-btn { width:36px !important; height:36px !important; min-width:36px !important; border-radius:11px !important; }
+  .pc-btn:first-child { width:42px !important; height:42px !important; min-width:42px !important; }
+  .pc-btn.wide { padding:0 .55rem !important; }
+}
