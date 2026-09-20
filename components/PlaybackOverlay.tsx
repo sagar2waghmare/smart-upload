@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MediaItem } from "../lib/types";
+import type { AudioVariant, MediaItem } from "../lib/types";
 import { useDetails } from "./DetailsProvider";
 import { VideoPlayer } from "./VideoPlayer";
 import { IAlert } from "./icons";
@@ -14,6 +14,7 @@ type ApiResult = {
   shareUrl?: string;
   sourceType?: string;
   prepared?: boolean;
+  audioTracks?: AudioVariant[];
 };
 
 export function PlaybackOverlay() {
@@ -23,6 +24,7 @@ export function PlaybackOverlay() {
   const [shareUrl, setShareUrl] = useState<string | undefined>();
   const [sourceType, setSourceType] = useState<string | undefined>();
   const [demo, setDemo] = useState(false);
+  const [audioTracks, setAudioTracks] = useState<AudioVariant[]>([]);
   const [error, setError] = useState<string | null>(null);
   const endedRef = useRef(false);
 
@@ -36,6 +38,7 @@ export function PlaybackOverlay() {
     setSrc("");
     setShareUrl(undefined);
     setSourceType(undefined);
+    setAudioTracks([]);
     setError(null);
   }
 
@@ -66,6 +69,7 @@ export function PlaybackOverlay() {
         setShareUrl(data.shareUrl);
         setSourceType(data.sourceType);
         setDemo(data.demo);
+        setAudioTracks(data.audioTracks ?? []);
         setReady(true);
       })
       .catch((e: Error) => {
@@ -133,6 +137,8 @@ export function PlaybackOverlay() {
               initialTime={resume || undefined}
               onProgress={handleProgress}
               onEnded={handleEnded}
+              onClose={closePlayer}
+              audioTracks={audioTracks}
             />
           </>
         ) : (
