@@ -1685,3 +1685,200 @@ body::after {
     min-width: 0 !important;
   }
 }
+
+
+/* --- Bugfix pass: player controls, navigation conflict, and mobile poster spacing --- */
+body:has(.player-overlay) .compact-header .nav-trigger {
+  display: none !important;
+}
+body:has(.player-overlay) .compact-header {
+  z-index: 0 !important;
+}
+.player-topbar {
+  justify-content: flex-start !important;
+  padding: 14px 62px 42px 16px !important;
+}
+.player-topbar .player-close {
+  position: absolute !important;
+  top: 14px !important;
+  right: 16px !important;
+  margin: 0 !important;
+  z-index: 70 !important;
+}
+.player-live-dot {
+  display: none !important;
+}
+.player-title-block {
+  max-width: calc(100% - 8px) !important;
+}
+.player-controls {
+  padding: 0 14px 12px !important;
+}
+.pc-row {
+  gap: 6px !important;
+  min-width: 0 !important;
+}
+.pc-btn:not(.pc-main-play) {
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  background: rgba(18,18,23,.88) !important;
+}
+.pc-main-play {
+  width: 42px !important;
+  min-width: 42px !important;
+  height: 42px !important;
+}
+.pc-time {
+  font-size: .66rem !important;
+}
+.pc-menu-btn {
+  border-radius: 10px !important;
+}
+.pc-btn-label,
+.pc-quality-mark,
+.pc-speed-mark,
+.audio-language-icon,
+.audio-language-label {
+  color: #fff !important;
+}
+.pc-speed-mark {
+  font-size: .68rem !important;
+  font-weight: 900 !important;
+  letter-spacing: -.02em !important;
+}
+.pc-btn-label {
+  font-size: .54rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .02em !important;
+}
+.audio-language-trigger {
+  width: auto !important;
+  min-width: 66px !important;
+  padding: 0 9px !important;
+  gap: 5px !important;
+  border-radius: 999px !important;
+}
+.audio-language-label {
+  display: inline !important;
+  font-size: .54rem !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+}
+.audio-language-icon {
+  font-size: .58rem !important;
+  font-weight: 950 !important;
+  letter-spacing: .02em !important;
+}
+.pc-volume {
+  gap: 4px !important;
+}
+.pc-volume .volume {
+  width: 64px !important;
+  max-width: 64px !important;
+}
+.lista-conteudos {
+  gap: 14px !important;
+  padding-inline: 2px !important;
+}
+.lista-conteudos .card-conteudo {
+  margin: 0 !important;
+}
+.card-grid {
+  column-gap: 16px !important;
+  row-gap: 22px !important;
+}
+@media (max-width: 780px) {
+  .player-topbar {
+    padding: 10px 54px 36px 10px !important;
+  }
+  .player-topbar .player-close {
+    top: 10px !important;
+    right: 10px !important;
+  }
+  .player-controls {
+    padding: 0 8px 8px !important;
+  }
+  .pc-row {
+    gap: 5px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    padding-bottom: 1px !important;
+  }
+  .pc-row::-webkit-scrollbar {
+    display: none !important;
+  }
+  .pc-btn:not(.pc-main-play) {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    border-radius: 9px !important;
+  }
+  .pc-main-play {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+  }
+  .pc-btn svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+  .pc-volume .volume {
+    display: none !important;
+  }
+  .audio-language-trigger {
+    min-width: 60px !important;
+    padding: 0 8px !important;
+  }
+  .audio-language-label {
+    font-size: .5rem !important;
+  }
+  .audio-language-icon {
+    font-size: .57rem !important;
+  }
+  .pc-btn-label,
+  .pc-quality-mark,
+  .pc-speed-mark {
+    font-size: .52rem !important;
+  }
+  .lista-conteudos {
+    gap: 12px !important;
+    padding: 8px 2px 24px !important;
+  }
+  .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    column-gap: 10px !important;
+    row-gap: 18px !important;
+  }
+  .card-grid .card-conteudo {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .card-grid .card-conteudo .poster {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+    padding: 0 !important;
+  }
+  .card-grid .card-conteudo .info-conteudo {
+    padding: .62rem .28rem .78rem !important;
+  }
+  .card-grid .card-conteudo .info-conteudo h3 {
+    font-size: .8rem !important;
+    line-height: 1.25 !important;
+  }
+}
+@media (max-width: 400px) {
+  .card-grid {
+    column-gap: 8px !important;
+    row-gap: 16px !important;
+  }
+  .lista-conteudos {
+    gap: 10px !important;
+  }
+}
