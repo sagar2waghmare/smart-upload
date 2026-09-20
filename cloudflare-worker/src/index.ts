@@ -18,8 +18,6 @@ interface WorkerExecutionContext {
 type CloudflareCacheStorage = CacheStorage & { default: Cache };
 const edgeCache = (globalThis.caches as CloudflareCacheStorage).default;
 
-let currentExecutionContext: WorkerExecutionContext | null = null;
-
 let cachedToken: { token: string; expiresAt: number } | null = null;
 let tokenPromise: Promise<string> | null = null;
 let verifyKeyPromise: Promise<CryptoKey> | null = null;
@@ -133,7 +131,7 @@ function parseSingleRange(value: string | null): ByteRange | null {
 }
 
 function parseContentRange(value: string | null): StoredChunk | null {
-  const match = /^bytes ([0-9]+)-([0-9]+)\\/([0-9]+)$/.exec(value ?? "");
+  const match = /^bytes ([0-9]+)-([0-9]+)\x2F([0-9]+)$/.exec(value ?? "");
   if (!match) return null;
   const start = Number(match[1]);
   const end = Number(match[2]);
@@ -317,7 +315,6 @@ async function driveMediaFetch(url: string, headers: Headers): Promise<Response>
 
 export default {
   async fetch(request: Request, env: Env, ctx: WorkerExecutionContext): Promise<Response> {
-    currentExecutionContext = ctx;
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request.headers.get("Origin") ?? "*") });
     if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: corsHeaders() });
@@ -335,12 +332,12 @@ export default {
     }
 
     try {
-      const token = await accessToken(env);
+      let token = await accessToken(env);
       const rangeHeader = request.headers.get("Range");
       const range = parseSingleRange(rangeHeader);
 
       if (range) {
-        const cachedRange = await serveRangedChunk(request, currentExecutionContext ?? { waitUntil(promise) { void promise; } }, fileId, range, token);
+        const cachedRange = await serveRangedChunk(request, ctx, fileId, range, token);
         if (cachedRange) {
           cachedRange.headers.set("Access-Control-Allow-Origin", request.headers.get("Origin") ?? "*");
           cachedRange.headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
