@@ -17,6 +17,7 @@ let verifyKeyPromise: Promise<CryptoKey> | null = null;
 
 function base64UrlBytes(value: string): Uint8Array {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) throw new Error("Invalid base64url value");
   const raw = atob(normalized);
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
@@ -70,18 +71,23 @@ async function accessToken(env: Env): Promise<string> {
 }
 
 async function verifySignature(fileId: string, expires: string, signature: string, env: Env): Promise<boolean> {
-  const exp = Number(expires);
-  if (!Number.isSafeInteger(exp) || exp <= Math.floor(Date.now() / 1000)) return false;
-  if (!verifyKeyPromise) {
-    verifyKeyPromise = crypto.subtle.importKey("raw", toArrayBuffer(new TextEncoder().encode(env.PLAYBACK_SECRET)), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+  try {
+    const exp = Number(expires);
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isSafeInteger(exp) || exp <= now || exp > now + 15 * 60) return false;
+    if (!verifyKeyPromise) {
+      verifyKeyPromise = crypto.subtle.importKey("raw", toArrayBuffer(new TextEncoder().encode(env.PLAYBACK_SECRET)), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+    }
+    const key = await verifyKeyPromise;
+    return crypto.subtle.verify("HMAC", key, toArrayBuffer(base64UrlBytes(signature)), new TextEncoder().encode(fileId + ":" + expires));
+  } catch {
+    return false;
   }
-  const key = await verifyKeyPromise;
-  return crypto.subtle.verify("HMAC", key, toArrayBuffer(base64UrlBytes(signature)), new TextEncoder().encode(fileId + ":" + expires));
 }
 
 function corsHeaders(origin = "*"): Headers {
   const h = new Headers();
-  h.set("Access-Control-Allow-Origin", origin);
+  h.set("Access-Control-Allow-Origin", origin === "null" ? "*" : origin);
   h.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
   h.set("Access-Control-Allow-Headers", "Range, If-Range, If-None-Match, If-Modified-Since");
   h.set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, ETag, Last-Modified, Content-Type");
@@ -101,10 +107,17 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request.headers.get("Origin") ?? "*") });
     if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: corsHeaders() });
 
-    const fileId = decodeURIComponent(url.pathname.replace(/^\/+/, "").split("/")[0] ?? "").trim();
+    let fileId = "";
+    try {
+      fileId = decodeURIComponent(url.pathname.replace(/^\/+/, "").split("/")[0] ?? "").trim();
+    } catch {
+      return new Response("Bad request", { status: 400, headers: corsHeaders(request.headers.get("Origin") ?? "*") });
+    }
     const expires = url.searchParams.get("e") ?? "";
     const signature = url.searchParams.get("s") ?? "";
-    if (!fileId || !expires || !signature || !(await verifySignature(fileId, expires, signature, env))) return new Response("Unauthorized", { status: 401, headers: corsHeaders() });
+    if (!fileId || !/^[A-Za-z0-9_-]{10,256}$/.test(fileId) || !expires || !signature || signature.length > 128 || !(await verifySignature(fileId, expires, signature, env))) {
+      return new Response("Unauthorized", { status: 401, headers: corsHeaders(request.headers.get("Origin") ?? "*") });
+    }
 
     try {
       let token = await accessToken(env);
@@ -132,9 +145,13 @@ export default {
 
       const out = new Headers(corsHeaders(request.headers.get("Origin") ?? "*"));
       copyMediaHeaders(upstream, out);
-      out.set("Cache-Control", "private, max-age=300");
+      out.set("Cache-Control", "private, max-age=60, must-revalidate");
       out.set("Accept-Ranges", "bytes");
       out.set("X-Content-Type-Options", "nosniff");
+      out.set("X-Frame-Options", "DENY");
+      out.set("Referrer-Policy", "no-referrer");
+      out.set("Cross-Origin-Resource-Policy", "cross-origin");
+      out.set("X-Robots-Tag", "noindex, nofollow, noarchive");
       return new Response(request.method === "HEAD" ? null : upstream.body, { status: upstream.status, headers: out });
     } catch (error) {
       console.error("[smart-upload-stream] playback failed", error);
