@@ -111,6 +111,7 @@ function copyMediaHeaders(upstream: Response, headers: Headers) {
 
 const RANGE_CHUNK_BYTES = 8 * 1024 * 1024;
 const RANGE_CACHE_TTL_SECONDS = 30 * 60;
+const RANGE_CACHE_ORIGIN = "https://smart-upload-stream.smart-upload-stream.workers.dev";
 const PREFETCH_THRESHOLD_BYTES = 2 * 1024 * 1024;
 
 type ByteRange = { start: number; end: number | null };
@@ -264,6 +265,7 @@ function mediaHeadersFrom(response: Response): Headers {
 
 async function fillChunkCache(
   ctx: WorkerExecutionContext,
+  cacheOrigin: string,
   fileId: string,
   chunkStart: number,
   token: string,
@@ -275,7 +277,7 @@ async function fillChunkCache(
     return;
   }
 
-  const cacheKey = chunkCacheKey(new URL("https://internal.smart-upload"), fileId, chunkStart);
+  const cacheKey = chunkCacheKey(new URL(cacheOrigin), fileId, chunkStart);
   const fill = (async () => {
     const chunkEnd = chunkStart + RANGE_CHUNK_BYTES - 1;
     const headers = new Headers();
@@ -365,7 +367,7 @@ async function serveRangedChunk(
           requestedEnd >= stored.end - PREFETCH_THRESHOLD_BYTES
         ) {
           const nextStart = stored.end + 1;
-          ctx.waitUntil(fillChunkCache(ctx, fileId, nextStart, token).catch(() => undefined));
+          ctx.waitUntil(fillChunkCache(ctx, requestUrl.origin || RANGE_CACHE_ORIGIN, fileId, nextStart, token).catch(() => undefined));
         }
         return response;
       }
@@ -436,7 +438,7 @@ async function serveRangedChunk(
     requestedEnd >= stored.end - PREFETCH_THRESHOLD_BYTES
   ) {
     const nextStart = stored.end + 1;
-    ctx.waitUntil(fillChunkCache(ctx, fileId, nextStart, token).catch(() => undefined));
+    ctx.waitUntil(fillChunkCache(ctx, requestUrl.origin || RANGE_CACHE_ORIGIN, fileId, nextStart, token).catch(() => undefined));
   }
 
   return makeRangeResponse(clientBody, stored, range, "MISS", mediaHeaders);
