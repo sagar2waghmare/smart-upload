@@ -11,12 +11,15 @@ type ApiResult = {
   demo: boolean;
   canPlay: boolean;
   defaultUrl: string;
+  shareUrl?: string;
+  prepared?: boolean;
 };
 
 export function PlaybackOverlay() {
   const { item, playerOpen, episode, openPlayer, closePlayer } = useDetails();
   const [ready, setReady] = useState(false);
   const [src, setSrc] = useState("");
+  const [shareUrl, setShareUrl] = useState<string | undefined>();
   const [demo, setDemo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endedRef = useRef(false);
@@ -29,6 +32,7 @@ export function PlaybackOverlay() {
     setLastEpoch(epoch);
     setReady(false);
     setSrc("");
+    setShareUrl(undefined);
     setError(null);
   }
 
@@ -56,6 +60,7 @@ export function PlaybackOverlay() {
           return;
         }
         setSrc(url);
+        setShareUrl(data.shareUrl);
         setDemo(data.demo);
         setReady(true);
       })
@@ -117,6 +122,7 @@ export function PlaybackOverlay() {
             <VideoPlayer
               key={src}
               src={src}
+              shareUrl={shareUrl}
               poster={item.poster}
               backdrop={item.backdrop}
               title={item.title}
