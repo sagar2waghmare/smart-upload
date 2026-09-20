@@ -86,21 +86,15 @@
   white-space: nowrap;
 }
 
-.su-player-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: rgba(255,255,255,.6);
-  font-size: .58rem;
-  font-weight: 800;
-  letter-spacing: .16em;
-}
-.su-player-status i {
-  width: 7px;
-  height: 7px;
+.su-status-inline {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  vertical-align: middle;
   border-radius: 50%;
   background: #ff6b35;
-  box-shadow: 0 0 14px rgba(255,107,53,.8);
+  box-shadow: 0 0 12px rgba(255,107,53,.8);
   animation: su-live-pulse 1.8s ease-in-out infinite;
 }
 @keyframes su-live-pulse {
@@ -116,6 +110,14 @@
   justify-content: center;
   gap: clamp(28px, 4vw, 56px);
   pointer-events: none;
+  opacity: 0;
+  transition: opacity .22s ease;
+}
+.su-player:hover .su-center-controls,
+.su-player[data-paused] .su-center-controls,
+.su-player[data-ended] .su-center-controls,
+.su-player[data-buffering] .su-center-controls {
+  opacity: 1;
 }
 .su-center-controls > * { pointer-events: auto; }
 
@@ -234,9 +236,8 @@
   font-weight: 900;
 }
 
-.su-player[data-buffering] .su-center-controls,
 .su-player[data-error] .su-center-controls {
-  opacity: .2;
+  opacity: 0;
   pointer-events: none;
 }
 
@@ -297,6 +298,7 @@
   .su-center-play { width: 65px; height: 65px; }
   .su-center-play svg { width: 28px; height: 28px; }
   .su-player-brand { display: none; }
+  .su-center-controls { gap: 14px; }
   .su-player [data-part='progress'] { padding-inline: 10px; }
 }
 
