@@ -1309,3 +1309,48 @@ body::after {
     height: 218px !important;
   }
 }
+
+
+/* --- Performance pass: keep premium visuals GPU-friendly during navigation/scroll --- */
+/* The earlier view-timeline + blur reveal was visually nice but can add scroll-time paint work.
+   Use a lightweight one-time entrance instead. */
+.home-content .secao-conteudos {
+  animation: premiumRailEnter .45s cubic-bezier(.16,1,.3,1) both !important;
+  animation-timeline: auto !important;
+  animation-range: normal !important;
+  filter: none !important;
+  will-change: opacity, transform;
+}
+@keyframes premiumRailEnter {
+  from { opacity: 0; transform: translate3d(0,10px,0); }
+  to { opacity: 1; transform: translate3d(0,0,0); }
+}
+/* Keep the ambient glow, but make it slower and cheaper to paint. */
+body::before,
+body::after {
+  filter: blur(70px) !important;
+  animation-duration: 30s !important;
+  will-change: transform;
+}
+/* Smooth route/content swap without a heavy page-wide blur. */
+.page {
+  animation: pageEnter .28s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes pageEnter {
+  from { opacity: .72; transform: translate3d(0,5px,0); }
+  to { opacity: 1; transform: translate3d(0,0,0); }
+}
+/* Navigation feels instant and tactile while the prefetched route arrives. */
+.menu-item {
+  transition: background .16s ease, color .16s ease, transform .16s cubic-bezier(.16,1,.3,1), box-shadow .16s ease !important;
+}
+.menu-item.active {
+  box-shadow: inset 3px 0 0 var(--laranja), 0 6px 22px rgba(0,0,0,.10) !important;
+}
+.menu-item:hover {
+  transform: translateX(2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .home-content .secao-conteudos { animation: none !important; }
+}
