@@ -29,11 +29,15 @@ export async function GET(_req: Request, { params }: Params) {
       shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(id)}`,
       prepared: Boolean(preparedId),
       sourceType: sourceType ?? undefined,
-      audioTracks: audioTracks.map((track) => ({
-        label: track.label,
-        language: track.language,
-        url: createCloudflarePlaybackUrl(track.id),
-      })),
+      audioTracks: audioTracks
+        .map((track) => ({
+          label: track.label,
+          language: track.language,
+          url: cloudflarePlaybackConfigured()
+            ? createCloudflarePlaybackUrl(track.id)
+            : `/api/stream/${encodeURIComponent(track.id)}`,
+        }))
+        .filter((track) => Boolean(track.url)),
     });
   }
 
