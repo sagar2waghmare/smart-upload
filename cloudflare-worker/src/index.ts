@@ -110,6 +110,8 @@ function copyMediaHeaders(upstream: Response, headers: Headers) {
 
 
 const RANGE_CHUNK_BYTES = 8 * 1024 * 1024;
+const RANGE_CACHE_TTL_SECONDS = 30 * 60;
+const PREFETCH_THRESHOLD_BYTES = 2 * 1024 * 1024;
 
 type ByteRange = { start: number; end: number | null };
 
@@ -119,10 +121,13 @@ type StoredChunk = {
   total: number;
 };
 
+const inFlightChunkFills = new Map<string, Promise<void>>();
+
 function parseSingleRange(value: string | null): ByteRange | null {
   if (!value) return null;
   const match = /^bytes=([0-9]+)-([0-9]*)$/.exec(value.trim());
   if (!match) return null;
+
   const start = Number(match[1]);
   const end = match[2] ? Number(match[2]) : null;
   if (!Number.isSafeInteger(start) || start < 0) return null;
@@ -131,8 +136,9 @@ function parseSingleRange(value: string | null): ByteRange | null {
 }
 
 function parseContentRange(value: string | null): StoredChunk | null {
-  const match = /^bytes ([0-9]+)-([0-9]+)\x2F([0-9]+)$/.exec(value ?? "");
+  const match = /^bytes ([0-9]+)-([0-9]+)\\/([0-9]+)$/.exec(value ?? "");
   if (!match) return null;
+
   const start = Number(match[1]);
   const end = Number(match[2]);
   const total = Number(match[3]);
@@ -143,14 +149,27 @@ function parseContentRange(value: string | null): StoredChunk | null {
     start < 0 ||
     end < start ||
     total <= end
-  ) return null;
+  ) {
+    return null;
+  }
   return { start, end, total };
+}
+
+function chunkStartForByte(offset: number): number {
+  return Math.floor(offset / RANGE_CHUNK_BYTES) * RANGE_CHUNK_BYTES;
 }
 
 function chunkCacheKey(requestUrl: URL, fileId: string, chunkStart: number): Request {
   return new Request(
     `${requestUrl.origin}/__smart-upload-range-cache/${encodeURIComponent(fileId)}/${chunkStart}`,
   );
+}
+
+function chunkMatchesValidator(response: Response, ifRange: string | null): boolean {
+  if (!ifRange) return true;
+  const etag = response.headers.get("etag");
+  const lastModified = response.headers.get("last-modified");
+  return ifRange === etag || ifRange === lastModified;
 }
 
 function sliceBody(
@@ -197,17 +216,18 @@ function sliceBody(
         }
       }
     },
+
     async cancel(reason) {
       try { await reader.cancel(reason); } catch {}
     },
   });
 }
 
-function rangeResponse(
+function makeRangeResponse(
   body: ReadableStream<Uint8Array>,
   stored: StoredChunk,
   range: ByteRange,
-  cacheState: "HIT" | "MISS",
+  cacheState: "HIT" | "MISS" | "STALE",
   mediaHeaders: Headers,
 ): Response | null {
   const requestedEnd = range.end ?? stored.end;
@@ -233,6 +253,71 @@ function rangeResponse(
   );
 }
 
+function mediaHeadersFrom(response: Response): Headers {
+  const headers = new Headers();
+  for (const name of ["content-type", "etag", "last-modified"]) {
+    const value = response.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return headers;
+}
+
+async function fillChunkCache(
+  ctx: WorkerExecutionContext,
+  fileId: string,
+  chunkStart: number,
+  token: string,
+): Promise<void> {
+  const key = `${fileId}:${chunkStart}`;
+  const existing = inFlightChunkFills.get(key);
+  if (existing) {
+    await existing;
+    return;
+  }
+
+  const cacheKey = chunkCacheKey(new URL("https://internal.smart-upload"), fileId, chunkStart);
+  const fill = (async () => {
+    const chunkEnd = chunkStart + RANGE_CHUNK_BYTES - 1;
+    const headers = new Headers();
+    headers.set("Range", `bytes=${chunkStart}-${chunkEnd}`);
+    headers.set("Authorization", "Bearer " + token);
+    headers.set("Accept-Encoding", "identity");
+
+    const upstream = await fetch(
+      DRIVE_API + "/" + encodeURIComponent(fileId) + "?alt=media",
+      { headers },
+    );
+
+    if (upstream.status !== 206 || !upstream.body) return;
+
+    const stored = parseContentRange(upstream.headers.get("content-range"));
+    if (!stored || stored.start !== chunkStart) return;
+
+    const mediaHeaders = mediaHeadersFrom(upstream);
+    const [cacheBody, discarded] = upstream.body.tee();
+    try { await discarded.cancel(); } catch {}
+
+    const cacheHeaders = new Headers(mediaHeaders);
+    cacheHeaders.set("Content-Length", String(stored.end - stored.start + 1));
+    cacheHeaders.set("Cache-Control", `public, max-age=${RANGE_CACHE_TTL_SECONDS}`);
+    cacheHeaders.set("X-Smart-Range-Start", String(stored.start));
+    cacheHeaders.set("X-Smart-Range-End", String(stored.end));
+    cacheHeaders.set("X-Smart-Range-Total", String(stored.total));
+
+    await edgeCache.put(
+      cacheKey,
+      new Response(cacheBody, { status: 200, headers: cacheHeaders }),
+    );
+  })();
+
+  inFlightChunkFills.set(key, fill);
+  try {
+    await fill;
+  } finally {
+    if (inFlightChunkFills.get(key) === fill) inFlightChunkFills.delete(key);
+  }
+}
+
 async function serveRangedChunk(
   request: Request,
   ctx: WorkerExecutionContext,
@@ -240,15 +325,23 @@ async function serveRangedChunk(
   range: ByteRange,
   token: string,
 ): Promise<Response | null> {
-  const chunkStart = Math.floor(range.start / RANGE_CHUNK_BYTES) * RANGE_CHUNK_BYTES;
-  const cacheKey = chunkCacheKey(new URL(request.url), fileId, chunkStart);
-  const cached = await edgeCache.match(cacheKey);
+  const chunkStart = chunkStartForByte(range.start);
+  const requestUrl = new URL(request.url);
+  const cacheKey = chunkCacheKey(requestUrl, fileId, chunkStart);
+  const ifRange = request.headers.get("If-Range");
+
+  let cached = await edgeCache.match(cacheKey);
+
+  if (cached && !chunkMatchesValidator(cached, ifRange)) {
+    cached = null;
+  }
 
   if (cached) {
-    const startValue = Number(cached.headers.get("X-Smart-Range-Start"));
-    const endValue = Number(cached.headers.get("X-Smart-Range-End"));
-    const totalValue = Number(cached.headers.get("X-Smart-Range-Total"));
-    const stored: StoredChunk = { start: startValue, end: endValue, total: totalValue };
+    const stored: StoredChunk = {
+      start: Number(cached.headers.get("X-Smart-Range-Start")),
+      end: Number(cached.headers.get("X-Smart-Range-End")),
+      total: Number(cached.headers.get("X-Smart-Range-Total")),
+    };
 
     if (
       Number.isSafeInteger(stored.start) &&
@@ -258,12 +351,44 @@ async function serveRangedChunk(
       stored.end >= stored.start &&
       stored.total > stored.end
     ) {
-      const response = rangeResponse(
+      const response = makeRangeResponse(
         cached.body as ReadableStream<Uint8Array>,
         stored,
         range,
         "HIT",
         cached.headers,
+      );
+      if (response) {
+        const requestedEnd = range.end ?? stored.end;
+        if (
+          stored.end < stored.total - 1 &&
+          requestedEnd >= stored.end - PREFETCH_THRESHOLD_BYTES
+        ) {
+          const nextStart = stored.end + 1;
+          ctx.waitUntil(fillChunkCache(ctx, fileId, nextStart, token).catch(() => undefined));
+        }
+        return response;
+      }
+    }
+  }
+
+  const inFlightKey = `${fileId}:${chunkStart}`;
+  const existingFill = inFlightChunkFills.get(inFlightKey);
+  if (existingFill) {
+    await existingFill;
+    const filled = await edgeCache.match(cacheKey);
+    if (filled && chunkMatchesValidator(filled, ifRange)) {
+      const stored: StoredChunk = {
+        start: Number(filled.headers.get("X-Smart-Range-Start")),
+        end: Number(filled.headers.get("X-Smart-Range-End")),
+        total: Number(filled.headers.get("X-Smart-Range-Total")),
+      };
+      const response = makeRangeResponse(
+        filled.body as ReadableStream<Uint8Array>,
+        stored,
+        range,
+        "HIT",
+        filled.headers,
       );
       if (response) return response;
     }
@@ -281,32 +406,40 @@ async function serveRangedChunk(
   );
 
   if (upstream.status !== 206 || !upstream.body) return null;
+
   const stored = parseContentRange(upstream.headers.get("content-range"));
   if (!stored || stored.start !== chunkStart) return null;
 
-  const mediaHeaders = new Headers();
-  for (const name of ["content-type", "etag", "last-modified"]) {
-    const value = upstream.headers.get(name);
-    if (value) mediaHeaders.set(name, value);
-  }
-
-  const contentLength = stored.end - stored.start + 1;
+  const mediaHeaders = mediaHeadersFrom(upstream);
   const [clientBody, cacheBody] = upstream.body.tee();
 
   const cacheHeaders = new Headers(mediaHeaders);
-  cacheHeaders.set("Content-Length", String(contentLength));
-  cacheHeaders.set("Cache-Control", "public, max-age=3600");
+  cacheHeaders.set("Content-Length", String(stored.end - stored.start + 1));
+  cacheHeaders.set("Cache-Control", `public, max-age=${RANGE_CACHE_TTL_SECONDS}`);
   cacheHeaders.set("X-Smart-Range-Start", String(stored.start));
   cacheHeaders.set("X-Smart-Range-End", String(stored.end));
   cacheHeaders.set("X-Smart-Range-Total", String(stored.total));
 
-  // Cache API cannot store 206 responses. Store this fixed chunk as an internal
-  // 200 response, then slice it back to the browser's requested range.
-  ctx.waitUntil(
-    edgeCache.put(cacheKey, new Response(cacheBody, { status: 200, headers: cacheHeaders })),
+  const cacheKeyForResponse = chunkCacheKey(requestUrl, fileId, chunkStart);
+  const fillPromise = edgeCache.put(
+    cacheKeyForResponse,
+    new Response(cacheBody, { status: 200, headers: cacheHeaders }),
   );
+  inFlightChunkFills.set(inFlightKey, fillPromise);
+  ctx.waitUntil(fillPromise.finally(() => {
+    if (inFlightChunkFills.get(inFlightKey) === fillPromise) inFlightChunkFills.delete(inFlightKey);
+  }));
 
-  return rangeResponse(clientBody, stored, range, "MISS", mediaHeaders);
+  const requestedEnd = range.end ?? stored.end;
+  if (
+    stored.end < stored.total - 1 &&
+    requestedEnd >= stored.end - PREFETCH_THRESHOLD_BYTES
+  ) {
+    const nextStart = stored.end + 1;
+    ctx.waitUntil(fillChunkCache(ctx, fileId, nextStart, token).catch(() => undefined));
+  }
+
+  return makeRangeResponse(clientBody, stored, range, "MISS", mediaHeaders);
 }
 
 async function driveMediaFetch(url: string, headers: Headers): Promise<Response> {
