@@ -6,6 +6,7 @@ import { IAlert, IReplay } from "./icons";
 
 type Props = {
   src: string;
+  shareUrl?: string;
   poster?: string | null;
   backdrop?: string | null;
   title: string;
@@ -73,7 +74,7 @@ function typeOf(url: string) {
 const source = (src: string) => ({src, type: typeOf(src)});
 
 export function VideoPlayer({
-  src, poster, backdrop, title, episodeTitle, demo, subtitleUrl, item, episode,
+  src, shareUrl, poster, backdrop, title, episodeTitle, demo, subtitleUrl, item, episode,
   onEpisode, initialTime = 0, onProgress, onEnded,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -151,8 +152,8 @@ export function VideoPlayer({
 
   const share = async () => {
     try {
-      if (navigator.share) await navigator.share({title, text:"Smart Upload stream", url:lastSource.current});
-      else await navigator.clipboard.writeText(lastSource.current);
+      if (navigator.share) await navigator.share({title, text:"Smart Upload stream", url:shareUrl ?? lastSource.current});
+      else await navigator.clipboard.writeText(shareUrl ?? lastSource.current);
       setShareStatus("Stream URL copied/shared");
     } catch { setShareStatus(null); }
   };
