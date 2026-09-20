@@ -7,6 +7,12 @@ export interface MediaVariant {
   bitrate?: number;
 }
 
+export interface AudioVariant {
+  label: string;
+  language?: string;
+  url: string;
+}
+
 export interface Episode {
   id: string;
   title: string;
