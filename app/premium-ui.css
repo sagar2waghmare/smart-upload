@@ -852,8 +852,8 @@ body::after {
   font-weight:900;
   line-height:1;
 }
-.pc-skip:first-of-type::before { content:"↶"; }
-.pc-skip:nth-of-type(3)::before { content:"↷"; }
+.pc-row > .pc-skip:nth-of-type(2)::before { content:"↶"; }
+.pc-row > .pc-skip:nth-of-type(3)::before { content:"↷"; }
 .pc-time {
   margin-left:4px !important;
   color:rgba(255,255,255,.72) !important;
