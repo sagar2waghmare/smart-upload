@@ -101,6 +101,7 @@ export function VideoPlayer({
   const [activeSource, setActiveSource] = useState(src);
   const [selectedQuality, setSelectedQuality] = useState("Auto");
   const [selectedAudioIndex, setSelectedAudioIndex] = useState(0);
+  const [externalAudioActive, setExternalAudioActive] = useState(false);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
 
@@ -123,6 +124,7 @@ export function VideoPlayer({
     setActiveSource(src);
     setSelectedQuality("Auto");
     setSelectedAudioIndex(0);
+    setExternalAudioActive(false);
     setShareStatus(null);
     setError(null);
     setStarted(false);
@@ -135,7 +137,7 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    video.muted = hasExternalAudio;
+    video.muted = hasExternalAudio ? externalAudioActive : false;
     if (!audio || !hasExternalAudio) return;
 
     const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
@@ -150,17 +152,17 @@ export function VideoPlayer({
     if (!video.paused && started) {
       void audio.play().catch(() => undefined);
     }
-  }, [audioTracks, selectedAudioIndex, hasExternalAudio, started]);
+  }, [audioTracks, selectedAudioIndex, hasExternalAudio, started, externalAudioActive]);
 
   useEffect(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    if (video) video.muted = hasExternalAudio;
+    if (video) video.muted = hasExternalAudio && externalAudioActive;
     if (audio) {
       audio.volume = muted ? 0 : volume;
       audio.muted = muted;
     }
-  }, [hasExternalAudio, muted, volume]);
+  }, [hasExternalAudio, externalAudioActive, muted, volume]);
 
   const poke = useCallback(() => {
     setControls(true);
@@ -260,14 +262,14 @@ export function VideoPlayer({
 
       if (video) {
         video.volume = next;
-        video.muted = hasExternalAudio ? true : next === 0;
+        video.muted = hasExternalAudio ? externalAudioActive : next === 0;
       }
       if (audio) {
         audio.volume = next;
         audio.muted = next === 0;
       }
     },
-    [hasExternalAudio]
+    [hasExternalAudio, externalAudioActive]
   );
 
   const toggleMute = useCallback(() => {
@@ -280,7 +282,7 @@ export function VideoPlayer({
 
     if (hasExternalAudio) {
       if (audio) audio.muted = nextMuted;
-      video.muted = true;
+      video.muted = externalAudioActive;
     } else {
       video.muted = nextMuted;
     }
@@ -385,6 +387,8 @@ export function VideoPlayer({
       const position = video?.currentTime ?? current;
 
       setSelectedAudioIndex(index);
+      setExternalAudioActive(false);
+      if (video) video.muted = false;
 
       if (audio) {
         audio.src = audioTracks[index].url;
@@ -394,7 +398,12 @@ export function VideoPlayer({
         try {
           audio.currentTime = position;
         } catch {}
-        if (video && !video.paused) void audio.play().catch(() => undefined);
+        if (video && !video.paused) {
+          void audio.play().catch(() => {
+            setExternalAudioActive(false);
+            video.muted = false;
+          });
+        }
       }
     },
     [audioTracks, current, muted, volume]
@@ -412,20 +421,21 @@ export function VideoPlayer({
       audioRef.current.currentTime = video.currentTime || 0;
       audioRef.current.volume = muted ? 0 : volume;
       audioRef.current.muted = muted;
+      setExternalAudioActive(false);
+      video.muted = false;
+      void audioRef.current.play().catch(() => {
+        setExternalAudioActive(false);
+        video.muted = false;
+      });
+    } else {
+      video.muted = muted;
     }
 
-    void video
-      .play()
-      .then(() => {
-        if (audioRef.current && hasExternalAudio) {
-          void audioRef.current.play().catch(() => undefined);
-        }
-      })
-      .catch(() => {
-        setBuffering(false);
-        setStarted(false);
-        setError("Playback was blocked. Tap Play again.");
-      });
+    void video.play().catch(() => {
+      setBuffering(false);
+      setStarted(false);
+      setError("Playback was blocked. Tap Play again.");
+    });
   }, [hasExternalAudio, muted, volume]);
 
   const toggleFullscreen = useCallback(() => {
@@ -558,7 +568,19 @@ export function VideoPlayer({
       onDoubleClick={handleDoubleClick}
     >
       {hasExternalAudio ? (
-        <audio ref={audioRef} preload="auto" aria-hidden="true" />
+        <audio
+          ref={audioRef}
+          preload="auto"
+          aria-hidden="true"
+          onPlaying={() => {
+            setExternalAudioActive(true);
+            if (videoRef.current) videoRef.current.muted = true;
+          }}
+          onError={() => {
+            setExternalAudioActive(false);
+            if (videoRef.current) videoRef.current.muted = false;
+          }}
+        />
       ) : null}
 
       <video
@@ -573,7 +595,10 @@ export function VideoPlayer({
           setBuffering(false);
           poke();
           if (audioRef.current && hasExternalAudio) {
-            void audioRef.current.play().catch(() => undefined);
+            void audioRef.current.play().catch(() => {
+              setExternalAudioActive(false);
+              event.currentTarget.muted = false;
+            });
           }
         }}
         onPause={() => {
@@ -907,9 +932,9 @@ export function VideoPlayer({
               aria-label="Playback settings"
               aria-expanded={menu === "settings"}
               onClick={() => setMenu(menu === "settings" ? null : "settings")}
-              title="Playback settings"
+              title={`Playback speed: ${rate === 1 ? "Normal" : rate + "x"}`}
             >
-              <ISettings />
+              <span className="pc-speed-mark">{rate === 1 ? "1×" : rate + "×"}</span>
             </button>
             {menu === "settings" ? (
               <div className="pc-pop pc-pop-settings">
