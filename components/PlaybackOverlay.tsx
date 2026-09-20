@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MediaItem } from "../lib/types";
 import { useDetails } from "./DetailsProvider";
 import { VideoPlayer } from "./VideoPlayer";
-import { AudioLanguageControl } from "./AudioLanguageControl";
 import { IAlert, IArrowLeft } from "./icons";
 import { clearProgress, getProgress, progressPercent, saveProgress } from "../lib/watch-progress";
 
@@ -132,7 +131,6 @@ export function PlaybackOverlay() {
               onProgress={handleProgress}
               onEnded={handleEnded}
             />
-            <AudioLanguageControl />
           </>
         ) : (
           <div className="play-loading" role="status">
