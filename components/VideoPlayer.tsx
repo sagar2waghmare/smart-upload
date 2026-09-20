@@ -162,7 +162,10 @@ export function VideoPlayer({
     initialedRef.current = true;
     setBuffering(true);
     try {
-      v.currentTime = target;
+      // fastSeek lets browsers choose a nearby keyframe when supported,
+      // which avoids doing an unnecessarily precise first seek for resume.
+      if (typeof v.fastSeek === "function") v.fastSeek(target);
+      else v.currentTime = target;
       currentRef.current = v.currentTime;
       setCurrent(v.currentTime);
       return true;
