@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Episode, MediaItem } from "../lib/types";
-import { IAlert, IReplay } from "./icons";
+import { IAlert, IArrowLeft, IReplay } from "./icons";
 
 type Props = {
   src: string;
@@ -20,6 +20,7 @@ type Props = {
   initialTime?: number;
   onProgress?: (p: { position: number; duration: number }) => void;
   onEnded?: () => void;
+  onClose?: () => void;
 };
 
 type Player = {
@@ -77,7 +78,7 @@ const source = (src: string, explicitType?: string) => ({src, type: typeOf(src, 
 
 export function VideoPlayer({
   src, sourceType, shareUrl, poster, backdrop, title, episodeTitle, demo, subtitleUrl, item, episode,
-  onEpisode, initialTime = 0, onProgress, onEnded,
+  onEpisode, initialTime = 0, onProgress, onEnded, onClose,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<Player | null>(null);
@@ -100,9 +101,15 @@ export function VideoPlayer({
       if (dead || !videoRef.current) return;
       const p = videojs(videoRef.current, {
         controls: true, responsive: true, fluid: true, preload: "metadata",
+        poster: poster ?? undefined,
         playbackRates: [0.5,0.75,1,1.25,1.5,2],
         userActions: {hotkeys: true},
-        controlBar: {pictureInPictureToggle: true, volumePanel: {inline: false}},
+        controlBar: {
+          volumePanel: {inline: false},
+          pictureInPictureToggle: true,
+          playbackRateMenuButton: true,
+          fullscreenToggle: true,
+        },
         html5: {vhs: {overrideNative: true, enableLowInitialPlaylist: true, smoothQualityChange: true}},
       });
       playerRef.current = p;
@@ -171,8 +178,14 @@ export function VideoPlayer({
   const next = index >= 0 && index < eps.length - 1 ? eps[index + 1] : null;
 
   return <div className="smart-videojs-shell">
-    <div className="smart-videojs-heading">
-      <div className="smart-videojs-title"><strong>{title}</strong>{episodeTitle && <span>{episodeTitle}</span>}</div>
+    <div className="smart-videojs-top-overlay">
+      <button className="smart-videojs-back" onClick={onClose} aria-label="Back to details">
+        <IArrowLeft />
+      </button>
+      <div className="smart-videojs-title">
+        <strong>{title}</strong>
+        {episodeTitle && <span>{episodeTitle}</span>}
+      </div>
       <div className="smart-videojs-actions">
         {demo && <span className="pill pill-warn">Demo</span>}
         <button className="smart-videojs-action" onClick={() => void share()}>VLC / Share</button>
