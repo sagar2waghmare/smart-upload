@@ -1,0 +1,101 @@
+.source-netflix-bottom-tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  height: 64px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding-top: 6px;
+  padding-bottom: 8px;
+  box-sizing: border-box;
+  background: #000;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.source-netflix-bottom-tabs a,
+.source-netflix-bottom-tabs button {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  padding: 4px 0 0;
+  border: 0;
+  background: transparent;
+  color: #737373;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .2px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.source-netflix-bottom-tabs svg {
+  width: 26px;
+  height: 26px;
+}
+
+.source-netflix-bottom-tabs a.active {
+  color: #fff;
+}
+
+.source-netflix-bottom-tabs button:active,
+.source-netflix-bottom-tabs a:active {
+  color: #fff;
+}
+
+.source-netflix-actions .btn-secondary {
+  min-width: 72px !important;
+  min-height: 0 !important;
+  display: grid !important;
+  justify-items: center !important;
+  gap: 4px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #B3B3B3 !important;
+  box-shadow: none !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+.source-netflix-actions .btn-secondary svg {
+  width: 22px !important;
+  height: 22px !important;
+  color: #fff !important;
+}
+
+.source-netflix-season-select {
+  display: inline-block;
+  max-width: 180px;
+  padding: 8px 10px;
+  margin: 10px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.source-netflix-season-select option {
+  background: #141414;
+  color: #fff;
+}
+
+@media (max-width: 700px) {
+  .source-netflix-bottom-tabs {
+    height: 64px;
+    padding-bottom: 8px;
+  }
+}
+
+.details-overlay .source-netflix-bottom-tabs,
+.player-overlay .source-netflix-bottom-tabs {
+  display: none;
+}

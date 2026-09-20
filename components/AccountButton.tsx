@@ -27,8 +27,6 @@ export function AccountButton() {
     };
   }, [open]);
 
-  const initial = (user?.email?.charAt(0) ?? "S").toUpperCase();
-
   const handleSignIn = async () => {
     setBusy(true);
     setError(null);
@@ -43,18 +41,19 @@ export function AccountButton() {
   };
 
   return (
-    <div className="profile-wrap" ref={menuRef}>
+    <div className="profile-wrap source-netflix-profile-wrap" ref={menuRef}>
       <button
-        className="profile"
-        aria-label="Your account"
+        className="profile source-netflix-profile"
+        aria-label="Account"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((v) => !v)}
         disabled={!configured || loading}
       >
-        {initial}
+        <span className="source-netflix-avatar">🦊</span>
       </button>
+
       {open && (
         <div id={id} role="menu" className="account-menu" aria-label="Account menu">
           {loading ? (

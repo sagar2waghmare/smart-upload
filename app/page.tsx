@@ -1,42 +1,42 @@
 import { Hero } from "../components/Hero";
 import { Rail } from "../components/Rail";
-import { SignInPrompt } from "../components/SignInPrompt";
 import { LoginScreen } from "../components/LoginScreen";
 import { ContinueWatchingRail } from "../components/ContinueWatchingRail";
 import { TopTenRail } from "../components/TopTenRail";
 import { getLibrary } from "../lib/library-service";
 import { authIntended, requireSession } from "../lib/auth";
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ signin?: string }>;
-}) {
-  const { signin } = await searchParams;
+const pick = (
+  items: Awaited<ReturnType<typeof getLibrary>>["items"],
+  test: (m: (typeof items)[number]) => boolean,
+) => {
+  const matches = items.filter(test);
+  return matches.length ? matches.slice(0, 10) : items.slice(0, 10);
+};
 
-  if (authIntended() && !(await requireSession())) {
-    return <LoginScreen />;
-  }
+export default async function Home() {
+  if (authIntended() && !(await requireSession())) return <LoginScreen />;
 
-  const showSignInPrompt = signin === "1";
   const { items } = await getLibrary();
-
   const heroItems = items.slice(0, 5);
   const topTen = items.slice(0, 10);
-  const movies = items.filter((item) => item.kind === "movie");
-  const tvShows = items.filter((item) => item.kind === "series");
-  const anime = items.filter((item) => item.kind === "anime");
+  const trending = items.slice(0, 10);
+  const originals = pick(items, (m) => m.kind === "series");
+  const action = pick(items, (m) => (m.genres ?? []).some((g) => /action|adventure/i.test(g)));
+  const dark = pick(items, (m) => (m.genres ?? []).some((g) => /dark|thriller|mystery|drama/i.test(g)));
+  const crime = pick(items, (m) => (m.genres ?? []).some((g) => /crime|thriller/i.test(g)));
 
   return (
-    <main className="home-main nf-home">
+    <main className="source-netflix-home">
       <Hero items={heroItems} />
-      <div className="page home-content nf-home-content">
-        <SignInPrompt prompt={showSignInPrompt} />
+      <div className="source-netflix-rows">
         <ContinueWatchingRail />
-        <TopTenRail items={topTen} />
-        <Rail title="Movies" items={movies.slice(0, 12)} seeAll="/browse/movie" />
-        <Rail title="TV Shows" items={tvShows.slice(0, 12)} seeAll="/browse/series" />
-        {anime.length > 0 && <Rail title="Anime" items={anime.slice(0, 12)} seeAll="/browse/anime" />}
+        <TopTenRail title="Top 10 in your library" items={topTen} />
+        <Rail title="Trending Now" items={trending} />
+        <Rail title="Only on Netflix" items={originals} />
+        <Rail title="Action & Adventure" items={action} />
+        <Rail title="Dark & Cerebral" items={dark} />
+        <Rail title="Crime & Thrillers" items={crime} />
       </div>
     </main>
   );

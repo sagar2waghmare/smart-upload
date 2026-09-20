@@ -6,7 +6,7 @@ import Link from "next/link";
 import { NavigationMenu } from "./NavigationMenu";
 import { SearchOverlay } from "./SearchOverlay";
 import { AccountButton } from "./AccountButton";
-import { ICloudUpload, IMenu, ISearch, ITv } from "./icons";
+import { ISearch, ITv, IChevronDown } from "./icons";
 
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -15,59 +15,61 @@ export function Header() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 42);
+    const onScroll = () => setScrolled(window.scrollY > 80);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  return (
-    <header className={`header netflix-header ${scrolled ? "is-scrolled" : ""}`}>
-      <div className="nf-header-left">
-        <button
-          className="icon-btn nf-menu-trigger"
-          aria-label="Open navigation menu"
-          aria-haspopup="dialog"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-        >
-          <IMenu />
-        </button>
+  useEffect(() => {
+    const openSearch = () => setSearchOpen(true);
+    window.addEventListener("smart-upload:open-search", openSearch);
+    return () => window.removeEventListener("smart-upload:open-search", openSearch);
+  }, []);
 
-        <Link href="/" className="nf-wordmark" aria-label="Smart Upload home">
-          <span className="nf-wordmark-main">SMART</span>
-          <span className="nf-wordmark-sub">UPLOAD</span>
-        </Link>
+  return (
+    <header className={"source-netflix-header " + (scrolled ? "is-scrolled" : "")}>
+      <div className="source-netflix-top">
+        <Link href="/" className="source-netflix-wordmark" aria-label="Home">NETFLIX</Link>
+
+        <div className="source-netflix-actions">
+          <Link href="/" className="source-netflix-icon" aria-label="TV Shows">
+            <ITv />
+          </Link>
+          <button
+            className="source-netflix-icon"
+            aria-label="Search"
+            onClick={() => setSearchOpen(true)}
+          >
+            <ISearch />
+          </button>
+          <AccountButton />
+        </div>
       </div>
 
-      <nav className="streaming-nav nf-nav" aria-label="Primary">
-        <Link href="/" className={pathname === "/" ? "active" : ""}>Home</Link>
-        <Link href="/browse/movie" className={pathname.startsWith("/browse/movie") ? "active" : ""}>Movies</Link>
-        <Link href="/browse/series" className={pathname.startsWith("/browse/series") ? "active" : ""}>TV Shows</Link>
-        <Link href="/browse/anime" className={pathname.startsWith("/browse/anime") ? "active" : ""}>Anime</Link>
-        <Link href="/favorites" className={pathname.startsWith("/favorites") ? "active" : ""}>My List</Link>
-      </nav>
-
-      <div className="header-actions nf-actions">
-        <Link href="/upload" className="icon-btn nf-action" aria-label="Upload URL">
-          <ICloudUpload />
+      <div className="source-netflix-chips" aria-label="Browse">
+        <Link href="/browse/series" className={pathname.startsWith("/browse/series") ? "active" : ""}>
+          TV Shows
+        </Link>
+        <Link href="/browse/movie" className={pathname.startsWith("/browse/movie") ? "active" : ""}>
+          Movies
         </Link>
         <button
-          className="icon-btn nf-action"
-          aria-label="Open search"
-          aria-expanded={searchOpen}
-          onClick={() => setSearchOpen(true)}
+          type="button"
+          className={menuOpen ? "active" : ""}
+          onClick={() => setMenuOpen((v) => !v)}
         >
-          <ISearch />
+          Categories <IChevronDown />
         </button>
-        <span className="nf-tv" aria-hidden="true"><ITv /></span>
-        <AccountButton />
       </div>
 
       <NavigationMenu
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onSearchOpen={() => setSearchOpen(true)}
+        onSearchOpen={() => {
+          setMenuOpen(false);
+          setSearchOpen(true);
+        }}
       />
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>

@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "./abyss-theme.css";
-import "./cinematic-polish.css";
-import "./ui-motion.css";
 import "./player-polish.css";
 import "./premium-ui.css";
-import "./netflix-inspired.css";
-import "./netflix-clone-ui.css";
+import "./source-netflix-ui.css";
+import "./source-netflix-fixes.css";
 import { Header } from "../components/Header";
+import { NetflixBottomTabs } from "../components/NetflixBottomTabs";
 import { AuthProvider } from "../components/AuthProvider";
 import { DetailsProvider } from "../components/DetailsProvider";
 import { authIntended, requireSession } from "../lib/auth";
 
 export const metadata: Metadata = {
-  title: { default: "Smart Upload — Private Media Library", template: "%s · Smart Upload" },
-  description: "Your private media library. Upload, organize and watch movies, TV and anime.",
+  title: { default: "Smart Upload", template: "%s · Smart Upload" },
+  description: "Private media library.",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -27,6 +25,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <DetailsProvider>
             {gate ? null : <Header />}
             {children}
+            {gate ? null : <NetflixBottomTabs />}
           </DetailsProvider>
         </AuthProvider>
       </body>

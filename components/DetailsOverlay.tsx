@@ -1,63 +1,55 @@
 "use client";
-import { useMemo, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import type { Episode, MediaItem } from "../lib/types";
+import { loadLibrary } from "../lib/client-library";
 import { useDetails } from "./DetailsProvider";
 import { FavButton } from "./FavButton";
 import { SmartImage } from "./SmartImage";
-import { IArrowLeft, IChevronRight, IPlay } from "./icons";
 import { useTmdbMeta } from "../lib/use-tmdb-metadata";
-import { formatPosition, getProgress, progressPercent, useWatchProgress, watchMode } from "../lib/watch-progress";
+import { IClose, IImage, IPlay, IChevronRight } from "./icons";
 
-const kindLabel = (k?: MediaItem["kind"]) =>
-  k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FILME";
+const tabs = ["Episodes", "More Like This", "Trailers"] as const;
+type Tab = (typeof tabs)[number];
 
 export function DetailsOverlay() {
-  const { item, openPlayer, closeDetails } = useDetails();
-  const progressMap = useWatchProgress();
+  const { item, openDetails, openPlayer, closeDetails } = useDetails();
+  const [tab, setTab] = useState<Tab>("More Like This");
+  const [seasonIndex, setSeasonIndex] = useState(0);
+  const [library, setLibrary] = useState<MediaItem[]>([]);
   const tmdb = useTmdbMeta(item);
 
-  const allEpisodes = useMemo(() => item?.seasons?.flatMap((s) => s.episodes) ?? [], [item]);
-  const priorEpisode = useMemo(() => {
-    if (!item) return null;
-    const resumeId = getProgress(item.id)?.episodeId;
-    if (!resumeId) return allEpisodes[0] ?? null;
-    return allEpisodes.find((e) => e.id === resumeId) ?? allEpisodes[0] ?? null;
-  }, [item, allEpisodes]);
+  useEffect(() => {
+    if (!item) return;
+    setTab(item.seasons?.length ? "Episodes" : "More Like This");
+    setSeasonIndex(0);
+    loadLibrary().then(setLibrary).catch(() => setLibrary([]));
+  }, [item]);
 
-  const [seasonIdx, setSeasonIdx] = useState(() => {
-    if (!item || !priorEpisode) return 0;
-    const idx = item.seasons?.findIndex((s) => s.episodes.some((e) => e.id === priorEpisode.id)) ?? -1;
-    return idx >= 0 ? idx : 0;
-  });
-  const [episode, setEpisode] = useState<Episode | null>(priorEpisode);
+  const seasons = item?.seasons ?? [];
+  const currentSeason = seasons[seasonIndex];
+  const episodes = currentSeason?.episodes ?? [];
+  const similar = useMemo(
+    () => library.filter((m) => m.id !== item?.id).slice(0, 9),
+    [library, item?.id],
+  );
 
   if (!item) return null;
 
-  const progress = progressMap[item.id] ?? null;
-  const mode = watchMode(progress);
-  const playLabel = mode === "resume" ? "Resume Watching" : mode === "replay" ? "Watch Again" : "Play";
-  const playEp = allEpisodes.length > 0 ? episode : null;
-
   const meta = tmdb.meta;
+  const title = meta?.title || item.title;
   const backdrop = meta?.backdrop || item.backdrop || item.poster;
-  const poster = meta?.poster || item.poster;
   const overview = meta?.overview || item.overview || "";
-  const genres = (meta?.genres && meta.genres.length ? meta.genres : item.genres) ?? [];
+  const genres = meta?.genres?.length ? meta.genres : item.genres ?? [];
   const rating = meta?.rating ?? item.rating;
-  const runtime = meta?.runtime ?? item.runtime;
   const year = meta?.year ?? item.year;
-
-  const seasons = item.seasons ?? [];
-  const currentSeason = seasons[seasonIdx] ?? seasons[0];
-  const list = currentSeason?.episodes ?? [];
-  const totalEpisodes = allEpisodes.length;
-  const seasonCountLabel = seasons.length === 1 ? "1 Season" : `${seasons.length} Seasons`;
-  const episodeCountLabel = totalEpisodes === 1 ? "1 Episode" : `${totalEpisodes} Episodes`;
+  const runtime = meta?.runtime ?? item.runtime;
+  const match = rating ? Math.min(99, Math.round(76 + rating * 2.4)) : 90;
 
   return (
-    <div className="details-overlay" role="dialog" aria-modal="true" aria-label={`${item.title} details`}>
-      <button className="details-back" onClick={closeDetails} aria-label="Back">
-        <IArrowLeft />
+    <div className="details-overlay" role="dialog" aria-modal="true" aria-label={title}>
+      <button className="details-back" onClick={closeDetails} aria-label="Close">
+        <IClose />
       </button>
 
       <div className="details-hero">
@@ -65,118 +57,117 @@ export function DetailsOverlay() {
           <SmartImage src={backdrop} alt="" sizes="100vw" priority />
         </div>
         <div className="details-hero-shade" />
-
-        <div className="details-copy">
-          {poster ? (
-            <div className="details-poster" style={{ position: "relative", aspectRatio: "2 / 3", height: "auto", minHeight: 0 }}>
-              <SmartImage src={poster} alt={`${item.title} poster`} sizes="320px" priority />
-            </div>
-          ) : null}
-
-          <div className="details-right">
-            <span className="filme-tipo">{kindLabel(item.kind)}</span>
-            <h1>{meta?.title || item.title}</h1>
-
-            <div className="details-stats">
-              {rating ? (
-                <div className="nota-tmdb">
-                  <span>TMDB</span>
-                  <strong>{rating.toFixed(1)}</strong>
-                </div>
-              ) : null}
-              {year ? (
-                <div className="meta-item">
-                  <span>Year</span>
-                  <strong>{year}</strong>
-                </div>
-              ) : null}
-              {runtime ? (
-                <div className="meta-item">
-                  <span>Duration</span>
-                  <strong>{Math.floor(runtime / 60)}h {runtime % 60}m</strong>
-                </div>
-              ) : null}
-              {allEpisodes.length > 0 ? (
-                <div className="meta-item">
-                  <span>Series</span>
-                  <strong>{seasonCountLabel} · {episodeCountLabel}</strong>
-                </div>
-              ) : null}
-            </div>
-
-            {genres.length > 0 && (
-              <div className="details-genres">
-                {genres.slice(0, 4).map((g) => <span key={g} className="genero">{g}</span>)}
-              </div>
-            )}
-
-            {overview && <p className="details-overview">{overview}</p>}
-
-            {tmdb.loading && <span className="tmdb-source">Updating metadata from TMDB…</span>}
-            {tmdb.matched && !tmdb.loading && <span className="tmdb-source">TMDB metadata</span>}
-
-            {playEp && (
-              <span className="pill pill-primary" style={{ marginTop: ".7em" }}>
-                S{String(playEp.season).padStart(2, "0")} · E{String(playEp.episode).padStart(2, "0")} — {playEp.title}
-              </span>
-            )}
-
-            <div className="details-actions">
-              <button className="btn btn-primary" onClick={() => openPlayer(playEp ?? undefined)} aria-label={playLabel}>
-                <IPlay /> {playLabel}
-              </button>
-              <FavButton id={item.id} labelStyle="chip" />
-            </div>
-
-            {progress && progressPercent(progress) > 0.5 && (
-              <div className="resume-row">
-                <span className="pill pill-neutral resume-chip">{mode === "replay" ? "Completed" : `Resume at ${formatPosition(progress.position)}`}</span>
-                <div className="progress-bar resume-bar"><span style={{ width: `${Math.min(100, progressPercent(progress))}%` }} /></div>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
-      {allEpisodes.length > 0 && (
-        <section className="details-section" aria-label="Episodes" style={{ maxWidth: 1250, margin: "0 auto", padding: "0 7vw" }}>
-          <div className="season-head">
-            <div>
-              <h2>{currentSeason?.title ?? "Episodes"}</h2>
-              <span className="season-summary">{seasonCountLabel} · {episodeCountLabel}</span>
-            </div>
+      <div className="source-netflix-details-body">
+        <h1 className="source-netflix-detail-title">{title}</h1>
+
+        <div className="source-netflix-meta">
+          <span className="source-netflix-match">{match}% Match</span>
+          {year ? <span>{year}</span> : null}
+          {rating ? <span className="source-netflix-pill">{rating.toFixed(1)}</span> : null}
+          <span>
+            {seasons.length
+              ? seasons.length + (seasons.length === 1 ? " Season" : " Seasons")
+              : runtime
+                ? Math.floor(runtime / 60) + "h " + (runtime % 60) + "m"
+                : "Movie"}
+          </span>
+          <span className="source-netflix-hd">HD</span>
+        </div>
+
+        <button className="source-netflix-detail-primary" onClick={() => openPlayer(episodes[0])}>
+          <IPlay /> Play
+        </button>
+        <button className="source-netflix-detail-secondary" type="button">
+          <IImage /> Download
+        </button>
+
+        {overview && <p className="source-netflix-synopsis">{overview}</p>}
+
+        <div className="source-netflix-cast">
+          {item.cast?.length ? <span><span className="dim">Cast: </span>{item.cast.join(", ")}</span> : null}
+          {item.creator ? <span><span className="dim">Creator: </span>{item.creator}</span> : null}
+          {genres.length ? <span><span className="dim">Genres: </span>{genres.join(", ")}</span> : null}
+        </div>
+
+        <div className="source-netflix-actions">
+          <FavButton id={item.id} labelStyle="chip" />
+          <button className="source-netflix-action" type="button"><span>Rate</span></button>
+          <button className="source-netflix-action" type="button"><span>Share</span></button>
+          <button className="source-netflix-action" type="button"><span>Download</span></button>
+        </div>
+
+        <div className="source-netflix-tabs">
+          {tabs.filter((t) => t !== "Episodes" || seasons.length > 0).map((t) => (
+            <button key={t} type="button" className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {tab === "Episodes" && seasons.length > 0 && (
+          <section className="source-netflix-episodes" aria-label="Episodes">
             {seasons.length > 1 && (
-              <select className="season-select" aria-label="Season" value={seasonIdx} onChange={(e) => {
-                const i = Number(e.target.value);
-                setSeasonIdx(i);
-                setEpisode(seasons[i]?.episodes?.[0] ?? null);
-              }}>
-                {seasons.map((s, i) => <option key={s.season} value={i}>{s.title ?? `Season ${s.season}`} · {s.episodes.length} {s.episodes.length === 1 ? "episode" : "episodes"}</option>)}
+              <select
+                className="source-netflix-season-select"
+                value={seasonIndex}
+                onChange={(e) => setSeasonIndex(Number(e.target.value))}
+                aria-label="Season"
+              >
+                {seasons.map((s, i) => (
+                  <option key={s.season} value={i}>{s.title || "Season " + s.season}</option>
+                ))}
               </select>
             )}
-          </div>
-          <div className="episode-grid">
-            {list.map((ep) => {
-              const active = episode?.id === ep.id;
-              const isResume = mode === "resume" && progress?.episodeId === ep.id;
-              return (
-                <button key={ep.id} className={`episode-card ${active ? "playing" : ""}`} onClick={() => { setEpisode(ep); openPlayer(ep); }} aria-pressed={active}>
-                  <span className="episode-thumb">
-                    <SmartImage src={ep.thumb ?? item.backdrop} alt="" sizes="104px" />
-                    <span className="play-mini"><IPlay /></span>
+
+            {episodes.map((ep) => (
+              <button key={ep.id} type="button" className="source-netflix-episode" onClick={() => openPlayer(ep)}>
+                <span className="source-netflix-episode-thumb">
+                  <img src={ep.thumb ?? backdrop} alt="" />
+                  <span className="source-netflix-episode-play"><IPlay /></span>
+                </span>
+                <span className="source-netflix-episode-info">
+                  <span className="source-netflix-episode-head">
+                    <span className="source-netflix-episode-title">{ep.episode}. {ep.title}</span>
+                    <span className="source-netflix-episode-time">{ep.runtime ? ep.runtime + "m" : ""}</span>
                   </span>
-                  <span className="episode-info">
-                    <span className="episode-title">{ep.title}{isResume && <span className="episode-resume">Resume</span>}</span>
-                    <span className="episode-sub">S{String(ep.season).padStart(2, "0")} · E{String(ep.episode).padStart(2, "0")}{ep.runtime ? ` · ${ep.runtime}m` : ""}{isResume && progress ? ` · ${formatPosition(progress.position)}` : ""}</span>
-                    {ep.overview && <span className="episode-overview">{ep.overview}</span>}
+                  <span className="source-netflix-episode-desc">
+                    S{String(ep.season).padStart(2, "0")} · E{String(ep.episode).padStart(2, "0")}
+                    {ep.overview ? " · " + ep.overview : ""}
                   </span>
-                  <IChevronRight className="episode-check" />
-                </button>
-              );
-            })}
+                </span>
+                <IChevronRight className="source-netflix-episode-arrow" />
+              </button>
+            ))}
+          </section>
+        )}
+
+        {tab === "More Like This" && (
+          <div className="source-netflix-grid">
+            {similar.map((m) => (
+              <button key={m.id} type="button" onClick={() => openDetails(m)}>
+                <SmartImage src={m.poster} alt={m.title + " poster"} />
+              </button>
+            ))}
           </div>
-        </section>
-      )}
+        )}
+
+        {tab === "Trailers" && (
+          <div className="source-netflix-trailers">
+            {["Official Trailer", "Teaser", "Behind the Scenes"].map((name) => (
+              <div key={name} className="source-netflix-trailer">
+                <div className="source-netflix-trailer-thumb">
+                  <img src={backdrop ?? item.poster} alt="" />
+                  <span className="source-netflix-trailer-play"><IPlay /></span>
+                  <span className="source-netflix-trailer-runtime">0:45</span>
+                </div>
+                <span className="source-netflix-trailer-name">{name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
