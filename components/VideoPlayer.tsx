@@ -720,6 +720,11 @@ export function VideoPlayer({
       ) : null}
 
       <div className={"player-topbar " + (controls ? "" : "hidden")}>
+        <div className="player-title-block">
+          <span className="player-title">{title}</span>
+          {episodeTitle ? <span className="player-episode">{episodeTitle}</span> : null}
+        </div>
+        <span className="player-live-dot" aria-hidden="true" />
         {onClose ? (
           <button
             type="button"
@@ -731,11 +736,6 @@ export function VideoPlayer({
             ×
           </button>
         ) : null}
-        <div className="player-title-block">
-          <span className="player-title">{title}</span>
-          {episodeTitle ? <span className="player-episode">{episodeTitle}</span> : null}
-        </div>
-        <span className="player-live-dot" aria-hidden="true" />
       </div>
 
       <div className={"player-gradient " + (controls ? "" : "hidden")} />
