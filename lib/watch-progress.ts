@@ -11,19 +11,23 @@ export interface WatchProgress {
 
 const KEY = "smart-upload:watch-progress";
 export const PROGRESS_EVENT = "watch-progress";
+let cachedMap: Record<string, WatchProgress> | null = null;
 
 function loadMap(): Record<string, WatchProgress> {
   if (typeof window === "undefined") return {};
+  if (cachedMap) return cachedMap;
   try {
     const raw = window.localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as Record<string, WatchProgress>) : {};
+    cachedMap = raw ? (JSON.parse(raw) as Record<string, WatchProgress>) : {};
   } catch {
-    return {};
+    cachedMap = {};
   }
+  return cachedMap;
 }
 
 function writeMap(map: Record<string, WatchProgress>) {
   if (typeof window === "undefined") return;
+  cachedMap = map;
   try {
     window.localStorage.setItem(KEY, JSON.stringify(map));
   } catch {
