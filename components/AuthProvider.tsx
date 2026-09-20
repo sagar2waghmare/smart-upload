@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   firebaseClientConfigured,
   loadFirebaseClientConfig,
+  setFirebaseClientConfig,
   signInWithGoogle,
   signOutSession,
+  type FirebaseClientConfig,
 } from "../lib/firebase-client";
 
 interface AuthState {
@@ -25,9 +27,21 @@ const AuthContext = createContext<AuthState>({
   signOut: async () => {},
 });
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  firebaseConfig,
+}: {
+  children: React.ReactNode;
+  firebaseConfig?: FirebaseClientConfig | null;
+}) {
   const router = useRouter();
-  const [configured, setConfigured] = useState(() => firebaseClientConfigured());
+  const [configured, setConfigured] = useState(() => {
+    if (firebaseConfig) {
+      setFirebaseClientConfig(firebaseConfig);
+      return true;
+    }
+    return firebaseClientConfigured();
+  });
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ email: string | null } | null>(null);
 
@@ -35,10 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     const bootstrap = async () => {
-      const config = await loadFirebaseClientConfig();
+      // The server injects the public Firebase config into this client
+      // provider. This avoids relying on NEXT_PUBLIC_* build-time substitution
+      // when the project is moved between Vercel accounts.
+      const config = firebaseConfig ?? (await loadFirebaseClientConfig());
       if (cancelled) return;
 
       const ready = Boolean(config);
+      if (config) setFirebaseClientConfig(config);
       setConfigured(ready);
 
       if (!ready) {
@@ -62,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [firebaseConfig]);
 
   const signIn = useCallback(async () => {
     const res = await signInWithGoogle();
