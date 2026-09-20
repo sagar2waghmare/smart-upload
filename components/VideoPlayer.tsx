@@ -148,10 +148,9 @@ export function VideoPlayer({
     }
   }, []);
 
-  // Resume only after the browser has started the stream once. Seeking before
-  // playback can make a remote Drive range request the critical first operation,
-  // which is noticeably slower for large files. Starting first lets the browser
-  // establish the media pipeline, then we perform the resume seek.
+  // For resume playback, seek as soon as metadata is available so the
+  // browser makes the resume range request directly instead of downloading
+  // from 0 first and then performing a second remote seek.
   const applyInitial = useCallback(() => {
     const v = videoRef.current;
     if (!v || initialedRef.current || !initialTime || initialTime <= 0.5) return false;
@@ -352,21 +351,22 @@ export function VideoPlayer({
         ref={videoRef}
         className="player-video"
         poster={poster ?? backdrop ?? undefined}
-        preload="metadata"
+        preload={initialTime && initialTime > 0.5 ? "auto" : "metadata"}
         playsInline
         onLoadStart={() => setBuffering(true)}
         onPlay={() => { setStatus("playing"); setBuffering(false); poke(); }}
         onPause={() => { setStatus("paused"); setControls(true); emitProgress(true); }}
         onWaiting={() => setBuffering(true)}
-        onPlaying={() => {
-          const resumed = applyInitial();
-          if (!resumed) setBuffering(false);
+        onPlaying={() => setBuffering(false)}
+        onSeeking={() => {
+          if (initialTime && initialTime > 0.5 && !initialedRef.current) setBuffering(true);
         }}
         onCanPlay={() => setBuffering(false)}
-        onLoadedData={() => setBuffering(false)}
+        onLoadedData={() => applyInitial()}
         onLoadedMetadata={(e) => {
           durationRef.current = e.currentTarget.duration || durationRef.current;
           setDuration(e.currentTarget.duration);
+          applyInitial();
         }}
         onTimeUpdate={(e) => {
           const t = e.currentTarget.currentTime;
@@ -376,7 +376,10 @@ export function VideoPlayer({
           setCurrent(t);
           emitProgress();
         }}
-        onSeeked={() => emitProgress(true)}
+        onSeeked={() => {
+          setBuffering(false);
+          emitProgress(true);
+        }}
         onVolumeChange={(e) => {
           setMuted(e.currentTarget.muted);
           setVolume(e.currentTarget.volume);
