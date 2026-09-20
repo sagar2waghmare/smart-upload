@@ -21,7 +21,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const count = items.length;
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
-  const dragRef = useRef({ startX: 0, dragging: false });
+  const dragRef = useRef({ startX: 0, dragging: false, moved: false });
+  const trackRef = useRef<HTMLDivElement>(null);
 
   const go = useCallback((next: number) => {
     if (!count) return;
@@ -77,7 +78,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
         </div>
       </div>
 
-      <div className="hero-track" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
+      <div ref={trackRef} className="hero-track" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
         {items.map((item, i) => {
           let posicao = i - index;
           if (posicao > count / 2) posicao -= count;
@@ -93,7 +94,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
               aria-label={`Open ${item.title} details`}
               aria-hidden={!ativo}
               tabIndex={ativo ? 0 : -1}
-              onClick={() => openDetails(item)}
+              onClick={(e) => { if (dragRef.current.moved) { e.preventDefault(); dragRef.current.moved = false; return; } openDetails(item); }}
             >
               <SmartImage src={item.poster} alt={`${item.title} poster`} sizes="(max-width: 600px) 180px, 235px" priority={ativo} />
               <span className="hero-poster-sheen" aria-hidden="true" />
