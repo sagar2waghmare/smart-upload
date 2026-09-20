@@ -20,7 +20,7 @@ export function Rail({ title, items, seeAll }: { title: string; items: MediaItem
       <div className="titulo-secao">
         <h2>{title}</h2>
         {seeAll ? (
-          <Link href={seeAll}>Ver tudo</Link>
+          <Link href={seeAll}>See all</Link>
         ) : (
           <div className="controles-carrossel">
             <button onClick={() => scroll("left")} aria-label="Scroll left">‹</button>
