@@ -1,29 +1,25 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { MediaItem } from "../lib/types";
 import { loadLibrary } from "../lib/client-library";
-import { MediaCard } from "./MediaCard";
 import { IPlay } from "./icons";
+import { useDetails } from "./DetailsProvider";
 import { progressPercent, useWatchProgress, type WatchProgress } from "../lib/watch-progress";
 
 export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { title?: string; seeAll?: string }) {
   const progress = useWatchProgress();
+  const { openDetails } = useDetails();
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
     loadLibrary()
-      .then((ls) => {
-        if (alive) setItems(ls);
-      })
-      .catch(() => {
-        if (alive) setItems([]);
-      });
-    return () => {
-      alive = false;
-    };
+      .then((ls) => { if (alive) setItems(ls); })
+      .catch(() => { if (alive) setItems([]); });
+    return () => { alive = false; };
   }, []);
 
   const active = (items ?? [])
@@ -39,35 +35,31 @@ export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { 
   const scroll = (dir: "left" | "right") => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollBy({ left: dir === "left" ? -600 : 600, behavior: "smooth" });
+    el.scrollBy({ left: dir === "left" ? -520 : 520, behavior: "smooth" });
   };
 
   if (!active.length) {
     return (
-      <section className="secao-conteudos" aria-label={title}>
-        <div className="titulo-secao">
-          <h2><IPlay style={{ width: "1.1em", height: "1.1em" }} /> {title}</h2>
+      <section className="secao-conteudos nf-rail" aria-label={title}>
+        <div className="titulo-secao nf-rail-title">
+          <h2><IPlay /> {title}</h2>
         </div>
         <div className="continue-empty">
           <p className="continue-empty-text">
             Nothing in progress yet. Start watching something and unfinished titles will appear here.
           </p>
-          {seeAll && (
-            <Link href={seeAll} className="continue-empty-link">
-              Browse library
-            </Link>
-          )}
+          {seeAll && <Link href={seeAll} className="continue-empty-link">Browse library</Link>}
         </div>
       </section>
     );
   }
 
   return (
-    <section className="secao-conteudos" aria-label={title}>
-      <div className="titulo-secao">
-        <h2><IPlay style={{ width: "1.1em", height: "1.1em" }} /> {title}</h2>
+    <section className="secao-conteudos nf-rail" aria-label={title}>
+      <div className="titulo-secao nf-rail-title">
+        <h2><IPlay /> {title}</h2>
         {seeAll ? (
-          <Link href={seeAll}>Ver tudo</Link>
+          <Link href={seeAll}>See all</Link>
         ) : (
           <div className="controles-carrossel">
             <button onClick={() => scroll("left")} aria-label="Scroll left">‹</button>
@@ -75,10 +67,32 @@ export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { 
           </div>
         )}
       </div>
-      <div className="lista-conteudos" ref={scrollRef}>
-        {active.map((m) => (
-          <MediaCard key={m.id} item={m} />
-        ))}
+
+      <div className="lista-conteudos nf-landscape-list" ref={scrollRef}>
+        {active.map((m) => {
+          const p = progress[m.id];
+          const pct = progressPercent(p);
+          return (
+            <article className="nf-continue-card" key={m.id}>
+              <button
+                className="nf-continue-art"
+                onClick={() => openDetails(m)}
+                aria-label={`Continue ${m.title}`}
+              >
+                <img src={m.backdrop ?? m.poster} alt="" />
+                <span className="nf-continue-shade" aria-hidden="true" />
+                <span className="nf-continue-play"><IPlay /></span>
+                <span className="nf-card-progress">
+                  <span style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+                </span>
+              </button>
+              <div className="nf-continue-meta">
+                <strong>{m.title}</strong>
+                <span>{m.kind === "series" ? "TV Series" : m.kind === "anime" ? "Anime" : "Movie"} · Continue</span>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
