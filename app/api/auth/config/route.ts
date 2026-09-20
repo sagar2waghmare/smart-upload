@@ -2,14 +2,21 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+function env(name: string): string {
+  return process.env[name] ?? "";
+}
+
 export async function GET() {
+  // Use dynamic environment lookups here so a Vercel deployment can read the
+  // current project environment at runtime instead of relying on a build-time
+  // substitution of NEXT_PUBLIC_* variables.
   const config = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? undefined,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? undefined,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? undefined,
+    apiKey: env("NEXT_PUBLIC_FIREBASE_API_KEY"),
+    authDomain: env("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"),
+    projectId: env("NEXT_PUBLIC_FIREBASE_PROJECT_ID"),
+    storageBucket: env("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET") || undefined,
+    messagingSenderId: env("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID") || undefined,
+    appId: env("NEXT_PUBLIC_FIREBASE_APP_ID") || undefined,
   };
 
   const configured = Boolean(config.apiKey && config.authDomain && config.projectId);
@@ -21,7 +28,7 @@ export async function GET() {
     },
     {
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     }
   );
