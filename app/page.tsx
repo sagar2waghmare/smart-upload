@@ -4,7 +4,6 @@ import { SignInPrompt } from "../components/SignInPrompt";
 import { LoginScreen } from "../components/LoginScreen";
 import { ContinueWatchingRail } from "../components/ContinueWatchingRail";
 import { getLibrary } from "../lib/library-service";
-import { isDemoMode } from "../lib/config";
 import { authIntended, requireSession } from "../lib/auth";
 
 export default async function Home({
@@ -33,13 +32,6 @@ export default async function Home({
         <Rail title="TV Shows" items={tvShows.slice(0, 12)} seeAll="/browse/series" />
         {anime.length > 0 && (
           <Rail title="Anime" items={anime.slice(0, 12)} seeAll="/browse/anime" />
-        )}
-        {isDemoMode() && (
-          <section className="section home-demo-note" aria-label="Demo mode notice">
-            <p className="empty-note">
-              Demo mode is enabled. Configure the application for real media to populate the library.
-            </p>
-          </section>
         )}
       </div>
     </main>
