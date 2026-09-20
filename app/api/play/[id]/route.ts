@@ -16,7 +16,9 @@ export async function GET(_req: Request, { params }: Params) {
   // directly instead of rebuilding the full TMDB-enriched library on every play.
   if (await validateDriveMedia(id)) {
     const preparedId = await findPreparedBrowserMedia(id);
-    const audioTracks = preparedId ? await findPreparedAudioTracks(id) : [];
+    // Sidecar AAC tracks are independent of the browser MP4 copy, so discover
+    // them even when playback falls back to the original source.
+    const audioTracks = await findPreparedAudioTracks(id);
     const sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(id);
     const browserId = preparedId ?? id;
     const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(browserId) : null;
