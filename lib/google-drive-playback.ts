@@ -135,6 +135,15 @@ export async function findPreparedBrowserMedia(fileId: string): Promise<string |
   return prepared?.id ?? null;
 }
 
+export async function getDriveMediaMimeType(fileId: string): Promise<string | null> {
+  const id = fileId.trim();
+  if (!id) return null;
+  const token = await accessToken();
+  const item = await metadata(id, token);
+  if (item.trashed || !item.mimeType?.startsWith("video/") || !(await isInsideMedia(id, token))) return null;
+  return item.mimeType;
+}
+
 export async function validateDriveMedia(fileId: string): Promise<boolean> {
   const id = fileId.trim();
   if (!id) return false;
