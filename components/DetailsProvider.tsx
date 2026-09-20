@@ -73,17 +73,30 @@ export function DetailsProvider({ children }: { children: React.ReactNode }) {
     };
   }, [item]);
 
-  // Escape closes the player first, then the details overlay.
+  // Escape and browser Back close transient overlays instead of leaving the page.
   useEffect(() => {
     if (!item) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (playerOpen) setPlayerOpen(false);
+      if (playerOpen) closePlayer();
       else closeDetails();
     };
+    const onPopState = () => {
+      if (playerOpen) {
+        setPlayerOpen(false);
+        return;
+      }
+      setItem(null);
+      setEpisode(null);
+      setPlayerOpen(false);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [item, playerOpen, closeDetails]);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [item, playerOpen, closePlayer, closeDetails]);
 
   const value = useMemo(
     () => ({ item, playerOpen, episode, openDetails, closeDetails, openPlayer, closePlayer }),
