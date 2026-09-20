@@ -111,7 +111,7 @@ function copyMediaHeaders(upstream: Response, headers: Headers) {
 
 const RANGE_CHUNK_BYTES = 8 * 1024 * 1024;
 const RANGE_CACHE_TTL_SECONDS = 30 * 60;
-const RANGE_CACHE_ORIGIN = "https://smart-upload-stream.smart-upload-stream.workers.dev";
+
 const PREFETCH_THRESHOLD_BYTES = 2 * 1024 * 1024;
 
 type ByteRange = { start: number; end: number | null };
@@ -329,7 +329,7 @@ async function serveRangedChunk(
 ): Promise<Response | null> {
   const chunkStart = chunkStartForByte(range.start);
   const requestUrl = new URL(request.url);
-  const cacheKey = chunkCacheKey(new URL(RANGE_CACHE_ORIGIN), fileId, chunkStart);
+  const cacheKey = chunkCacheKey(requestUrl, fileId, chunkStart);
   const ifRange = request.headers.get("If-Range");
 
   let cached = await edgeCache.match(cacheKey);
@@ -367,7 +367,7 @@ async function serveRangedChunk(
           requestedEnd >= stored.end - PREFETCH_THRESHOLD_BYTES
         ) {
           const nextStart = stored.end + 1;
-          ctx.waitUntil(fillChunkCache(ctx, requestUrl.origin || RANGE_CACHE_ORIGIN, fileId, nextStart, token).catch(() => undefined));
+          ctx.waitUntil(fillChunkCache(ctx, requestUrl.origin, fileId, nextStart, token).catch(() => undefined));
         }
         return response;
       }
@@ -422,7 +422,7 @@ async function serveRangedChunk(
   cacheHeaders.set("X-Smart-Range-End", String(stored.end));
   cacheHeaders.set("X-Smart-Range-Total", String(stored.total));
 
-  const cacheKeyForResponse = chunkCacheKey(new URL(RANGE_CACHE_ORIGIN), fileId, chunkStart);
+  const cacheKeyForResponse = chunkCacheKey(requestUrl, fileId, chunkStart);
   const fillPromise = edgeCache.put(
     cacheKeyForResponse,
     new Response(cacheBody, { status: 200, headers: cacheHeaders }),
@@ -441,7 +441,7 @@ async function serveRangedChunk(
     requestedEnd >= stored.end - PREFETCH_THRESHOLD_BYTES
   ) {
     const nextStart = stored.end + 1;
-    ctx.waitUntil(fillChunkCache(ctx, requestUrl.origin || RANGE_CACHE_ORIGIN, fileId, nextStart, token).catch(() => undefined));
+    ctx.waitUntil(fillChunkCache(ctx, requestUrl.origin, fileId, nextStart, token).catch(() => undefined));
   }
 
   return makeRangeResponse(clientBody, stored, range, "MISS", mediaHeaders);
