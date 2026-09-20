@@ -310,3 +310,19 @@
     transition-duration: .01ms !important;
   }
 }
+
+
+/* The overlay stage now hosts the new player directly. */
+.play-stage .su-player-frame {
+  width: min(100%, 1500px);
+  max-width: 1500px;
+  max-height: 100%;
+  height: auto;
+  align-self: center;
+}
+@media (max-width: 700px) {
+  .play-stage .su-player-frame {
+    width: 100%;
+    max-width: none;
+  }
+}
