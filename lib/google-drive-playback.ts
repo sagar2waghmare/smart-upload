@@ -10,7 +10,7 @@ const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 
 interface ServiceAccount { client_email: string; private_key: string; }
 type CachedAccess = { token: string; expiresAt: number };
-type MediaCheck = { id: string; parents?: string[]; mimeType?: string; trashed?: boolean; size?: string };
+type MediaCheck = { id: string; name?: string; parents?: string[]; mimeType?: string; trashed?: boolean; size?: string };
 type CachedMedia = { item: MediaCheck; expiresAt: number };
 
 let cachedAccess: CachedAccess | null = null;
@@ -56,7 +56,7 @@ async function accessToken(): Promise<string> {
 async function metadata(fileId: string, token: string): Promise<MediaCheck> {
   const cached = mediaMetadata.get(fileId);
   if (cached && cached.expiresAt > Date.now()) return cached.item;
-  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,parents,mimeType,trashed,size`;
+  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,name,parents,mimeType,trashed,size`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "force-cache", next: { revalidate: 300 } });
   if (res.status === 401) { cachedAccess = null; throw new Error("Google Drive authentication expired"); }
   if (!res.ok) throw new Error("Google Drive media not found");
@@ -97,6 +97,42 @@ async function isInsideMedia(fileId: string, token: string): Promise<boolean> {
   }
   mediaChecks.set(fileId, { valid: false, expiresAt: Date.now() + 60 * 1000 });
   return false;
+}
+
+function escapeDriveQueryValue(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+export async function findPreparedBrowserMedia(fileId: string): Promise<string | null> {
+  const id = fileId.trim();
+  if (!id) return null;
+  const token = await accessToken();
+  const item = await metadata(id, token);
+  if (item.trashed || !item.mimeType?.startsWith("video/") || !item.name || !item.parents?.[0]) return null;
+
+  const ext = item.name.includes(".") ? item.name.slice(item.name.lastIndexOf(".")) : "";
+  const base = ext ? item.name.slice(0, -ext.length) : item.name;
+  const preparedName = `${base}.browser.mp4`;
+  const query = `'${escapeDriveQueryValue(item.parents[0])}' in parents and name = '${escapeDriveQueryValue(preparedName)}' and trashed = false`;
+  const url = new URL(DRIVE_API_URL);
+  url.searchParams.set("q", query);
+  url.searchParams.set("spaces", "drive");
+  url.searchParams.set("pageSize", "10");
+  url.searchParams.set("fields", "files(id,name,mimeType,size,parents)");
+  url.searchParams.set("includeItemsFromAllDrives", "true");
+  url.searchParams.set("supportsAllDrives", "true");
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+
+  const data = (await res.json()) as { files?: MediaCheck[] };
+  const prepared = data.files?.find(
+    (file) => file.id && file.mimeType === "video/mp4" && file.name === preparedName,
+  );
+  return prepared?.id ?? null;
 }
 
 export async function validateDriveMedia(fileId: string): Promise<boolean> {
