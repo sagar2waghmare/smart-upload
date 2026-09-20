@@ -135,6 +135,60 @@ export async function findPreparedBrowserMedia(fileId: string): Promise<string |
   return prepared?.id ?? null;
 }
 
+export async function findPreparedAudioTracks(fileId: string): Promise<Array<{ label: string; language?: string; id: string }>> {
+  const id = fileId.trim();
+  if (!id) return [];
+  const token = await accessToken();
+  const item = await metadata(id, token);
+  if (item.trashed || !item.name || !item.parents?.[0]) return [];
+
+  const ext = item.name.includes(".") ? item.name.slice(item.name.lastIndexOf(".")) : "";
+  const base = ext ? item.name.slice(0, -ext.length) : item.name;
+  const prefix = `${base}.browser.audio.`;
+
+  const query = `'${escapeDriveQueryValue(item.parents[0])}' in parents and trashed = false and name contains '${escapeDriveQueryValue(prefix)}'`;
+  const url = new URL(DRIVE_API_URL);
+  url.searchParams.set("q", query);
+  url.searchParams.set("spaces", "drive");
+  url.searchParams.set("pageSize", "100");
+  url.searchParams.set("fields", "files(id,name,mimeType,size,parents)");
+  url.searchParams.set("includeItemsFromAllDrives", "true");
+  url.searchParams.set("supportsAllDrives", "true");
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+
+  const data = (await res.json()) as { files?: MediaCheck[] };
+  return (data.files ?? [])
+    .filter((file) => file.id && file.name?.startsWith(prefix) && file.name.endsWith(".m4a"))
+    .map((file) => {
+      const tokenPart = file.name!.slice(prefix.length, -".m4a".length);
+      const parts = tokenPart.split(".");
+      const language = parts.length >= 2 ? parts[1] : undefined;
+      const index = Number(parts[0]);
+      const labelMap: Record<string, string> = {
+        eng: "English", en: "English",
+        hin: "Hindi", hi: "Hindi",
+        tam: "Tamil", ta: "Tamil",
+        tel: "Telugu", te: "Telugu",
+        mal: "Malayalam", ml: "Malayalam",
+        kan: "Kannada", kn: "Kannada",
+        ben: "Bengali", bn: "Bengali",
+        mar: "Marathi", mr: "Marathi",
+        pan: "Punjabi", pa: "Punjabi",
+        guj: "Gujarati", gu: "Gujarati",
+        und: "Unknown",
+      };
+      const label = labelMap[(language ?? "").toLowerCase()] ?? (language ? language.toUpperCase() : `Audio ${Number.isFinite(index) ? index + 1 : ""}`.trim());
+      return { id: file.id!, label, language, index };
+    })
+    .sort((a, b) => (a.index - b.index) || a.label.localeCompare(b.label))
+    .map(({ id: trackId, label, language }) => ({ id: trackId, label, language }));
+}
+
 export async function getDriveMediaMimeType(fileId: string): Promise<string | null> {
   const id = fileId.trim();
   if (!id) return null;
