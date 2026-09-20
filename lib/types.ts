@@ -46,6 +46,8 @@ export interface MediaItem {
   season?: number;
   episode?: number;
   tmdbId?: number;
+  cast?: string[];
+  creator?: string;
   hasSubtitles?: boolean;
   source?: string;
 }
