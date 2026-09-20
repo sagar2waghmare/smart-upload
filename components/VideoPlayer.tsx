@@ -289,6 +289,9 @@ export function VideoPlayer({
   // reset on source change (component is remounted via key)
   useEffect(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
+    return () => {
+      if (seekFeedbackTimer.current) clearTimeout(seekFeedbackTimer.current);
+    };
   }, []);
 
   // flush the latest position when the player unmounts (e.g. overlay close)
@@ -376,6 +379,7 @@ export function VideoPlayer({
       className={`player-wrap ${hideCursor ? "hidden-cursor" : ""} controls-on`}
       onMouseMove={wake}
       onTouchStart={wake}
+      onTouchEnd={handleTouchEnd}
       onPointerMove={wake}
     >
       <video
