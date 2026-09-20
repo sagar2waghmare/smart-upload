@@ -19,18 +19,18 @@ export function AudioLanguageControl({
   return (
     <div className="pc-menu-anchor audio-language-control">
       <button
-        className={`pc-btn pc-menu-btn audio-language-trigger ${open ? "accent" : ""}`}
+        className={`pc-btn pc-menu-btn wide audio-language-trigger ${open ? "accent" : ""}`}
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-label="Audio language"
         title={`Audio: ${active.label}`}
       >
-        <span className="audio-language-icon" aria-hidden="true">{active.language ? active.language.slice(0, 3).toUpperCase() : "AUD"}</span>
+        <span className="audio-language-label">Audio</span><span className="audio-language-icon" aria-hidden="true">{active.language ? active.language.slice(0, 2).toUpperCase() : "—"}</span>
       </button>
 
       {open && (
         <div className="pc-pop audio-language-menu" role="menu">
-          <div className="pc-pop-title">AUDIO</div>
+          <div className="pc-pop-title">AUDIO LANGUAGE</div>
           {tracks.map((track, index) => (
             <button
               key={`${track.url}-${index}`}
