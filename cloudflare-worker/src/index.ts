@@ -30,6 +30,15 @@ function pemToBytes(pem: string): Uint8Array {
   return base64UrlBytes(body);
 }
 
+// Web Crypto's TypeScript definitions can require an ArrayBuffer with a
+// concrete ArrayBuffer backing store. Make an owned copy to avoid the
+// Uint8Array<ArrayBufferLike> vs BufferSource type mismatch.
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 function serviceAccount(env: Env): ServiceAccount {
   const parsed = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON) as ServiceAccount;
   if (!parsed.client_email || !parsed.private_key) throw new Error("Invalid Google service account secret");
@@ -45,7 +54,7 @@ async function accessToken(env: Env): Promise<string> {
     const header = base64UrlJson({ alg: "RS256", typ: "JWT" });
     const claim = base64UrlJson({ iss: sa.client_email, scope: "https://www.googleapis.com/auth/drive.readonly", aud: TOKEN_URL, iat: now, exp: now + 3600 });
     const unsigned = header + "." + claim;
-    const key = await crypto.subtle.importKey("pkcs8", pemToBytes(sa.private_key), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+    const key = await crypto.subtle.importKey("pkcs8", toArrayBuffer(pemToBytes(sa.private_key)), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
     const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned));
     const sig = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
     const assertion = unsigned + "." + sig;
@@ -64,10 +73,10 @@ async function verifySignature(fileId: string, expires: string, signature: strin
   const exp = Number(expires);
   if (!Number.isSafeInteger(exp) || exp <= Math.floor(Date.now() / 1000)) return false;
   if (!verifyKeyPromise) {
-    verifyKeyPromise = crypto.subtle.importKey("raw", new TextEncoder().encode(env.PLAYBACK_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+    verifyKeyPromise = crypto.subtle.importKey("raw", toArrayBuffer(new TextEncoder().encode(env.PLAYBACK_SECRET)), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
   }
   const key = await verifyKeyPromise;
-  return crypto.subtle.verify("HMAC", key, base64UrlBytes(signature), new TextEncoder().encode(fileId + ":" + expires));
+  return crypto.subtle.verify("HMAC", key, toArrayBuffer(base64UrlBytes(signature)), new TextEncoder().encode(fileId + ":" + expires));
 }
 
 function corsHeaders(origin = "*"): Headers {
