@@ -166,7 +166,11 @@ export function VideoPlayer({
     if (!v) return;
     setStarted(true);
     setError(null);
-    void v.play().catch(() => setError("Playback was blocked. Try clicking again."));
+    setBuffering(true);
+    void v.play().catch(() => {
+      setBuffering(false);
+      setError("Playback was blocked. Try clicking again.");
+    });
   }, []);
 
   // reset on source change (component is remounted via key)
@@ -268,6 +272,7 @@ export function VideoPlayer({
         poster={poster ?? backdrop ?? undefined}
         preload="metadata"
         playsInline
+        onLoadStart={() => setBuffering(true)}
         onPlay={() => { setStatus("playing"); setBuffering(false); poke(); }}
         onPause={() => { setStatus("paused"); setControls(true); emitProgress(true); }}
         onWaiting={() => setBuffering(true)}
