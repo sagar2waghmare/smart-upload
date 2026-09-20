@@ -27,22 +27,41 @@ export function DetailsProvider({ children }: { children: React.ReactNode }) {
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [playerOpen, setPlayerOpen] = useState(false);
 
-  const openDetails = useCallback((it: MediaItem) => {
-    setItem(it);
-    setPlayerOpen(false);
+  const pushOverlayState = useCallback((kind: "details" | "player", id: string, episodeId?: string) => {
+    const state = { ...(window.history.state ?? {}), smartUploadOverlay: kind, smartUploadId: id, smartUploadEpisodeId: episodeId ?? null };
+    window.history.pushState(state, "", window.location.href);
   }, []);
 
+  const openDetails = useCallback((it: MediaItem) => {
+    setItem(it);
+    setEpisode(null);
+    setPlayerOpen(false);
+    pushOverlayState("details", it.id);
+  }, [pushOverlayState]);
+
   const closeDetails = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.state?.smartUploadOverlay === "details") {
+      window.history.back();
+      return;
+    }
     setItem(null);
+    setEpisode(null);
     setPlayerOpen(false);
   }, []);
 
   const openPlayer = useCallback((ep?: Episode) => {
     setEpisode(ep ?? null);
     setPlayerOpen(true);
-  }, []);
+    if (item) pushOverlayState("player", item.id, ep?.id);
+  }, [item, pushOverlayState]);
 
-  const closePlayer = useCallback(() => setPlayerOpen(false), []);
+  const closePlayer = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.state?.smartUploadOverlay === "player") {
+      window.history.back();
+      return;
+    }
+    setPlayerOpen(false);
+  }, []);
 
   // Lock page scroll while any overlay is present.
   useEffect(() => {
