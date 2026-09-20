@@ -1144,3 +1144,18 @@ body::after {
   .center-play { width: 64px !important; height: 64px !important; }
   .player-controls { padding: 0 10px 10px !important; }
 }
+
+
+/* Smaller home Movies / TV posters */
+.lista-conteudos .card-conteudo {
+  flex: 0 0 185px !important;
+  width: 185px !important;
+  min-width: 185px !important;
+}
+@media (max-width: 650px) {
+  .lista-conteudos .card-conteudo {
+    flex-basis: 145px !important;
+    width: 145px !important;
+    min-width: 145px !important;
+  }
+}
