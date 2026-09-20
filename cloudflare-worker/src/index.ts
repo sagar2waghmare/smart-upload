@@ -18,16 +18,6 @@ type CloudflareFetchInit = RequestInit & {
   };
 };
 
-interface WorkerExecutionContext {
-  waitUntil(promise: Promise<unknown>): void;
-}
-
-type CloudflareCacheStorage = CacheStorage & {
-  default: Cache;
-};
-
-const edgeCache = (globalThis.caches as CloudflareCacheStorage).default;
-
 let cachedToken: { token: string; expiresAt: number } | null = null;
 let tokenPromise: Promise<string> | null = null;
 let verifyKeyPromise: Promise<CryptoKey> | null = null;
@@ -137,7 +127,7 @@ async function driveMediaFetch(
 
 
 export default {
-  async fetch(request: Request, env: Env, ctx: WorkerExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request.headers.get("Origin") ?? "*") });
     if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: corsHeaders() });
@@ -156,15 +146,8 @@ export default {
 
     try {
       let token = await accessToken(env);
-      const rangeHeader = request.headers.get("Range");
-      const range = parseSingleRange(rangeHeader);
-
-      if (range) {
-        const cachedRangeResponse = await serveRangedChunk(request, env, ctx, fileId, range, token);
-        if (cachedRangeResponse) return cachedRangeResponse;
-      }
-
       const headers = new Headers();
+      const rangeHeader = request.headers.get("Range");
       if (rangeHeader) headers.set("Range", rangeHeader);
       for (const name of ["If-Range", "If-None-Match", "If-Modified-Since"]) {
         const value = request.headers.get(name);
