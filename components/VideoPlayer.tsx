@@ -246,6 +246,34 @@ export function VideoPlayer({
     else void el.requestFullscreen().catch(() => undefined);
   }, []);
 
+  const showSeekFeedback = useCallback((direction: "back" | "forward") => {
+    setSeekFeedback(direction);
+    if (seekFeedbackTimer.current) clearTimeout(seekFeedbackTimer.current);
+    seekFeedbackTimer.current = setTimeout(() => setSeekFeedback(null), 650);
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button, input, a, .pc-pop")) return;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const side: "left" | "right" = touch.clientX - rect.left < rect.width / 2 ? "left" : "right";
+    const now = Date.now();
+    const previous = touchTapRef.current;
+    const isDoubleTap = Boolean(previous && now - previous.time <= 320 && previous.side === side);
+
+    touchTapRef.current = { time: now, side };
+    if (!isDoubleTap) return;
+
+    e.preventDefault();
+    touchTapRef.current = null;
+    const delta = side === "left" ? -10 : 10;
+    seek((videoRef.current?.currentTime ?? current) + delta);
+    showSeekFeedback(delta < 0 ? "back" : "forward");
+  }, [current, seek, showSeekFeedback]);
+
   const startPlayback = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
