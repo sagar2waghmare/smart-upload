@@ -11,6 +11,16 @@ interface ServiceAccount {
   private_key: string;
 }
 
+interface WorkerExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
+type CloudflareCacheStorage = CacheStorage & {
+  default: Cache;
+};
+
+const edgeCache = (globalThis.caches as CloudflareCacheStorage).default;
+
 let cachedToken: { token: string; expiresAt: number } | null = null;
 let tokenPromise: Promise<string> | null = null;
 let verifyKeyPromise: Promise<CryptoKey> | null = null;
@@ -179,14 +189,14 @@ function sliceBody(body: ReadableStream<Uint8Array>, skipBytes: number, takeByte
 async function serveRangedChunk(
   request: Request,
   env: Env,
-  ctx: ExecutionContext,
+  ctx: WorkerExecutionContext,
   fileId: string,
   range: ByteRange,
   token: string,
 ): Promise<Response | null> {
   const chunkStart = Math.floor(range.start / RANGE_CHUNK_BYTES) * RANGE_CHUNK_BYTES;
   const cacheKey = chunkCacheKey(new URL(request.url), fileId, chunkStart);
-  let chunk = await caches.default.match(cacheKey);
+  let chunk = await edgeCache.match(cacheKey);
   let cacheState: "HIT" | "MISS" = chunk ? "HIT" : "MISS";
 
   if (!chunk) {
@@ -207,7 +217,7 @@ async function serveRangedChunk(
     cacheHeaders.set("Cache-Control", "public, max-age=3600");
     cacheHeaders.set("X-Smart-Range-Cache", "CHUNK");
     chunk = new Response(upstream.clone().body, { status: 206, headers: cacheHeaders });
-    ctx.waitUntil(caches.default.put(cacheKey, chunk.clone()));
+    ctx.waitUntil(edgeCache.put(cacheKey, chunk.clone()));
   }
 
   const contentRange = chunk.headers.get("content-range");
@@ -251,7 +261,7 @@ async function serveRangedChunk(
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: WorkerExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request.headers.get("Origin") ?? "*") });
     if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: corsHeaders() });
