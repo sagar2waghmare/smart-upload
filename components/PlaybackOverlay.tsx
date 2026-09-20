@@ -133,7 +133,6 @@ export function PlaybackOverlay() {
               initialTime={resume || undefined}
               onProgress={handleProgress}
               onEnded={handleEnded}
-              onClose={closePlayer}
             />
           </>
         ) : (
