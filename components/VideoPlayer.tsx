@@ -63,6 +63,8 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPokeRef = useRef(0);
+  const primedRef = useRef(false);
   const currentRef = useRef(0);
   const durationRef = useRef(0);
   const lastEmitRef = useRef(0);
@@ -91,6 +93,9 @@ export function VideoPlayer({
   const playing = status === "playing";
 
   const poke = useCallback(() => {
+    const now = performance.now();
+    if (now - lastPokeRef.current < 120) return;
+    lastPokeRef.current = now;
     setControls(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
     const v = videoRef.current;
@@ -98,6 +103,16 @@ export function VideoPlayer({
       hideTimer.current = setTimeout(() => setControls(false), 3200);
     }
   }, []);
+
+  const primePlayback = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || started || primedRef.current) return;
+    primedRef.current = true;
+    // The viewer has intentionally opened/interacted with the player, so start
+    // fetching ahead of playback without preloading media across the whole site.
+    v.preload = "auto";
+    if (v.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) v.load();
+  }, [started]);
 
   const wake = useCallback(() => {
     poke();
@@ -261,8 +276,9 @@ export function VideoPlayer({
     <div
       ref={wrapRef}
       className={`player-wrap ${hideCursor ? "hidden-cursor" : ""} controls-on`}
-      onMouseMove={wake}
-      onTouchStart={wake}
+      onPointerEnter={primePlayback}
+      onFocus={primePlayback}
+      onPointerDown={wake}
       onPointerMove={wake}
     >
       <video
