@@ -268,6 +268,7 @@ export async function listDriveLibrary(): Promise<DriveLibraryItem[]> {
 
         const dot = name.lastIndexOf(".");
         const extension = dot >= 0 ? name.slice(dot).toLowerCase() : "";
+        if (name.toLowerCase().endsWith(".browser.mp4")) continue;
         if (!mimeType.startsWith("video/") && !VIDEO_EXTENSIONS.has(extension)) continue;
 
         items.push({
