@@ -6,6 +6,7 @@ import { IAlert, IReplay } from "./icons";
 
 type Props = {
   src: string;
+  sourceType?: string;
   shareUrl?: string;
   poster?: string | null;
   backdrop?: string | null;
@@ -62,7 +63,8 @@ function loadCss() {
   l.rel = "stylesheet"; l.href = cssUrl; l.dataset.smartVjs = "1";
   document.head.appendChild(l);
 }
-function typeOf(url: string) {
+function typeOf(url: string, explicitType?: string) {
+  if (explicitType) return explicitType;
   const p = url.split("?")[0].toLowerCase();
   if (p.endsWith(".m3u8")) return "application/x-mpegURL";
   if (p.endsWith(".mpd")) return "application/dash+xml";
@@ -71,10 +73,10 @@ function typeOf(url: string) {
   if (p.endsWith(".mp4") || p.endsWith(".m4v")) return "video/mp4";
   return undefined;
 }
-const source = (src: string) => ({src, type: typeOf(src)});
+const source = (src: string, explicitType?: string) => ({src, type: typeOf(src, explicitType)});
 
 export function VideoPlayer({
-  src, shareUrl, poster, backdrop, title, episodeTitle, demo, subtitleUrl, item, episode,
+  src, sourceType, shareUrl, poster, backdrop, title, episodeTitle, demo, subtitleUrl, item, episode,
   onEpisode, initialTime = 0, onProgress, onEnded,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -104,7 +106,7 @@ export function VideoPlayer({
         html5: {vhs: {overrideNative: true, enableLowInitialPlaylist: true, smoothQualityChange: true}},
       });
       playerRef.current = p;
-      p.src(source(src));
+      p.src(source(src, sourceType));
       lastSource.current = src;
 
       const loaded = () => {
@@ -136,7 +138,7 @@ export function VideoPlayer({
     const p = playerRef.current;
     if (!p || src === lastSource.current) return;
     const pos = Number(p.currentTime() ?? 0), playing = !p.paused();
-    p.src(source(src)); lastSource.current = src; setQuality("Auto");
+    p.src(source(src, sourceType)); lastSource.current = src; setQuality("Auto");
     window.setTimeout(() => {
       if (pos > 0) p.currentTime(pos);
       if (playing) void p.play();
@@ -160,7 +162,7 @@ export function VideoPlayer({
 
   const retry = () => {
     const p = playerRef.current; if (!p) return;
-    setError(null); p.src(source(lastSource.current)); window.setTimeout(() => void p.play(), 0);
+    setError(null); p.src(source(lastSource.current, lastSource.current === src ? sourceType : undefined)); window.setTimeout(() => void p.play(), 0);
   };
 
   const eps = item.seasons?.flatMap(s => s.episodes) ?? [];
