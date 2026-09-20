@@ -566,7 +566,7 @@ export function VideoPlayer({
 
           <div className="pc-menu-anchor">
             <button
-              className={`pc-btn pc-menu-btn ${ccOn ? "accent" : ""}`}
+              className={`pc-btn pc-menu-btn pc-label-btn ${ccOn ? "accent" : ""}`}
               aria-label="Subtitles"
               aria-expanded={menu === "subtitles"}
               onClick={() => setMenu(menu === "subtitles" ? null : "subtitles")}
@@ -591,7 +591,7 @@ export function VideoPlayer({
 
           <div className="pc-menu-anchor">
             <button
-              className={`pc-btn pc-menu-btn ${selectedQuality === "Auto" ? "accent" : ""}`}
+              className={`pc-btn pc-menu-btn pc-label-btn ${selectedQuality === "Auto" ? "accent" : ""}`}
               aria-label="Quality"
               aria-expanded={menu === "quality"}
               onClick={() => setMenu(menu === "quality" ? null : "quality")}
@@ -601,6 +601,7 @@ export function VideoPlayer({
             {menu === "quality" && (
               <div className="pc-pop pc-pop-quality">
                 <div className="pc-pop-title">VIDEO QUALITY</div>
+                <div className="pc-pop-subtitle">Auto uses the current browser-safe source.</div>
                 <button
                   className={`pc-option ${selectedQuality === "Auto" ? "active" : ""}`}
                   onClick={() => {
