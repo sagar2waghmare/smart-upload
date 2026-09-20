@@ -1,4 +1,5 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
+import { unstable_cache } from "next/cache";
 import { identifyFilename } from "./identify";
 import { getEpisodeMeta, tmdbConfigured } from "./metadata/tmdb";
 import type { Episode, LibraryResponse, MediaItem, Season } from "./types";
@@ -153,7 +154,7 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
   return output.sort((a, b) => a.title.localeCompare(b.title));
 }
 
-export async function getLibrary(): Promise<LibraryResponse> {
+async function loadLibrary(): Promise<LibraryResponse> {
   if (!googleDriveConfigured()) {
     console.error("[library] Google Drive is not configured");
     return { mode: "google-drive", items: [], count: 0, error: "Google Drive is not configured" };
@@ -170,6 +171,13 @@ export async function getLibrary(): Promise<LibraryResponse> {
     return { mode: "google-drive", items: [], count: 0, error: err instanceof Error ? err.message : "Google Drive library unavailable" };
   }
 }
+
+// Browse tabs all read the same library. Cache the expensive Drive + TMDB normalization
+// work briefly so moving between Movies / TV / Anime does not repeat it per request.
+export const getLibrary = unstable_cache(loadLibrary, ["smart-upload-library"], {
+  revalidate: 30,
+  tags: ["library"],
+});
 
 export async function getPublished(): Promise<MediaItem[]> {
   return (await getLibrary()).items;
