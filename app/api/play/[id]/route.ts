@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMediaById } from "../../../../lib/library-service";
 import { resolvePlaybackUrl } from "../../../../lib/playback";
-import { findPreparedBrowserMedia, validateDriveMedia } from "../../../../lib/google-drive-playback";
+import { findPreparedBrowserMedia, getDriveMediaMimeType, validateDriveMedia } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 import { cloudflarePlaybackConfigured, createCloudflarePlaybackUrl } from "../../../../lib/cloudflare-playback";
 
@@ -16,6 +16,7 @@ export async function GET(_req: Request, { params }: Params) {
   // directly instead of rebuilding the full TMDB-enriched library on every play.
   if (await validateDriveMedia(id)) {
     const preparedId = await findPreparedBrowserMedia(id);
+    const sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(id);
     const browserId = preparedId ?? id;
     const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(browserId) : null;
     const shareUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(id) : null;
@@ -26,7 +27,7 @@ export async function GET(_req: Request, { params }: Params) {
       defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
       shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(id)}`,
       prepared: Boolean(preparedId),
-      sourceType: preparedId ? "video/mp4" : undefined,
+      sourceType: sourceType ?? undefined,
     });
   }
 
