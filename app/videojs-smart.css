@@ -40,7 +40,7 @@
 .smart-videojs-error strong{color:#fff;font-size:1rem}
 .smart-videojs-error span{max-width:55ch;font-size:.82rem;line-height:1.55}
 .smart-videojs-error-actions{display:flex;gap:.55rem;flex-wrap:wrap;justify-content:center}
-.smart-videojs-toolbar{position:absolute;left:1rem;bottom:1rem;z-index:22;display:flex;align-items:center;gap:.55rem;min-height:2.55rem;padding:.35rem .55rem;background:rgba(12,12,15,.76);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.smart-videojs-toolbar{position:absolute;left:1rem;bottom:5.25rem;z-index:22;display:flex;align-items:center;gap:.55rem;min-height:2.55rem;padding:.35rem .55rem;background:rgba(12,12,15,.76);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3)}
 .smart-videojs-quality{display:flex;align-items:center;gap:.4rem;color:rgba(255,255,255,.72);font-size:.72rem}
 .smart-videojs-quality select{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;padding:.3rem .5rem;font:inherit}
 .smart-videojs-spacer{flex:1}
