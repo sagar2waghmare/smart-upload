@@ -77,6 +77,8 @@ main { padding-bottom: 2.5rem !important; }
 }
 .header .profile { width: 34px !important; height: 34px !important; background: rgba(255,255,255,.1) !important; }
 
+.header-actions { display: flex !important; margin-left: auto !important; }
+
 /* Inline desktop navigation added by Header.tsx */
 .streaming-nav {
   display: flex;
