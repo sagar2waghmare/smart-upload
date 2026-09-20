@@ -19,7 +19,7 @@ import {
 } from "./icons";
 import { SmartImage } from "./SmartImage";
 
-type Menu = "settings" | null;
+type Menu = "settings" | "subtitles" | "quality" | null;
 
 type Props = {
   src: string;
@@ -377,14 +377,16 @@ export function VideoPlayer({
         />
 
         <div className="pc-row">
-          <button className="pc-btn" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+          <button className="pc-btn pc-main-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
             {playing ? <IPause /> : <IPlay />}
           </button>
-          <button className="pc-btn" onClick={() => seek((videoRef.current?.currentTime ?? current) - 10)} aria-label="Back 10 seconds">
+          <button className="pc-btn pc-skip" onClick={() => seek((videoRef.current?.currentTime ?? current) - 10)} aria-label="Back 10 seconds">
             <ISkipBack style={{ transform: "scaleX(-1)" }} />
+            <span>BACK 10</span>
           </button>
-          <button className="pc-btn" onClick={() => seek((videoRef.current?.currentTime ?? current) + 10)} aria-label="Forward 10 seconds">
+          <button className="pc-btn pc-skip" onClick={() => seek((videoRef.current?.currentTime ?? current) + 10)} aria-label="Forward 10 seconds">
             <ISkipFwd />
+            <span>FORWARD 10</span>
           </button>
           <span className="pc-time">
             {fmt(current)} / {fmt(duration)}
@@ -419,34 +421,65 @@ export function VideoPlayer({
             />
           </div>
 
-          <button
-            className={`pc-btn ${ccOn ? "accent" : ""}`}
-            aria-label={subtitleUrl ? (ccOn ? "Disable subtitles" : "Enable subtitles") : "Subtitles"}
-            aria-pressed={ccOn}
-            onClick={() => {
-              if (subtitleUrl) {
-                setCcOn((v) => !v);
-                setMenu(null);
-              } else {
-                setMenu("settings");
-              }
-            }}
-          >
-            <ISubtitles />
-          </button>
-
-          <div style={{ position: "relative" }}>
+          <div className="pc-menu-anchor">
             <button
-              className="pc-btn"
-              aria-label="Settings"
+              className={`pc-btn pc-menu-btn ${ccOn ? "accent" : ""}`}
+              aria-label="Subtitles"
+              aria-expanded={menu === "subtitles"}
+              onClick={() => setMenu(menu === "subtitles" ? null : "subtitles")}
+            >
+              <ISubtitles />
+              <span className="pc-btn-label">CC</span>
+            </button>
+            {menu === "subtitles" && (
+              <div className="pc-pop pc-pop-subtitles">
+                <div className="pc-pop-title">SUBTITLES</div>
+                {subtitleUrl ? (
+                  <button className={`pc-option ${ccOn ? "active" : ""}`} onClick={() => setCcOn((v) => !v)}>
+                    <span>English</span>
+                    <ICheck className="check" />
+                  </button>
+                ) : (
+                  <div className="pc-empty">No subtitles in this stream</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="pc-menu-anchor">
+            <button
+              className={`pc-btn pc-menu-btn ${quality === "Auto" ? "accent" : ""}`}
+              aria-label="Quality"
+              aria-expanded={menu === "quality"}
+              onClick={() => setMenu(menu === "quality" ? null : "quality")}
+            >
+              <span className="pc-quality-mark">HD</span>
+            </button>
+            {menu === "quality" && (
+              <div className="pc-pop pc-pop-quality">
+                <div className="pc-pop-title">VIDEO QUALITY</div>
+                <button className="pc-option active" disabled aria-disabled>
+                  <span>Auto</span>
+                  <span className="pc-quality-note">Recommended</span>
+                  <ICheck className="check" />
+                </button>
+                <div className="pc-empty">1080p / 720p / 480p will appear when the stream provides quality variants.</div>
+              </div>
+            )}
+          </div>
+
+          <div className="pc-menu-anchor">
+            <button
+              className="pc-btn pc-menu-btn"
+              aria-label="Playback settings"
               aria-expanded={menu === "settings"}
               onClick={() => setMenu(menu === "settings" ? null : "settings")}
             >
               <ISettings />
             </button>
             {menu === "settings" && (
-              <div className="pc-pop">
-                <div className="pc-pop-head">Playback Speed</div>
+              <div className="pc-pop pc-pop-settings">
+                <div className="pc-pop-title">PLAYBACK SPEED</div>
                 {[0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => (
                   <button
                     key={r}
@@ -461,25 +494,6 @@ export function VideoPlayer({
                     <ICheck className="check" />
                   </button>
                 ))}
-                <div className="pc-pop-head" style={{ marginTop: ".4em" }}>Quality</div>
-                <button className="pc-option active" disabled aria-disabled>
-                  <span>{quality}</span>
-                  <ICheck className="check" />
-                </button>
-                <button className="pc-option" disabled aria-disabled title="Quality switches arrive once a real stream is configured">
-                  <span className="sub small">1080p / 720p / 480p …</span>
-                </button>
-                <div className="pc-pop-head" style={{ marginTop: ".4em" }}>Subtitles</div>
-                {subtitleUrl ? (
-                  <button className={`pc-option ${ccOn ? "active" : ""}`} onClick={() => { setCcOn((v) => !v); setMenu(null); }}>
-                    <span>English</span>
-                    <ICheck className="check" />
-                  </button>
-                ) : (
-                  <button className="pc-option" disabled aria-disabled>
-                    <span className="sub small">No subtitles in preview</span>
-                  </button>
-                )}
               </div>
             )}
           </div>
