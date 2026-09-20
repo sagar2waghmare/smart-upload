@@ -15,7 +15,6 @@ import {
 } from "@vidstack/react/player/layouts/plyr";
 import type { Episode, MediaItem } from "../lib/types";
 import {
-  IExpand,
   IPlay,
   IPause,
   ISkipBack,
@@ -211,20 +210,15 @@ export function VideoPlayer({
               src={subtitleUrl}
               srcLang="en"
               label="English"
-              default
             />
           )}
         </MediaProvider>
 
         <div className="su-player-top">
           <div className="su-player-heading">
-            <span className="su-player-eyebrow">{episodeTitle ? "NOW PLAYING" : "SMART UPLOAD"}</span>
+            <span className="su-player-eyebrow">{episodeTitle ? "NOW PLAYING" : "SMART UPLOAD"} <i className="su-status-inline" aria-hidden="true" /></span>
             <strong>{title}</strong>
             {episodeTitle && <span>{episodeTitle}</span>}
-          </div>
-          <div className="su-player-status">
-            {demo && <span>DEMO</span>}
-            <i aria-hidden="true" />
           </div>
         </div>
 
