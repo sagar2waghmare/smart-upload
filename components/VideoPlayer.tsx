@@ -597,7 +597,7 @@ export function VideoPlayer({
               aria-expanded={menu === "quality"}
               onClick={() => setMenu(menu === "quality" ? null : "quality")}
             >
-              <span className="pc-quality-mark">HD</span>
+              <span className="pc-quality-mark">{selectedQuality === "Auto" ? "AUTO" : selectedQuality}</span>
             </button>
             {menu === "quality" && (
               <div className="pc-pop pc-pop-quality">
