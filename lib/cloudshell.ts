@@ -1,12 +1,11 @@
 import type { UploadResult } from "./types";
 
 const CLOUDSHELL_UPLOAD_URL = process.env.CLOUDSHELL_UPLOAD_URL;
-const CLOUDSHELL_API_KEY = process.env.CLOUDSHELL_API_KEY;
-const CLOUDSHELL_API_KEY_HEADER = process.env.CLOUDSHELL_API_KEY_HEADER ?? "x-api-key";
+const CLOUDSHELL_API_SECRET = process.env.CLOUDSHELL_API_SECRET;
 const ALLOW_DEMO_UPLOAD = process.env.ALLOW_DEMO_UPLOAD === "true";
 
 export function cloudShellConfigured(): boolean {
-  return Boolean(CLOUDSHELL_UPLOAD_URL);
+  return Boolean(CLOUDSHELL_UPLOAD_URL && CLOUDSHELL_API_SECRET);
 }
 
 export function normalizeUrl(raw: string): string | null {
@@ -23,10 +22,13 @@ export function normalizeUrl(raw: string): string | null {
 }
 
 export interface CloudShellResponse {
-  ok: boolean;
+  ok?: boolean;
   status?: string;
   message?: string;
   filename?: string;
+  job_id?: string;
+  position?: number;
+  error?: string;
 }
 
 export async function cloudShellUpload(url: string): Promise<UploadResult> {
@@ -34,14 +36,14 @@ export async function cloudShellUpload(url: string): Promise<UploadResult> {
     if (ALLOW_DEMO_UPLOAD) {
       return {
         status: "queued",
-        message: "Demo upload accepted — no real upload was performed. Configure CLOUDSHELL_UPLOAD_URL for a real upload.",
+        message: "Demo upload accepted — no real upload was performed. Configure CLOUDSHELL_UPLOAD_URL and CLOUDSHELL_API_SECRET for a real upload.",
         details: { filename: "demo-file.mkv" },
       };
     }
     return {
       status: "not-configured",
       message:
-        "Upload API is not configured. Set CLOUDSHELL_UPLOAD_URL (and optionally CLOUDSHELL_API_KEY) in your server environment, then try again.",
+        "Upload API is not configured. Set CLOUDSHELL_UPLOAD_URL and CLOUDSHELL_API_SECRET in the server environment, then try again.",
     };
   }
 
@@ -51,35 +53,40 @@ export async function cloudShellUpload(url: string): Promise<UploadResult> {
       headers: {
         "content-type": "application/json",
         accept: "application/json",
-        ...(CLOUDSHELL_API_KEY ? { [CLOUDSHELL_API_KEY_HEADER]: CLOUDSHELL_API_KEY } : {}),
+        Authorization: `Bearer ${CLOUDSHELL_API_SECRET}`,
       },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, type: "auto" }),
       cache: "no-store",
     });
 
-    let data: Partial<CloudShellResponse> = {};
+    let data: CloudShellResponse = {};
     try {
-      data = (await res.json()) as Partial<CloudShellResponse>;
+      data = (await res.json()) as CloudShellResponse;
     } catch {
       /* non-JSON response */
     }
 
-    if (res.ok || res.status === 202) {
-      const q = (data.status ?? "").toLowerCase();
-      if (q === "success" || q === "done" || q === "uploaded" || q === "completed") {
-        return { status: "success", message: data.message ?? "Upload completed.", details: { filename: data.filename } };
-      }
-      return { status: "queued", message: data.message ?? "Upload accepted and queued by the CloudShell pipeline.", details: { filename: data.filename } };
+    if (res.ok) {
+      return {
+        status: "queued",
+        message: data.job_id
+          ? `Upload accepted and queued (job ${data.job_id}).`
+          : data.message ?? "Upload accepted and queued by the CloudShell pipeline.",
+        details: { filename: data.filename },
+      };
     }
 
     return {
       status: "failed",
-      message: data.message ?? `Upload API responded ${res.status}.`,
+      message: data.error ?? data.message ?? `Upload API responded ${res.status}.`,
     };
   } catch (err) {
     return {
       status: "failed",
-      message: err instanceof Error ? `Could not reach the upload API: ${err.message}` : "Could not reach the upload API.",
+      message:
+        err instanceof Error
+          ? `Could not reach the upload API: ${err.message}`
+          : "Could not reach the upload API.",
     };
   }
 }
