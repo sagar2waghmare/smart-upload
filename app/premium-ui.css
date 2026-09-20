@@ -1685,3 +1685,149 @@ body::after {
     min-width: 0 !important;
   }
 }
+
+/* --- Player/mobile bug-fix polish --- */
+.player-topbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding-right: 12px !important;
+}
+.player-title-block {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+.player-live-dot {
+  flex: 0 0 auto !important;
+  margin-left: 4px !important;
+}
+.player-close {
+  order: 4 !important;
+  margin: 0 0 0 2px !important;
+  flex: 0 0 auto !important;
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 50% !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+  background: rgba(20,20,24,.88) !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35) !important;
+}
+.player-close:hover { background: rgba(255,255,255,.14) !important; }
+
+.audio-language-control {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+}
+.audio-language-trigger {
+  width: auto !important;
+  min-width: 58px !important;
+  height: 34px !important;
+  padding: 0 9px !important;
+  border-radius: 10px !important;
+  gap: 4px !important;
+}
+.audio-language-icon {
+  font-size: .54rem !important;
+  letter-spacing: .02em !important;
+  white-space: nowrap !important;
+}
+.audio-language-trigger:disabled {
+  opacity: .45 !important;
+  cursor: default !important;
+}
+.audio-language-trigger:not(:disabled)::after {
+  content: "v" !important;
+  font-size: .48rem !important;
+  opacity: .7 !important;
+  margin-left: 2px !important;
+}
+.audio-language-menu {
+  right: 0 !important;
+  left: auto !important;
+}
+
+.player-controls .pc-row {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  scrollbar-width: none !important;
+}
+.player-controls .pc-row::-webkit-scrollbar { display: none !important; }
+
+@media (max-width: 780px) {
+  .player-topbar {
+    padding: 9px 9px 38px !important;
+  }
+  .player-close {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 23px !important;
+  }
+  .player-title {
+    max-width: 54vw !important;
+  }
+  .player-wrap .pc-btn,
+  .player-wrap .pc-menu-btn {
+    flex: 0 0 auto !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+  }
+  .player-wrap .pc-main-play {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+  }
+  .audio-language-trigger {
+    min-width: 58px !important;
+    height: 34px !important;
+  }
+  .player-controls .pc-row {
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    min-width: max-content !important;
+    padding-right: 4px !important;
+  }
+
+  /* Home rails: preserve visible gaps on narrow phones. */
+  .home-content .lista-conteudos {
+    gap: 12px !important;
+    padding: 10px 2px 25px !important;
+  }
+  .home-content .lista-conteudos .card-conteudo {
+    flex: 0 0 132px !important;
+    width: 132px !important;
+    min-width: 132px !important;
+  }
+
+  /* Browse tabs: three flexible columns instead of fixed 145px cards. */
+  .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 16px 10px !important;
+    width: 100% !important;
+  }
+  .card-grid .card-conteudo {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .card-grid .card-conteudo .poster {
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+    padding: 8px !important;
+    border-radius: 9px !important;
+  }
+  .card-grid .info-conteudo {
+    padding: 9px 2px 0 !important;
+  }
+  .card-grid .info-conteudo h3 {
+    font-size: .75rem !important;
+    margin-bottom: 4px !important;
+  }
+  .card-grid .info-conteudo span {
+    font-size: .66rem !important;
+  }
+}
