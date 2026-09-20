@@ -137,7 +137,7 @@ function parseSingleRange(value: string | null): ByteRange | null {
 }
 
 function parseContentRange(value: string | null): StoredChunk | null {
-  const match = /^bytes ([0-9]+)-([0-9]+)\\/([0-9]+)$/.exec(value ?? "");
+  const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(value ?? "");
   if (!match) return null;
 
   const start = Number(match[1]);
