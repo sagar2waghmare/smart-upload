@@ -11,6 +11,13 @@ interface ServiceAccount {
   private_key: string;
 }
 
+type CloudflareFetchInit = RequestInit & {
+  cf?: {
+    cacheEverything?: boolean;
+    cacheTtl?: number;
+  };
+};
+
 interface WorkerExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
 }
@@ -111,154 +118,23 @@ function copyMediaHeaders(upstream: Response, headers: Headers) {
   }
 }
 
-
-const RANGE_CHUNK_BYTES = 16 * 1024 * 1024;
-
-type ByteRange = { start: number; end: number | null };
-
-function parseSingleRange(value: string | null): ByteRange | null {
-  if (!value) return null;
-  const match = /^bytes=([0-9]+)-([0-9]*)$/.exec(value.trim());
-  if (!match) return null;
-  const start = Number(match[1]);
-  const end = match[2] ? Number(match[2]) : null;
-  if (!Number.isSafeInteger(start) || start < 0) return null;
-  if (end !== null && (!Number.isSafeInteger(end) || end < start)) return null;
-  return { start, end };
-}
-
-function parseTotal(contentRange: string | null): number | null {
-  const match = /^bytes [0-9]+-[0-9]+\/([0-9]+)$/.exec(contentRange ?? "");
-  if (!match) return null;
-  const total = Number(match[1]);
-  return Number.isSafeInteger(total) && total > 0 ? total : null;
-}
-
-function chunkCacheKey(requestUrl: URL, fileId: string, chunkStart: number): Request {
-  return new Request(
-    `${requestUrl.origin}/__smart-upload-range-cache/${encodeURIComponent(fileId)}/${chunkStart}`,
-  );
-}
-
-function sliceBody(body: ReadableStream<Uint8Array>, skipBytes: number, takeBytes: number): ReadableStream<Uint8Array> {
-  const reader = body.getReader();
-  let skip = skipBytes;
-  let remaining = takeBytes;
-
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      if (remaining <= 0) {
-        try { await reader.cancel(); } catch {}
-        controller.close();
-        return;
-      }
-
-      while (remaining > 0) {
-        const { done, value } = await reader.read();
-        if (done) {
-          controller.close();
-          return;
-        }
-
-        let chunk = value;
-        if (skip > 0) {
-          const skipped = Math.min(skip, chunk.byteLength);
-          skip -= skipped;
-          chunk = chunk.subarray(skipped);
-        }
-
-        if (chunk.byteLength === 0) continue;
-
-        const take = Math.min(remaining, chunk.byteLength);
-        controller.enqueue(chunk.subarray(0, take));
-        remaining -= take;
-
-        if (remaining <= 0) {
-          try { await reader.cancel(); } catch {}
-          controller.close();
-          return;
-        }
-      }
-    },
-    async cancel(reason) {
-      try { await reader.cancel(reason); } catch {}
-    },
-  });
-}
-
-async function serveRangedChunk(
-  request: Request,
-  env: Env,
-  ctx: WorkerExecutionContext,
-  fileId: string,
-  range: ByteRange,
-  token: string,
-): Promise<Response | null> {
-  const chunkStart = Math.floor(range.start / RANGE_CHUNK_BYTES) * RANGE_CHUNK_BYTES;
-  const cacheKey = chunkCacheKey(new URL(request.url), fileId, chunkStart);
-  let chunk = await edgeCache.match(cacheKey);
-  let cacheState: "HIT" | "MISS" = chunk ? "HIT" : "MISS";
-
-  if (!chunk) {
-    const chunkEnd = chunkStart + RANGE_CHUNK_BYTES - 1;
-    const headers = new Headers();
-    headers.set("Range", `bytes=${chunkStart}-${chunkEnd}`);
-    headers.set("Authorization", "Bearer " + token);
-    headers.set("Accept-Encoding", "identity");
-
-    const upstream = await fetch(DRIVE_API + "/" + encodeURIComponent(fileId) + "?alt=media", { headers });
-    if (upstream.status !== 206) return null;
-
-    const total = parseTotal(upstream.headers.get("content-range"));
-    if (!total) return null;
-
-    const cacheHeaders = new Headers();
-    copyMediaHeaders(upstream, cacheHeaders);
-    cacheHeaders.set("Cache-Control", "public, max-age=3600");
-    cacheHeaders.set("X-Smart-Range-Cache", "CHUNK");
-    chunk = new Response(upstream.clone().body, { status: 206, headers: cacheHeaders });
-    ctx.waitUntil(edgeCache.put(cacheKey, chunk.clone()));
-  }
-
-  const contentRange = chunk.headers.get("content-range");
-  const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(contentRange ?? "");
-  if (!match) return null;
-
-  const storedStart = Number(match[1]);
-  const storedEnd = Number(match[2]);
-  const storedTotal = Number(match[3]);
-  if (
-    !Number.isSafeInteger(storedStart) ||
-    !Number.isSafeInteger(storedEnd) ||
-    !Number.isSafeInteger(storedTotal) ||
-    storedEnd < storedStart ||
-    storedTotal <= storedEnd
-  ) return null;
-
-  const requestedEnd = range.end ?? storedEnd;
-  const responseEnd = Math.min(requestedEnd, storedEnd, storedTotal - 1);
-  if (range.start < storedStart || responseEnd < range.start) return null;
-
-  const responseLength = responseEnd - range.start + 1;
-  if (!chunk.body) return null;
-
-  const headers = new Headers();
-  for (const name of ["content-type", "etag", "last-modified"]) {
-    const value = chunk.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-  headers.set("Content-Length", String(responseLength));
-  headers.set("Content-Range", `bytes ${range.start}-${responseEnd}/${storedTotal}`);
-  headers.set("Accept-Ranges", "bytes");
-  headers.set("Cache-Control", "private, max-age=60, must-revalidate");
-  headers.set("X-Smart-Range-Cache", cacheState);
-  headers.set("X-Content-Type-Options", "nosniff");
-
-  return new Response(sliceBody(chunk.body, range.start - storedStart, responseLength), {
-    status: 206,
+async function driveMediaFetch(
+  url: string,
+  headers: Headers,
+): Promise<Response> {
+  return fetch(url, {
     headers,
-  });
+    // Keep the signed-URL verification at this Worker layer, but let
+    // Cloudflare cache the Google Drive byte-range subrequest. This avoids
+    // repeated trips to Drive for the same seek region.
+    cf: {
+      cacheEverything: true,
+      cacheTtl: 600,
+    },
+  } as CloudflareFetchInit);
 }
+
+
 
 export default {
   async fetch(request: Request, env: Env, ctx: WorkerExecutionContext): Promise<Response> {
@@ -297,12 +173,12 @@ export default {
       headers.set("Authorization", "Bearer " + token);
       headers.set("Accept-Encoding", "identity");
 
-      let upstream = await fetch(DRIVE_API + "/" + encodeURIComponent(fileId) + "?alt=media", { headers });
+      let upstream = await driveMediaFetch(DRIVE_API + "/" + encodeURIComponent(fileId) + "?alt=media", headers);
       if (upstream.status === 401) {
         cachedToken = null;
         token = await accessToken(env);
         headers.set("Authorization", "Bearer " + token);
-        upstream = await fetch(DRIVE_API + "/" + encodeURIComponent(fileId) + "?alt=media", { headers });
+        upstream = await driveMediaFetch(DRIVE_API + "/" + encodeURIComponent(fileId) + "?alt=media", headers);
       }
 
       if (!upstream.ok && upstream.status !== 206 && upstream.status !== 304 && upstream.status !== 416) {
@@ -311,6 +187,8 @@ export default {
 
       const out = new Headers(corsHeaders(request.headers.get("Origin") ?? "*"));
       copyMediaHeaders(upstream, out);
+      const originCacheStatus = upstream.headers.get("CF-Cache-Status");
+      if (originCacheStatus) out.set("X-Smart-Origin-Cache", originCacheStatus);
       out.set("Cache-Control", "private, max-age=60, must-revalidate");
       out.set("Accept-Ranges", "bytes");
       out.set("X-Content-Type-Options", "nosniff");
