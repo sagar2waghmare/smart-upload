@@ -253,6 +253,7 @@ export function VideoPlayer({
   }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (!started) return;
     const target = e.target as HTMLElement;
     if (target.closest("button, input, a, .pc-pop")) return;
     const touch = e.changedTouches[0];
@@ -272,7 +273,7 @@ export function VideoPlayer({
     const delta = side === "left" ? -10 : 10;
     seek((videoRef.current?.currentTime ?? current) + delta);
     showSeekFeedback(delta < 0 ? "back" : "forward");
-  }, [current, seek, showSeekFeedback]);
+  }, [current, seek, showSeekFeedback, started]);
 
   const startPlayback = useCallback(() => {
     const v = videoRef.current;
