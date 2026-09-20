@@ -136,9 +136,16 @@ export function PlaybackOverlay() {
             />
           </>
         ) : (
-          <div className="play-loading" role="status">
-            <div className="spinner" />
-            <span>Loading stream…</span>
+          <div className="play-loading premium-stream-loader" role="status">
+            <div className="player-loading-orbit" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <i />
+            </div>
+            <span>Preparing stream</span>
           </div>
         )}
       </div>
