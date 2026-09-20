@@ -108,7 +108,7 @@ type ByteRange = { start: number; end: number | null };
 
 function parseSingleRange(value: string | null): ByteRange | null {
   if (!value) return null;
-  const match = /^bytes=(\\d+)-(\\d*)$/.exec(value.trim());
+  const match = /^bytes=([0-9]+)-([0-9]*)$/.exec(value.trim());
   if (!match) return null;
   const start = Number(match[1]);
   const end = match[2] ? Number(match[2]) : null;
@@ -118,7 +118,7 @@ function parseSingleRange(value: string | null): ByteRange | null {
 }
 
 function parseTotal(contentRange: string | null): number | null {
-  const match = /^bytes \d+-\d+\/(\d+)$/.exec(contentRange ?? "");
+  const match = /^bytes [0-9]+-[0-9]+\/([0-9]+)$/.exec(contentRange ?? "");
   if (!match) return null;
   const total = Number(match[1]);
   return Number.isSafeInteger(total) && total > 0 ? total : null;
@@ -211,7 +211,7 @@ async function serveRangedChunk(
   }
 
   const contentRange = chunk.headers.get("content-range");
-  const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(contentRange ?? "");
+  const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(contentRange ?? "");
   if (!match) return null;
 
   const storedStart = Number(match[1]);
