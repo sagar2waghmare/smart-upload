@@ -1,1 +1,65 @@
-.smart-videojs-shell{width:100%;height:100%;display:flex;flex-direction:column;min-height:0;background:#000}.smart-videojs-heading{display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.6rem .8rem;background:rgba(16,14,18,.94);border-bottom:1px solid rgba(255,255,255,.08);color:var(--texto-destaque)}.smart-videojs-title{min-width:0;display:flex;flex-direction:column;gap:.12rem}.smart-videojs-title strong,.smart-videojs-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.smart-videojs-title strong{font-size:.9rem}.smart-videojs-title span{font-size:.72rem;color:var(--texto-claro)}.smart-videojs-actions{display:flex;gap:.4rem;align-items:center}.smart-videojs-action{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;border-radius:999px;padding:.45rem .7rem;font-size:.72rem;font-weight:600;cursor:pointer}.smart-videojs-action:hover{background:rgba(124,58,237,.2);border-color:rgba(124,58,237,.4)}.video-js-host{position:relative;flex:1;min-height:0;background:#000;overflow:hidden}.video-js-host .video-js{width:100%;height:100%;font-family:inherit}.video-js-host .vjs-tech{object-fit:contain}.video-js-host .vjs-control-bar{background:linear-gradient(transparent,rgba(0,0,0,.9));padding-top:1.6rem;height:auto;min-height:3.4rem}.video-js-host .vjs-big-play-button{border:1px solid rgba(255,255,255,.3);background:rgba(16,14,18,.65);backdrop-filter:blur(12px);border-radius:50%;width:4.5rem;height:4.5rem;line-height:4.2rem;margin-left:-2.25rem;margin-top:-2.25rem}.video-js-host .vjs-play-progress,.video-js-host .vjs-volume-level{background:var(--laranja)}.video-js-host .vjs-menu-content{background:rgba(20,18,24,.98);border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 50px rgba(0,0,0,.55)}.smart-videojs-loading{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:.6rem;color:var(--texto-claro);font-size:.8rem;background:rgba(0,0,0,.18);pointer-events:none;z-index:2}.smart-videojs-loading .spinner{width:38px;height:38px}.smart-videojs-error{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.65rem;text-align:center;padding:1.5rem;background:rgba(0,0,0,.84);color:var(--texto-claro)}.smart-videojs-error svg{width:2.2rem;height:2.2rem;color:var(--laranja)}.smart-videojs-error strong{color:#fff}.smart-videojs-error span{max-width:55ch;font-size:.8rem;line-height:1.5}.smart-videojs-error-actions{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center}.smart-videojs-toolbar{display:flex;align-items:center;gap:.55rem;min-height:2.8rem;padding:.45rem .65rem;background:rgba(16,14,18,.96);border-top:1px solid rgba(255,255,255,.08)}.smart-videojs-quality{display:flex;align-items:center;gap:.45rem;color:var(--texto-claro);font-size:.72rem}.smart-videojs-quality select{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;padding:.35rem .55rem;font:inherit}.smart-videojs-spacer{flex:1}.smart-videojs-status{font-size:.72rem;color:var(--texto-claro)}@media(max-width:640px){.smart-videojs-heading{padding:.5rem}.smart-videojs-title strong{font-size:.82rem}.smart-videojs-toolbar{overflow-x:auto}}
+.smart-videojs-shell{position:relative;width:100%;height:100%;min-height:0;background:#000;overflow:hidden}
+.smart-videojs-top-overlay{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:.8rem;padding:1.1rem 1.25rem 2.8rem;background:linear-gradient(180deg,rgba(0,0,0,.78),rgba(0,0,0,.38) 48%,transparent);pointer-events:none;transition:opacity .25s ease,transform .25s ease}
+.smart-videojs-top-overlay>*{pointer-events:auto}
+.smart-videojs-back{width:2.65rem;height:2.65rem;flex:none;border:1px solid rgba(255,255,255,.18);border-radius:50%;display:grid;place-items:center;background:rgba(12,12,15,.58);color:#fff;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.3);transition:background .2s ease,transform .2s ease,border-color .2s ease}
+.smart-videojs-back svg{width:1.15rem;height:1.15rem}
+.smart-videojs-back:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.32);transform:translateX(-2px)}
+.smart-videojs-title{min-width:0;display:flex;flex-direction:column;gap:.12rem;margin-right:auto}
+.smart-videojs-title strong,.smart-videojs-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 12px rgba(0,0,0,.8)}
+.smart-videojs-title strong{font-size:.95rem;color:#fff;font-weight:700}
+.smart-videojs-title span{font-size:.72rem;color:rgba(255,255,255,.68)}
+.smart-videojs-actions{display:flex;gap:.5rem;align-items:center;flex:none}
+.smart-videojs-action{border:1px solid rgba(255,255,255,.18);background:rgba(12,12,15,.58);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff;border-radius:999px;padding:.52rem .82rem;font-size:.74rem;font-weight:650;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25);transition:background .2s ease,border-color .2s ease,transform .2s ease}
+.smart-videojs-action:hover{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
+.video-js-host{position:absolute;inset:0;background:#000;overflow:hidden}
+.video-js-host .video-js{position:absolute;inset:0;width:100%;height:100%;font-family:inherit;background:#000}
+.video-js-host .vjs-tech{width:100%!important;height:100%!important;object-fit:contain;background:#000}
+.video-js-host .vjs-control-bar{left:1rem;right:1rem;bottom:1rem;width:auto;background:rgba(12,12,15,.76);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);border-radius:14px;height:3.45rem;padding:0 .35rem;box-shadow:0 12px 40px rgba(0,0,0,.42);transition:transform .25s ease,opacity .25s ease}
+.video-js-host .vjs-control{height:3.35rem}
+.video-js-host .vjs-button>.vjs-icon-placeholder:before{font-size:1.25rem;line-height:3.35rem}
+.video-js-host .vjs-progress-control{position:absolute;left:.8rem;right:.8rem;top:-.72rem;width:auto;height:.35rem}
+.video-js-host .vjs-progress-control .vjs-progress-holder{margin:0;height:.22rem}
+.video-js-host .vjs-play-progress,.video-js-host .vjs-volume-level{background:var(--laranja)}
+.video-js-host .vjs-play-progress:before{display:none}
+.video-js-host .vjs-load-progress{background:rgba(255,255,255,.22)}
+.video-js-host .vjs-current-time,.video-js-host .vjs-duration,.video-js-host .vjs-time-divider{font-size:.72rem;line-height:3.35rem}
+.video-js-host .vjs-volume-panel{margin-left:.1rem}
+.video-js-host .vjs-menu-button-popup .vjs-menu{margin-bottom:.45rem}
+.video-js-host .vjs-menu-content{background:rgba(15,15,18,.97);border:1px solid rgba(255,255,255,.12);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.6);overflow:hidden}
+.video-js-host .vjs-menu-item{font-size:.78rem;padding:.55rem .9rem}
+.video-js-host .vjs-menu-item:hover,.video-js-host .vjs-menu-item:focus{background:rgba(255,255,255,.08)}
+.video-js-host .vjs-selected{background:rgba(255,107,53,.14)}
+.video-js-host .vjs-big-play-button{width:5.2rem;height:5.2rem;margin-left:-2.6rem;margin-top:-2.6rem;border:1px solid rgba(255,255,255,.28);border-radius:50%;background:rgba(12,12,15,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 18px 55px rgba(0,0,0,.5);transition:transform .2s ease,background .2s ease,border-color .2s ease}
+.video-js-host .vjs-big-play-button .vjs-icon-placeholder:before{font-size:2rem;line-height:5rem}
+.video-js-host .vjs-big-play-button:hover{background:rgba(255,107,53,.88);border-color:rgba(255,255,255,.5);transform:scale(1.05)}
+.video-js-host .vjs-fullscreen-control{margin-left:auto}
+.smart-videojs-loading{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:.7rem;color:rgba(255,255,255,.7);font-size:.82rem;background:rgba(0,0,0,.2);pointer-events:none;z-index:25}
+.smart-videojs-loading .spinner{width:38px;height:38px}
+.smart-videojs-error{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7rem;text-align:center;padding:1.5rem;background:rgba(0,0,0,.86);color:var(--texto-claro)}
+.smart-videojs-error svg{width:2.4rem;height:2.4rem;color:var(--laranja)}
+.smart-videojs-error strong{color:#fff;font-size:1rem}
+.smart-videojs-error span{max-width:55ch;font-size:.82rem;line-height:1.55}
+.smart-videojs-error-actions{display:flex;gap:.55rem;flex-wrap:wrap;justify-content:center}
+.smart-videojs-toolbar{position:absolute;left:1rem;bottom:1rem;z-index:22;display:flex;align-items:center;gap:.55rem;min-height:2.55rem;padding:.35rem .55rem;background:rgba(12,12,15,.76);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.smart-videojs-quality{display:flex;align-items:center;gap:.4rem;color:rgba(255,255,255,.72);font-size:.72rem}
+.smart-videojs-quality select{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;padding:.3rem .5rem;font:inherit}
+.smart-videojs-spacer{flex:1}
+.smart-videojs-status{font-size:.7rem;color:rgba(255,255,255,.65)}
+.smart-videojs-shell:fullscreen .smart-videojs-top-overlay,.video-js.vjs-fullscreen~.smart-videojs-top-overlay{padding-top:1.35rem}
+@media(max-width:700px){
+  .smart-videojs-top-overlay{padding:.75rem .7rem 2.3rem;gap:.55rem}
+  .smart-videojs-back{width:2.35rem;height:2.35rem}
+  .smart-videojs-title strong{font-size:.84rem}
+  .smart-videojs-title span{font-size:.66rem}
+  .smart-videojs-action{padding:.45rem .65rem;font-size:.68rem}
+  .smart-videojs-top-overlay .pill{display:none}
+  .video-js-host .vjs-control-bar{left:.55rem;right:.55rem;bottom:.55rem;border-radius:11px;height:3.2rem}
+  .video-js-host .vjs-control{height:3.1rem}
+  .video-js-host .vjs-progress-control{left:.65rem;right:.65rem}
+  .video-js-host .vjs-current-time,.video-js-host .vjs-duration,.video-js-host .vjs-time-divider{display:none}
+  .smart-videojs-toolbar{left:.55rem;bottom:4.15rem;max-width:calc(100% - 1.1rem);overflow:auto}
+}
+@media(max-width:430px){
+  .smart-videojs-action{font-size:0;padding:.55rem}
+  .smart-videojs-action::before{content:"↗";font-size:1rem}
+}
