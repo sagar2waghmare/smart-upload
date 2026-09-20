@@ -1,5 +1,12 @@
 export type MediaKind = "movie" | "series" | "anime";
 
+export interface MediaVariant {
+  label: string;
+  url: string;
+  height?: number;
+  bitrate?: number;
+}
+
 export interface Episode {
   id: string;
   title: string;
@@ -9,6 +16,7 @@ export interface Episode {
   runtime?: number;
   thumb?: string;
   mediaUrl?: string;
+  qualityVariants?: MediaVariant[];
 }
 
 export interface Season {
@@ -33,6 +41,7 @@ export interface MediaItem {
   tagStyle?: "new" | "demo" | "4k" | string;
   progress?: number;
   mediaUrl?: string;
+  qualityVariants?: MediaVariant[];
   seasons?: Season[];
   season?: number;
   episode?: number;
