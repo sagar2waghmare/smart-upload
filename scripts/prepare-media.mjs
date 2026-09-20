@@ -117,6 +117,47 @@ try {
   die(error.message);
 }
 
+// Create one browser-safe AAC audio sidecar per source audio track.
+// Chrome/Edge do not expose HTMLMediaElement.audioTracks reliably, so the
+// player can use these files for Hindi/English/etc. switching.
+const audioSidecars = [];
+if (audioIndex === null) {
+  for (let i = 0; i < audioStreams.length; i += 1) {
+    const audio = audioStreams[i];
+    const language = String(audio.tags?.language ?? "und")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "") || "und";
+    const sidecar = path.resolve(`${base}.browser.audio.${i}.${language}.m4a`);
+
+    const sidecarArgs = [
+      "-hide_banner",
+      "-i", resolvedInput,
+      "-map", `0:a:${i}`,
+      "-vn",
+      "-c:a", "aac",
+      "-b:a", "160k",
+      "-ac", "2",
+      "-ar", "48000",
+      "-movflags", "+faststart",
+      ...(overwrite ? ["-y"] : ["-n"]),
+      sidecar,
+    ];
+
+    try {
+      await run("ffmpeg", sidecarArgs);
+      audioSidecars.push({
+        index: i,
+        file: path.basename(sidecar),
+        language: audio.tags?.language ?? null,
+        title: audio.tags?.title ?? null,
+        sourceCodec: audio.codec_name ?? null,
+      });
+    } catch (error) {
+      console.warn(`[media-prep] Warning: audio track #${i + 1} could not be converted to AAC: ${error.message}`);
+    }
+  }
+}
+
 const manifest = {
   version: 1,
   preparedAt: new Date().toISOString(),
@@ -134,6 +175,7 @@ const manifest = {
       language: audio.tags?.language ?? null,
       title: audio.tags?.title ?? null,
     })),
+    sidecarAudioTracks: audioSidecars,
   },
   source: {
     videoCodec: video.codec_name ?? null,
@@ -148,4 +190,4 @@ await import("node:fs/promises").then(({ writeFile }) =>
 
 console.log(`\n[media-prep] Done. Browser copy: ${output}`);
 console.log(`[media-prep] Manifest: ${manifestPath}`);
-console.log("[media-prep] Upload the .browser.mp4 beside the original file in the same Drive folder.");
+console.log("[media-prep] Upload the .browser.mp4 and any .browser.audio.*.m4a sidecars beside the original file in the same Drive folder.");
