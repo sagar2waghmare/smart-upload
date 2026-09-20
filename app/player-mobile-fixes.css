@@ -1,0 +1,245 @@
+/* Smart Upload - player and mobile fixes */
+.compact-header.player-active {
+  display: none !important;
+}
+
+.player-topbar {
+  z-index: 20 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 14px 34px !important;
+  pointer-events: none !important;
+}
+
+.player-topbar > * {
+  pointer-events: auto !important;
+}
+
+.player-title-block {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+.player-live-dot {
+  flex: 0 0 auto !important;
+  margin-left: 4px !important;
+}
+
+.player-close {
+  position: relative !important;
+  z-index: 25 !important;
+  flex: 0 0 auto !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  margin: 0 0 0 auto !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(255,255,255,.20) !important;
+  background: rgba(12,12,16,.90) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.38) !important;
+}
+
+.player-controls {
+  z-index: 18 !important;
+  padding: 0 14px 14px !important;
+}
+
+.player-controls .pc-row {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  scrollbar-width: none !important;
+  padding-bottom: 2px !important;
+}
+
+.player-controls .pc-row::-webkit-scrollbar {
+  display: none !important;
+}
+
+.player-controls .pc-btn,
+.player-controls .pc-menu-btn,
+.audio-language-trigger {
+  flex: 0 0 auto !important;
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  border-radius: 11px !important;
+  background: rgba(18,18,22,.88) !important;
+  border: 1px solid rgba(255,255,255,.16) !important;
+  color: #fff !important;
+  box-shadow: 0 5px 18px rgba(0,0,0,.22) !important;
+}
+
+.player-controls .pc-main-play {
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  color: #111 !important;
+  border: 0 !important;
+}
+
+.player-controls .pc-btn-label,
+.player-controls .pc-quality-mark,
+.audio-language-icon {
+  color: #fff !important;
+  font-size: .58rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.audio-language-control {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  position: relative !important;
+}
+
+.audio-language-trigger {
+  width: auto !important;
+  min-width: 62px !important;
+  padding: 0 9px !important;
+  gap: 5px !important;
+  white-space: nowrap !important;
+}
+
+.audio-language-trigger::after {
+  content: "⌄" !important;
+  color: rgba(255,255,255,.70) !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+
+.audio-language-menu {
+  right: 0 !important;
+  left: auto !important;
+  bottom: calc(100% + 10px) !important;
+  top: auto !important;
+  z-index: 40 !important;
+}
+
+.player-controls .pc-volume {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.player-controls .pc-volume .volume {
+  width: 74px !important;
+  max-width: 74px !important;
+}
+
+.player-controls .pc-time {
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  font-size: .68rem !important;
+  color: rgba(255,255,255,.76) !important;
+}
+
+@media (max-width: 780px) {
+  .player-topbar {
+    padding: 9px 9px 40px !important;
+  }
+
+  .player-close {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    font-size: 22px !important;
+  }
+
+  .player-controls {
+    padding: 0 9px 9px !important;
+  }
+
+  .player-controls .pc-row {
+    gap: 7px !important;
+    padding-right: 2px !important;
+  }
+
+  .player-controls .pc-btn,
+  .player-controls .pc-menu-btn,
+  .audio-language-trigger {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .player-controls .pc-main-play {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+  }
+
+  .audio-language-trigger {
+    min-width: 64px !important;
+    padding-inline: 8px !important;
+  }
+
+  .player-controls .pc-time,
+  .player-controls .pc-volume .volume {
+    display: none !important;
+  }
+
+  .pc-pop {
+    position: fixed !important;
+    right: 9px !important;
+    bottom: 64px !important;
+    width: min(270px, calc(100vw - 18px)) !important;
+    min-width: 0 !important;
+    max-height: min(330px, 52vh) !important;
+  }
+
+  /* Horizontal home rails: keep card edges visibly separated. */
+  .home-content .lista-conteudos {
+    gap: 14px !important;
+    padding: 10px 6px 25px !important;
+    margin-inline: -2px !important;
+  }
+
+  .home-content .lista-conteudos .card-conteudo {
+    flex: 0 0 128px !important;
+    width: 128px !important;
+    min-width: 128px !important;
+  }
+
+  /* Browse pages: explicit gutters between posters on phones. */
+  .card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    column-gap: 12px !important;
+    row-gap: 18px !important;
+  }
+
+  .card-grid .card-conteudo {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  .card-grid .card-conteudo .poster {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+    padding: 6px !important;
+    border-radius: 9px !important;
+  }
+
+  .card-grid .info-conteudo {
+    padding: 8px 2px 0 !important;
+  }
+
+  .card-grid .info-conteudo h3 {
+    font-size: .73rem !important;
+    line-height: 1.2 !important;
+    margin-bottom: 4px !important;
+  }
+}
