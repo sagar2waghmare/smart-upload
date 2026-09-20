@@ -712,9 +712,9 @@ body::after {
 
 /* Home movie/TV rails: use the real poster area, not an inset thumbnail. */
 .lista-conteudos .card-conteudo {
-  flex: 0 0 280px !important;
-  width: 280px !important;
-  min-width: 280px !important;
+  flex: 0 0 220px !important;
+  width: 220px !important;
+  min-width: 220px !important;
   border-radius: 18px !important;
 }
 .lista-conteudos .card-conteudo .poster {
@@ -748,8 +748,8 @@ body::after {
 }
 @media (max-width: 650px) {
   .lista-conteudos .card-conteudo {
-    flex-basis: 210px !important;
-    width: 210px !important;
-    min-width: 210px !important;
+    flex-basis: 175px !important;
+    width: 175px !important;
+    min-width: 175px !important;
   }
 }
