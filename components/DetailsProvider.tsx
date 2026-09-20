@@ -51,9 +51,10 @@ export function DetailsProvider({ children }: { children: React.ReactNode }) {
 
   const openPlayer = useCallback((ep?: Episode) => {
     setEpisode(ep ?? null);
+    const alreadyPlaying = playerOpen;
     setPlayerOpen(true);
-    if (item) pushOverlayState("player", item.id, ep?.id);
-  }, [item, pushOverlayState]);
+    if (item && !alreadyPlaying) pushOverlayState("player", item.id, ep?.id);
+  }, [item, playerOpen, pushOverlayState]);
 
   const closePlayer = useCallback(() => {
     if (typeof window !== "undefined" && window.history.state?.smartUploadOverlay === "player") {
