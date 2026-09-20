@@ -26,6 +26,7 @@ export async function GET(_req: Request, { params }: Params) {
       defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
       shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(id)}`,
       prepared: Boolean(preparedId),
+      sourceType: preparedId ? "video/mp4" : undefined,
     });
   }
 
