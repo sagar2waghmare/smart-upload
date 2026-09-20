@@ -25,7 +25,7 @@ export function AudioLanguageControl({
         aria-label="Audio language"
         title={`Audio: ${active.label}`}
       >
-        <span className="audio-language-icon" aria-hidden="true">A</span>
+        <span className="audio-language-icon" aria-hidden="true">{active.language ? active.language.slice(0, 3).toUpperCase() : "AUD"}</span>
       </button>
 
       {open && (
