@@ -37,7 +37,8 @@ export function PlaybackOverlay() {
     let alive = true;
     endedRef.current = false;
 
-    fetch(`/api/play/${encodeURIComponent(id)}`)
+    const playbackId = episode?.id ?? id;
+    fetch(`/api/play/${encodeURIComponent(playbackId)}`)
       .then(async (r) => {
         if (r.status === 404) throw new Error("This title is not in your library.");
         if (!r.ok) throw new Error("Could not load playback information.");
@@ -49,10 +50,7 @@ export function PlaybackOverlay() {
           setError("This media item has no playback source configured yet.");
           return;
         }
-        const url =
-          item?.kind === "movie"
-            ? data.defaultUrl
-            : episode?.mediaUrl || item?.mediaUrl || (data.demo ? data.defaultUrl : "");
+        const url = data.defaultUrl || episode?.mediaUrl || item?.mediaUrl || (data.demo ? data.defaultUrl : "");
         if (!url) {
           setError("No media source is available for this selection.");
           return;
