@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMediaById } from "../../../../lib/library-service";
 import { resolvePlaybackUrl } from "../../../../lib/playback";
-import { findPreparedBrowserMedia, getDriveMediaMimeType, validateDriveMedia } from "../../../../lib/google-drive-playback";
+import { findPreparedAudioTracks, findPreparedBrowserMedia, getDriveMediaMimeType, validateDriveMedia } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 import { cloudflarePlaybackConfigured, createCloudflarePlaybackUrl } from "../../../../lib/cloudflare-playback";
 
@@ -16,6 +16,7 @@ export async function GET(_req: Request, { params }: Params) {
   // directly instead of rebuilding the full TMDB-enriched library on every play.
   if (await validateDriveMedia(id)) {
     const preparedId = await findPreparedBrowserMedia(id);
+    const audioTracks = preparedId ? await findPreparedAudioTracks(id) : [];
     const sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(id);
     const browserId = preparedId ?? id;
     const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(browserId) : null;
@@ -28,6 +29,15 @@ export async function GET(_req: Request, { params }: Params) {
       shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(id)}`,
       prepared: Boolean(preparedId),
       sourceType: sourceType ?? undefined,
+      audioTracks: audioTracks
+        .map((track) => ({
+          label: track.label,
+          language: track.language,
+          url: cloudflarePlaybackConfigured()
+            ? createCloudflarePlaybackUrl(track.id)
+            : `/api/stream/${encodeURIComponent(track.id)}`,
+        }))
+        .filter((track) => Boolean(track.url)),
     });
   }
 
