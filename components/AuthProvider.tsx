@@ -2,7 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { firebaseClientConfigured, signInWithGoogle, signOutSession } from "../lib/firebase-client";
+import {
+  firebaseClientConfigured,
+  loadFirebaseClientConfig,
+  signInWithGoogle,
+  signOutSession,
+} from "../lib/firebase-client";
 
 interface AuthState {
   configured: boolean;
@@ -22,26 +27,42 @@ const AuthContext = createContext<AuthState>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [configured] = useState(() => firebaseClientConfigured());
-  const [loading, setLoading] = useState(() => !firebaseClientConfigured());
+  const [configured, setConfigured] = useState(() => firebaseClientConfigured());
+  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ email: string | null } | null>(null);
 
   useEffect(() => {
-    if (!configured) return;
     let cancelled = false;
-    fetch("/api/auth/session")
-      .then((r) => r.json().catch(() => ({})))
-      .then((d: { authenticated?: boolean; email?: string | null }) => {
-        if (!cancelled && d.authenticated) setUser({ email: d.email ?? null });
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+
+    const bootstrap = async () => {
+      const config = await loadFirebaseClientConfig();
+      if (cancelled) return;
+
+      const ready = Boolean(config);
+      setConfigured(ready);
+
+      if (!ready) {
+        setLoading(false);
+        return;
+      }
+
+      fetch("/api/auth/session")
+        .then((r) => r.json().catch(() => ({})))
+        .then((d: { authenticated?: boolean; email?: string | null }) => {
+          if (!cancelled && d.authenticated) setUser({ email: d.email ?? null });
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+
+    void bootstrap();
+
     return () => {
       cancelled = true;
     };
-  }, [configured]);
+  }, []);
 
   const signIn = useCallback(async () => {
     const res = await signInWithGoogle();
