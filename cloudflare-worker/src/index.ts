@@ -335,7 +335,7 @@ async function serveRangedChunk(
   let cached = await edgeCache.match(cacheKey);
 
   if (cached && !chunkMatchesValidator(cached, ifRange)) {
-    cached = null;
+    cached = undefined;
   }
 
   if (cached) {
