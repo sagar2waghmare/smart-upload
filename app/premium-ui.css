@@ -1274,3 +1274,38 @@ body::after {
   .loading-skeleton::after,
   .player-spinner .spinner { animation: none !important; }
 }
+
+
+/* Browse grids: keep the same compact poster size as the home rails without overlap. */
+.card-grid {
+  grid-template-columns: repeat(auto-fill, 185px) !important;
+  column-gap: 16px !important;
+  row-gap: 22px !important;
+  justify-content: start !important;
+}
+.card-grid .card-conteudo {
+  width: 185px !important;
+  min-width: 185px !important;
+  max-width: 185px !important;
+}
+.card-grid .card-conteudo .poster {
+  width: 185px !important;
+  height: 278px !important;
+  max-width: 185px !important;
+}
+@media (max-width: 650px) {
+  .card-grid {
+    grid-template-columns: repeat(3, 145px) !important;
+    column-gap: 10px !important;
+    row-gap: 18px !important;
+  }
+  .card-grid .card-conteudo,
+  .card-grid .card-conteudo .poster {
+    width: 145px !important;
+    min-width: 145px !important;
+    max-width: 145px !important;
+  }
+  .card-grid .card-conteudo .poster {
+    height: 218px !important;
+  }
+}
