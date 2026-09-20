@@ -145,6 +145,7 @@ export function NavigationMenu({ open, onClose, onSearchOpen }: { open: boolean;
                   <Link
                     key={it.href}
                     href={it.href}
+                    prefetch={it.href.startsWith("/browse/") ? true : undefined}
                     className={`menu-item ${isActive(it.href) ? "active" : ""}`}
                     onClick={handleClose}
                   >
