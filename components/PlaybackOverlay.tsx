@@ -38,6 +38,7 @@ export function PlaybackOverlay() {
     setSrc("");
     setShareUrl(undefined);
     setSourceType(undefined);
+    setAudioTracks([]);
     setError(null);
   }
 
