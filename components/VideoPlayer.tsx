@@ -1,6 +1,7 @@
 "use client";
+
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Episode, MediaItem } from "../lib/types";
+import type { AudioVariant, Episode, MediaItem } from "../lib/types";
 import {
   IAlert,
   ICheck,
@@ -18,6 +19,7 @@ import {
   IVolumeMute,
 } from "./icons";
 import { SmartImage } from "./SmartImage";
+import { AudioLanguageControl } from "./AudioLanguageControl";
 
 type Menu = "settings" | "subtitles" | "quality" | null;
 
@@ -37,6 +39,8 @@ type Props = {
   initialTime?: number;
   onProgress?: (p: { position: number; duration: number }) => void;
   onEnded?: () => void;
+  onClose?: () => void;
+  audioTracks?: AudioVariant[];
 };
 
 const fmt = (t: number) => {
@@ -44,7 +48,9 @@ const fmt = (t: number) => {
   const h = Math.floor(t / 3600);
   const m = Math.floor((t % 3600) / 60);
   const s = Math.floor(t % 60);
-  return h > 0 ? `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}` : `${m}:${s.toString().padStart(2, "0")}`;
+  return h > 0
+    ? h + ":" + m.toString().padStart(2, "0") + ":" + s.toString().padStart(2, "0")
+    : m + ":" + s.toString().padStart(2, "0");
 };
 
 export function VideoPlayer({
@@ -63,19 +69,21 @@ export function VideoPlayer({
   initialTime,
   onProgress,
   onEnded,
+  onClose,
+  audioTracks = [],
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchTapRef = useRef<{ time: number; side: "left" | "right" } | null>(null);
   const currentRef = useRef(0);
   const durationRef = useRef(0);
   const lastEmitRef = useRef(0);
   const initialedRef = useRef(false);
   const playedRef = useRef(false);
   const cbRef = useRef({ onProgress, onEnded });
-  useEffect(() => {
-    cbRef.current = { onProgress, onEnded };
-  }, [onProgress, onEnded]);
 
   const [started, setStarted] = useState(false);
   const [status, setStatus] = useState<"idle" | "playing" | "paused" | "ended" | "error">("idle");
@@ -92,30 +100,66 @@ export function VideoPlayer({
   const [ccOn, setCcOn] = useState(false);
   const [activeSource, setActiveSource] = useState(src);
   const [selectedQuality, setSelectedQuality] = useState("Auto");
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState(0);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
-  const touchTapRef = useRef<{ time: number; side: "left" | "right" } | null>(null);
-  const seekFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const qualityVariants = [
     ...(item.qualityVariants ?? []),
     ...(episode?.qualityVariants ?? []),
-  ].filter((variant, index, list) => list.findIndex((v) => v.label === variant.label && v.url === variant.url) === index);
+  ].filter(
+    (variant, index, list) =>
+      list.findIndex((v) => v.label === variant.label && v.url === variant.url) === index
+  );
+
+  const hasExternalAudio = audioTracks.length > 0;
+  const playing = status === "playing";
+
+  useEffect(() => {
+    cbRef.current = { onProgress, onEnded };
+  }, [onProgress, onEnded]);
 
   useEffect(() => {
     setActiveSource(src);
     setSelectedQuality("Auto");
+    setSelectedAudioIndex(0);
     setShareStatus(null);
+    setError(null);
+    setStarted(false);
+    setStatus("idle");
     initialedRef.current = false;
   }, [src]);
 
-  const playing = status === "playing";
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+
+    video.muted = hasExternalAudio;
+
+    if (!audio || !hasExternalAudio) return;
+    const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
+    if (!track) return;
+
+    audio.src = track.url;
+    audio.volume = muted ? 0 : volume;
+    audio.muted = muted;
+    audio.load();
+
+    try {
+      audio.currentTime = video.currentTime || 0;
+    } catch {}
+
+    if (!video.paused && started) {
+      void audio.play().catch(() => undefined);
+    }
+  }, [audioTracks, selectedAudioIndex, hasExternalAudio, muted, volume, started]);
 
   const poke = useCallback(() => {
     setControls(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    const v = videoRef.current;
-    if (v && !v.paused) {
+    const video = videoRef.current;
+    if (video && !video.paused) {
       hideTimer.current = setTimeout(() => setControls(false), 3200);
     }
   }, []);
@@ -126,215 +170,320 @@ export function VideoPlayer({
   }, [poke]);
 
   const togglePlay = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused) void v.play().catch(() => setError("Playback was blocked. Try clicking again."));
-    else v.pause();
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      void video.play().catch(() => setError("Playback was blocked. Tap Play again."));
+    } else {
+      video.pause();
+    }
   }, []);
 
-  const seek = useCallback((t: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = Math.max(0, Math.min(Number.isFinite(duration) ? duration : 1e9, t));
-    currentRef.current = v.currentTime;
-    setCurrent(v.currentTime);
-  }, [duration]);
+  const syncAudioToVideo = useCallback(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!hasExternalAudio || !video || !audio) return;
+    try {
+      audio.currentTime = Math.max(0, video.currentTime || 0);
+    } catch {}
+  }, [hasExternalAudio]);
+
+  const seek = useCallback(
+    (time: number) => {
+      const video = videoRef.current;
+      if (!video) return;
+      const max = Number.isFinite(duration) && duration > 0 ? duration : 1e9;
+      const next = Math.max(0, Math.min(max, time));
+      try {
+        video.currentTime = next;
+        currentRef.current = next;
+        setCurrent(next);
+        if (audioRef.current && hasExternalAudio) audioRef.current.currentTime = next;
+      } catch {}
+    },
+    [duration, hasExternalAudio]
+  );
 
   const emitProgress = useCallback((force = false) => {
     if (!playedRef.current) return;
     const now = Date.now();
     if (!force && now - lastEmitRef.current < 4000) return;
+
     const pos = currentRef.current;
     lastEmitRef.current = now;
     if (Number.isFinite(pos) && pos >= 0) {
-      cbRef.current.onProgress?.({ position: pos, duration: durationRef.current });
+      cbRef.current.onProgress?.({
+        position: pos,
+        duration: durationRef.current,
+      });
     }
   }, []);
 
-  // For resume playback, seek as soon as metadata is available so the
-  // browser makes the resume range request directly instead of downloading
-  // from 0 first and then performing a second remote seek.
   const applyInitial = useCallback(() => {
-    const v = videoRef.current;
-    if (!v || initialedRef.current || !initialTime || initialTime <= 0.5) return false;
+    const video = videoRef.current;
+    if (!video || initialedRef.current || !initialTime || initialTime <= 0.5) return;
 
-    const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
+    const d = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
     const target = d > 0 ? Math.min(initialTime, Math.max(0, d - 0.25)) : initialTime;
 
     initialedRef.current = true;
     setBuffering(true);
+
     try {
-      // fastSeek lets browsers choose a nearby keyframe when supported,
-      // which avoids doing an unnecessarily precise first seek for resume.
-      if (typeof v.fastSeek === "function") v.fastSeek(target);
-      else v.currentTime = target;
-      currentRef.current = v.currentTime;
-      setCurrent(v.currentTime);
-      return true;
+      if (typeof video.fastSeek === "function") video.fastSeek(target);
+      else video.currentTime = target;
+      currentRef.current = video.currentTime;
+      setCurrent(video.currentTime);
+      if (audioRef.current && hasExternalAudio) audioRef.current.currentTime = video.currentTime;
     } catch {
       initialedRef.current = false;
       setBuffering(false);
-      return false;
     }
-  }, [initialTime]);
+  }, [initialTime, hasExternalAudio]);
 
-  const changeVolume = useCallback((val: number) => {
-    const v = videoRef.current;
-    const clamped = Math.max(0, Math.min(1, val));
-    if (v) {
-      v.volume = clamped;
-      v.muted = clamped === 0;
-    }
-  }, []);
+  const changeVolume = useCallback(
+    (value: number) => {
+      const next = Math.max(0, Math.min(1, value));
+      const video = videoRef.current;
+      const audio = audioRef.current;
+
+      setVolume(next);
+      setMuted(next === 0);
+
+      if (video) {
+        video.volume = next;
+        video.muted = hasExternalAudio ? true : next === 0;
+      }
+      if (audio) {
+        audio.volume = next;
+        audio.muted = next === 0;
+      }
+    },
+    [hasExternalAudio]
+  );
 
   const toggleMute = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+
+    const nextMuted = hasExternalAudio ? !(audio?.muted ?? muted) : !video.muted;
+    setMuted(nextMuted);
+
+    if (hasExternalAudio) {
+      if (audio) audio.muted = nextMuted;
+      video.muted = true;
+    } else {
+      video.muted = nextMuted;
+    }
+  }, [hasExternalAudio, muted]);
+
+  const switchQuality = useCallback(
+    (label: string, url: string) => {
+      const video = videoRef.current;
+      if (!video || url === activeSource) {
+        setSelectedQuality(label);
+        setMenu(null);
+        return;
+      }
+
+      const position = video.currentTime;
+      const wasPlaying = !video.paused;
+
+      setBuffering(true);
+      setError(null);
+      setSelectedQuality(label);
+      setActiveSource(url);
+      setMenu(null);
+
+      window.setTimeout(() => {
+        const next = videoRef.current;
+        if (!next) return;
+
+        const resume = () => {
+          try {
+            if (Number.isFinite(position)) next.currentTime = position;
+          } catch {}
+          if (wasPlaying) void next.play().catch(() => undefined);
+        };
+
+        if (next.readyState >= 1) resume();
+        else next.addEventListener("loadedmetadata", resume, { once: true });
+      }, 0);
+    },
+    [activeSource]
+  );
+
+  const showSeekFeedback = useCallback((direction: "back" | "forward") => {
+    setSeekFeedback(direction);
+    if (seekFeedbackTimer.current) clearTimeout(seekFeedbackTimer.current);
+    seekFeedbackTimer.current = setTimeout(() => setSeekFeedback(null), 700);
   }, []);
 
-  const switchQuality = useCallback((label: string, url: string) => {
-    const v = videoRef.current;
-    if (!v || url === activeSource) {
-      setSelectedQuality(label);
-      return;
-    }
-    const position = v.currentTime;
-    const wasPlaying = !v.paused;
-    setBuffering(true);
-    setError(null);
-    initialedRef.current = true;
-    currentRef.current = position;
-    setCurrent(position);
-    setSelectedQuality(label);
-    setActiveSource(url);
-    window.setTimeout(() => {
-      const next = videoRef.current;
-      if (!next) return;
-      const resume = () => {
+  const performDoubleTapSeek = useCallback(
+    (clientX: number, rect: DOMRect) => {
+      const side = clientX - rect.left < rect.width / 2 ? "left" : "right";
+      const delta = side === "left" ? -10 : 10;
+      seek((videoRef.current?.currentTime ?? current) + delta);
+      showSeekFeedback(delta < 0 ? "back" : "forward");
+    },
+    [current, seek, showSeekFeedback]
+  );
+
+  const handleTouchEnd = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (!started) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("button, input, a, .pc-pop, .player-close")) return;
+
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const side: "left" | "right" =
+        touch.clientX - rect.left < rect.width / 2 ? "left" : "right";
+      const now = Date.now();
+      const previous = touchTapRef.current;
+      const doubleTap =
+        Boolean(previous) &&
+        now - (previous?.time ?? 0) <= 320 &&
+        previous?.side === side;
+
+      touchTapRef.current = { time: now, side };
+
+      if (!doubleTap) return;
+      event.preventDefault();
+      touchTapRef.current = null;
+      performDoubleTapSeek(touch.clientX, rect);
+    },
+    [performDoubleTapSeek, started]
+  );
+
+  const handleDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!started) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("button, input, a, .pc-pop, .player-close")) return;
+      performDoubleTapSeek(event.clientX, event.currentTarget.getBoundingClientRect());
+    },
+    [performDoubleTapSeek, started]
+  );
+
+  const selectAudio = useCallback(
+    (index: number) => {
+      if (!audioTracks[index]) return;
+      const video = videoRef.current;
+      const audio = audioRef.current;
+      const position = video?.currentTime ?? current;
+
+      setSelectedAudioIndex(index);
+
+      if (audio) {
+        audio.src = audioTracks[index].url;
+        audio.volume = muted ? 0 : volume;
+        audio.muted = muted;
+        audio.load();
         try {
-          if (Number.isFinite(position) && position > 0) next.currentTime = position;
-        } catch { /* wait for browser media seek support */ }
-        if (wasPlaying) void next.play().catch(() => undefined);
-      };
-      if (next.readyState >= 1) resume();
-      else next.addEventListener("loadedmetadata", resume, { once: true });
-    }, 0);
-  }, [activeSource]);
+          audio.currentTime = position;
+        } catch {}
+        if (video && !video.paused) void audio.play().catch(() => undefined);
+      }
+    },
+    [audioTracks, current, muted, volume]
+  );
+
+  const startPlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setStarted(true);
+    setError(null);
+    setBuffering(true);
+
+    if (audioRef.current && hasExternalAudio) {
+      audioRef.current.currentTime = video.currentTime || 0;
+      audioRef.current.volume = muted ? 0 : volume;
+      audioRef.current.muted = muted;
+    }
+
+    void video
+      .play()
+      .then(() => {
+        if (audioRef.current && hasExternalAudio) {
+          void audioRef.current.play().catch(() => undefined);
+        }
+      })
+      .catch(() => {
+        setBuffering(false);
+        setStarted(false);
+        setError("Playback was blocked. Tap Play again.");
+      });
+  }, [hasExternalAudio, muted, volume]);
+
+  const toggleFullscreen = useCallback(() => {
+    const element = wrapRef.current;
+    if (!element) return;
+
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void element.requestFullscreen().catch(() => undefined);
+  }, []);
 
   const shareStream = useCallback(async () => {
     setShareStatus(null);
     try {
       if (navigator.share) {
-        await navigator.share({ title, text: "Smart Upload stream", url: shareUrl ?? activeSource });
+        await navigator.share({
+          title,
+          text: "Smart Upload stream",
+          url: shareUrl ?? activeSource,
+        });
         setShareStatus("Shared");
       } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(activeSource);
+        await navigator.clipboard.writeText(shareUrl ?? activeSource);
         setShareStatus("Stream URL copied");
-      } else {
-        setShareStatus("Copy the stream URL from the browser");
       }
-    } catch {
-      setShareStatus(null);
-    }
-  }, [activeSource, title]);
+    } catch {}
+  }, [activeSource, shareUrl, title]);
 
-  const toggleFullscreen = useCallback(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void el.requestFullscreen().catch(() => undefined);
-  }, []);
-
-  const showSeekFeedback = useCallback((direction: "back" | "forward") => {
-    setSeekFeedback(direction);
-    if (seekFeedbackTimer.current) clearTimeout(seekFeedbackTimer.current);
-    seekFeedbackTimer.current = setTimeout(() => setSeekFeedback(null), 650);
-  }, []);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (!started) return;
-    const target = e.target as HTMLElement;
-    if (target.closest("button, input, a, .pc-pop")) return;
-    const touch = e.changedTouches[0];
-    if (!touch) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const side: "left" | "right" = touch.clientX - rect.left < rect.width / 2 ? "left" : "right";
-    const now = Date.now();
-    const previous = touchTapRef.current;
-    const isDoubleTap = Boolean(previous && now - previous.time <= 320 && previous.side === side);
-
-    touchTapRef.current = { time: now, side };
-    if (!isDoubleTap) return;
-
-    e.preventDefault();
-    touchTapRef.current = null;
-    const delta = side === "left" ? -10 : 10;
-    seek((videoRef.current?.currentTime ?? current) + delta);
-    showSeekFeedback(delta < 0 ? "back" : "forward");
-  }, [current, seek, showSeekFeedback, started]);
-
-  const startPlayback = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    setStarted(true);
-    setError(null);
-    setBuffering(true);
-    void v.play().catch(() => {
-      setBuffering(false);
-      setError("Playback was blocked. Try clicking again.");
-    });
-  }, []);
-
-  // reset on source change (component is remounted via key)
   useEffect(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     return () => {
+      audioRef.current?.pause();
       if (seekFeedbackTimer.current) clearTimeout(seekFeedbackTimer.current);
     };
   }, []);
 
-  // flush the latest position when the player unmounts (e.g. overlay close)
   useEffect(() => {
-    return () => {
-      emitProgress(true);
-    };
+    return () => emitProgress(true);
   }, [emitProgress]);
 
   useEffect(() => {
-    const onFs = () => setFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener("fullscreenchange", onFs);
-    return () => document.removeEventListener("fullscreenchange", onFs);
+    const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreen);
+    return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
 
-  const hasEpisodes = Boolean(item.kind !== "movie" && episode && onEpisode);
-  const episodeIndex =
-    episode && onEpisode
-      ? item.seasons?.flatMap((s) => s.episodes).findIndex((e) => e.id === episode.id) ?? -1
-      : -1;
-  const flatEpisodes = item.seasons?.flatMap((s) => s.episodes) ?? [];
-  const prevEp = hasEpisodes && episodeIndex > 0 ? flatEpisodes[episodeIndex - 1] : null;
-  const nextEp = hasEpisodes && episodeIndex < flatEpisodes.length - 1 ? flatEpisodes[episodeIndex + 1] : null;
-
-  const goEp = (ep: Episode) => {
-    if (!onEpisode) return;
-    onEpisode(ep);
-  };
-
-  // keyboard controls
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+
       if (menu) {
-        if (e.key === "Escape") setMenu(null);
+        if (event.key === "Escape") setMenu(null);
         return;
       }
-      switch (e.key) {
+
+      if (event.key === "Escape") {
+        if (document.fullscreenElement) void document.exitFullscreen();
+        else onClose?.();
+        return;
+      }
+
+      switch (event.key) {
         case " ":
         case "k":
         case "K":
-          e.preventDefault();
+          event.preventDefault();
           togglePlay();
           break;
         case "m":
@@ -346,43 +495,65 @@ export function VideoPlayer({
           toggleFullscreen();
           break;
         case "ArrowRight":
-          e.preventDefault();
+          event.preventDefault();
           seek((videoRef.current?.currentTime ?? current) + 10);
           break;
         case "ArrowLeft":
-          e.preventDefault();
+          event.preventDefault();
           seek((videoRef.current?.currentTime ?? current) - 10);
           break;
         case "ArrowUp":
-          e.preventDefault();
+          event.preventDefault();
           changeVolume((videoRef.current?.volume ?? volume) + 0.1);
           break;
         case "ArrowDown":
-          e.preventDefault();
+          event.preventDefault();
           changeVolume((videoRef.current?.volume ?? volume) - 0.1);
-          break;
-        case "Escape":
-          setControls(true);
           break;
       }
     };
+
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [menu, current, volume, playing, togglePlay, toggleMute, toggleFullscreen, seek, changeVolume]);
+  }, [
+    menu,
+    current,
+    volume,
+    togglePlay,
+    toggleMute,
+    toggleFullscreen,
+    seek,
+    changeVolume,
+    onClose,
+  ]);
 
-  const pct = duration ? (current / duration) * 100 : 0;
+  const pct = duration > 0 ? (current / duration) * 100 : 0;
   const hideCursor = !controls && playing;
   const showCenter = !buffering && !error && (status === "paused" || status === "ended" || !started);
+
+  const hasEpisodes = item.kind !== "movie" && Boolean(episode && onEpisode);
+  const flatEpisodes = item.seasons?.flatMap((s) => s.episodes) ?? [];
+  const episodeIndex = episode ? flatEpisodes.findIndex((e) => e.id === episode.id) : -1;
+  const prevEp = hasEpisodes && episodeIndex > 0 ? flatEpisodes[episodeIndex - 1] : null;
+  const nextEp =
+    hasEpisodes && episodeIndex >= 0 && episodeIndex < flatEpisodes.length - 1
+      ? flatEpisodes[episodeIndex + 1]
+      : null;
 
   return (
     <div
       ref={wrapRef}
-      className={`player-wrap ${hideCursor ? "hidden-cursor" : ""} controls-on`}
+      className={"player-wrap " + (hideCursor ? "hidden-cursor" : "")}
       onMouseMove={wake}
+      onPointerMove={wake}
       onTouchStart={wake}
       onTouchEnd={handleTouchEnd}
-      onPointerMove={wake}
+      onDoubleClick={handleDoubleClick}
     >
+      {hasExternalAudio ? (
+        <audio ref={audioRef} preload="auto" aria-hidden="true" />
+      ) : null}
+
       <video
         ref={videoRef}
         className="player-video"
@@ -390,72 +561,125 @@ export function VideoPlayer({
         preload={initialTime && initialTime > 0.5 ? "auto" : "metadata"}
         playsInline
         onLoadStart={() => setBuffering(true)}
-        onPlay={() => { setStatus("playing"); setBuffering(false); poke(); }}
-        onPause={() => { setStatus("paused"); setControls(true); emitProgress(true); }}
+        onPlay={() => {
+          setStatus("playing");
+          setBuffering(false);
+          poke();
+          if (audioRef.current && hasExternalAudio) {
+            void audioRef.current.play().catch(() => undefined);
+          }
+        }}
+        onPause={() => {
+          setStatus("paused");
+          setControls(true);
+          emitProgress(true);
+          audioRef.current?.pause();
+        }}
         onWaiting={() => setBuffering(true)}
         onPlaying={() => setBuffering(false)}
         onSeeking={() => {
+          if (hasExternalAudio) syncAudioToVideo();
           if (initialTime && initialTime > 0.5 && !initialedRef.current) setBuffering(true);
         }}
         onCanPlay={() => setBuffering(false)}
         onLoadedData={() => applyInitial()}
-        onLoadedMetadata={(e) => {
-          durationRef.current = e.currentTarget.duration || durationRef.current;
-          setDuration(e.currentTarget.duration);
+        onLoadedMetadata={(event) => {
+          durationRef.current = event.currentTarget.duration || durationRef.current;
+          setDuration(event.currentTarget.duration || 0);
           applyInitial();
         }}
-        onTimeUpdate={(e) => {
-          const t = e.currentTarget.currentTime;
-          currentRef.current = t;
-          durationRef.current = e.currentTarget.duration || durationRef.current;
-          if (t > 0.5) playedRef.current = true;
-          setCurrent(t);
+        onTimeUpdate={(event) => {
+          const time = event.currentTarget.currentTime;
+          currentRef.current = time;
+          durationRef.current = event.currentTarget.duration || durationRef.current;
+          if (time > 0.5) playedRef.current = true;
+          setCurrent(time);
+
+          if (
+            hasExternalAudio &&
+            audioRef.current &&
+            Math.abs(audioRef.current.currentTime - time) > 0.35
+          ) {
+            try {
+              audioRef.current.currentTime = time;
+            } catch {}
+          }
+
           emitProgress();
         }}
         onSeeked={() => {
+          if (hasExternalAudio) syncAudioToVideo();
           setBuffering(false);
           emitProgress(true);
         }}
-        onVolumeChange={(e) => {
-          setMuted(e.currentTarget.muted);
-          setVolume(e.currentTarget.volume);
+        onVolumeChange={(event) => {
+          if (hasExternalAudio) return;
+          setMuted(event.currentTarget.muted);
+          setVolume(event.currentTarget.volume);
         }}
-        onRateChange={(e) => setRate(e.currentTarget.playbackRate)}
-        onEnded={() => { setStatus("ended"); setControls(true); cbRef.current.onEnded?.(); }}
-        onError={() => setError("This media could not be decoded by your browser. Use a browser-safe H.264/AAC copy for MKV, AC-3, DTS, FLAC or other unsupported codecs.")}
+        onRateChange={(event) => setRate(event.currentTarget.playbackRate)}
+        onEnded={() => {
+          setStatus("ended");
+          setControls(true);
+          audioRef.current?.pause();
+          cbRef.current.onEnded?.();
+        }}
+        onError={() => {
+          setError(
+            "This media could not be decoded. Use a browser-safe H.264/AAC copy for unsupported MKV audio/video codecs."
+          );
+          setBuffering(false);
+        }}
       >
         <source src={activeSource} type={activeSource === src ? sourceType : undefined} />
-        {subtitleUrl && (
-          <track kind="subtitles" src={subtitleUrl} srcLang="en" label="English" default={ccOn} />
-        )}
+        {subtitleUrl ? (
+          <track
+            kind="subtitles"
+            src={subtitleUrl}
+            srcLang="en"
+            label="English"
+            default={ccOn}
+          />
+        ) : null}
       </video>
 
-      {/* poster / start screen */}
-      <div className={`player-poster ${started ? "hidden" : ""}`}>
-        <SmartImage src={poster ?? backdrop} alt="" className="player-poster-img" priority sizes="100vw" />
+      <div className={"player-poster " + (started ? "hidden" : "")}>
+        <SmartImage
+          src={poster ?? backdrop}
+          alt=""
+          className="player-poster-img"
+          priority
+          sizes="100vw"
+        />
         <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "linear-gradient(0deg,rgba(0,0,0,.55),transparent 40%)",
-            pointerEvents: "none",
-          }}
+          className="player-poster-shade"
+          aria-hidden="true"
         />
       </div>
-      {!started && (
+
+      {showCenter ? (
         <div className="player-center">
-          <button className="big-play" onClick={startPlayback} aria-label={`Play ${episodeTitle ?? title}`}>
-            <IPlay />
+          <button
+            type="button"
+            className="big-play"
+            onClick={status === "ended" ? () => {
+              seek(0);
+              startPlayback();
+            } : started ? togglePlay : startPlayback}
+            aria-label={status === "ended" ? "Replay" : "Play"}
+          >
+            {status === "ended" ? <IReplay /> : <IPlay />}
           </button>
         </div>
-      )}
+      ) : null}
 
-      {demo && (
-        <span className="pill pill-warn player-demo-badge">Demo preview stream</span>
-      )}
+      {demo ? <span className="pill pill-warn player-demo-badge">Demo preview stream</span> : null}
 
-      {/* buffering */}
-      <div className={`player-spinner ${buffering && started ? "" : "hidden"}`} role="status" aria-label="Buffering">
+      <div
+        className={"player-spinner " + (buffering && started ? "" : "hidden")}
+        role="status"
+        aria-label="Buffering"
+      >
         <div className="player-loading-orbit" aria-hidden="true">
           <span />
           <span />
@@ -467,54 +691,61 @@ export function VideoPlayer({
         <span className="player-loading-label">Loading</span>
       </div>
 
-      {/* error */}
-      {error && (
+      {error ? (
         <div className="player-error" role="alert">
           <IAlert />
           <h3>Playback unavailable</h3>
           <p>{error}</p>
-          <div style={{ display: "flex", gap: ".6rem", flexWrap: "wrap", justifyContent: "center" }}>
-            <button className="btn btn-primary" onClick={() => { setError(null); setStarted(false); }}>
+          <div className="player-error-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setError(null);
+                setStarted(false);
+                setStatus("idle");
+              }}
+            >
               <IReplay /> Try again
             </button>
-            {demo && <span className="pill pill-warn">Demo stream offline — configure your media URL</span>}
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* pause overlay */}
-      {showCenter && started && !error && status !== "ended" && (
-        <div className="player-center">
-          <button className="big-play" onClick={togglePlay} aria-label="Play">
-            <IPlay />
+      <div className={"player-topbar " + (controls ? "" : "hidden")}>
+        {onClose ? (
+          <button
+            type="button"
+            className="player-close"
+            onClick={onClose}
+            aria-label="Exit player"
+            title="Exit player"
+          >
+            ×
           </button>
-        </div>
-      )}
-      {showCenter && status === "ended" && (
-        <div className="player-center">
-          <button className="big-play" onClick={() => { const v = videoRef.current; if (v) { v.currentTime = 0; void v.play(); } }} aria-label="Replay">
-            <IReplay />
-          </button>
-        </div>
-      )}
-
-      <div className={`player-topbar ${controls ? "" : "hidden"}`}>
+        ) : null}
         <div className="player-title-block">
           <span className="player-title">{title}</span>
-          {episodeTitle && <span className="player-episode">{episodeTitle}</span>}
+          {episodeTitle ? <span className="player-episode">{episodeTitle}</span> : null}
         </div>
         <span className="player-live-dot" aria-hidden="true" />
       </div>
 
-      <div className={`player-gradient ${controls ? "" : "hidden"}`} />
+      <div className={"player-gradient " + (controls ? "" : "hidden")} />
 
-      {seekFeedback && started && (
-        <div className={`seek-feedback seek-feedback-${seekFeedback}`} aria-live="polite">
-          <span className="seek-feedback-icon">{seekFeedback === "back" ? <ISkipBack /> : <ISkipFwd />}</span>
+      {seekFeedback ? (
+        <div
+          className={"seek-feedback seek-feedback-" + seekFeedback}
+          aria-live="polite"
+        >
+          <span className="seek-feedback-icon">
+            {seekFeedback === "back" ? <ISkipBack /> : <ISkipFwd />}
+          </span>
           <span>10 seconds</span>
         </div>
-      )}
-      <div className={`player-controls ${controls ? "" : "hidden"}`}>
+      ) : null}
+
+      <div className={"player-controls " + (controls ? "" : "hidden")}>
         <input
           className="slider pc-seek"
           type="range"
@@ -522,33 +753,47 @@ export function VideoPlayer({
           max={duration || 0}
           step={0.1}
           value={Math.min(current, duration || 0)}
-          onChange={(e) => seek(Number(e.target.value))}
-          style={{ "--fill": `${pct}%` } as React.CSSProperties}
+          onChange={(event) => seek(Number(event.target.value))}
+          style={{ "--fill": pct + "%" } as React.CSSProperties}
           aria-label="Seek"
           aria-valuetext={fmt(current)}
         />
 
         <div className="pc-row">
-          <button className="pc-btn pc-main-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+          <button
+            type="button"
+            className="pc-btn pc-main-play"
+            onClick={togglePlay}
+            aria-label={playing ? "Pause" : "Play"}
+            title={playing ? "Pause" : "Play"}
+          >
             {playing ? <IPause /> : <IPlay />}
           </button>
+
           <span className="pc-time">
             {fmt(current)} / {fmt(duration)}
           </span>
 
           <div className="pc-spacer" />
 
-          {prevEp && (
-            <button className="pc-btn wide" onClick={() => goEp(prevEp)} aria-label={`Previous: ${prevEp.title}`}>
-              <ISkipBack /> Ep {prevEp.episode}
-            </button>
-          )}
-
-          <div style={{ position: "relative" }}>
+          {prevEp ? (
             <button
+              type="button"
+              className="pc-btn wide"
+              onClick={() => onEpisode?.(prevEp)}
+              aria-label={"Previous episode " + prevEp.episode}
+            >
+              Ep {prevEp.episode}
+            </button>
+          ) : null}
+
+          <div className="pc-volume">
+            <button
+              type="button"
               className="pc-btn"
               aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
               onClick={toggleMute}
+              title={muted || volume === 0 ? "Unmute" : "Mute"}
             >
               {muted || volume === 0 ? <IVolumeMute /> : volume < 0.5 ? <IVolumeLow /> : <IVolumeHigh />}
             </button>
@@ -559,124 +804,153 @@ export function VideoPlayer({
               max={1}
               step={0.02}
               value={muted ? 0 : volume}
-              onChange={(e) => changeVolume(Number(e.target.value))}
-              style={{ "--fill": `${muted ? 0 : volume * 100}%` } as React.CSSProperties}
+              onChange={(event) => changeVolume(Number(event.target.value))}
+              style={{ "--fill": (muted ? 0 : volume * 100) + "%" } as React.CSSProperties}
               aria-label="Volume"
             />
           </div>
 
+          <AudioLanguageControl
+            tracks={audioTracks}
+            activeIndex={selectedAudioIndex}
+            onSelect={selectAudio}
+          />
+
           <div className="pc-menu-anchor">
             <button
-              className={`pc-btn pc-menu-btn pc-label-btn ${ccOn ? "accent" : ""}`}
+              type="button"
+              className={"pc-btn pc-menu-btn pc-label-btn " + (ccOn ? "accent" : "")}
               aria-label="Subtitles"
               aria-expanded={menu === "subtitles"}
               onClick={() => setMenu(menu === "subtitles" ? null : "subtitles")}
+              title="Subtitles"
             >
               <ISubtitles />
               <span className="pc-btn-label">CC</span>
             </button>
-            {menu === "subtitles" && (
+            {menu === "subtitles" ? (
               <div className="pc-pop pc-pop-subtitles">
                 <div className="pc-pop-title">SUBTITLES</div>
                 {subtitleUrl ? (
-                  <button className={`pc-option ${ccOn ? "active" : ""}`} onClick={() => setCcOn((v) => !v)}>
+                  <button
+                    type="button"
+                    className={"pc-option " + (ccOn ? "active" : "")}
+                    onClick={() => setCcOn((value) => !value)}
+                  >
                     <span>English</span>
-                    <ICheck className="check" />
+                    {ccOn ? <ICheck className="check" /> : null}
                   </button>
                 ) : (
                   <div className="pc-empty">No subtitles in this stream</div>
                 )}
               </div>
-            )}
+            ) : null}
           </div>
 
           <div className="pc-menu-anchor">
             <button
-              className={`pc-btn pc-menu-btn pc-label-btn ${selectedQuality === "Auto" ? "accent" : ""}`}
+              type="button"
+              className={
+                "pc-btn pc-menu-btn pc-label-btn " +
+                (selectedQuality === "Auto" ? "accent" : "")
+              }
               aria-label="Quality"
               aria-expanded={menu === "quality"}
               onClick={() => setMenu(menu === "quality" ? null : "quality")}
+              title="Video quality"
             >
-              <span className="pc-quality-mark">{selectedQuality === "Auto" ? "AUTO" : selectedQuality}</span>
+              <span className="pc-quality-mark">
+                {selectedQuality === "Auto" ? "AUTO" : selectedQuality}
+              </span>
             </button>
-            {menu === "quality" && (
+            {menu === "quality" ? (
               <div className="pc-pop pc-pop-quality">
                 <div className="pc-pop-title">VIDEO QUALITY</div>
-                <div className="pc-pop-subtitle">Auto uses the current browser-safe source.</div>
                 <button
-                  className={`pc-option ${selectedQuality === "Auto" ? "active" : ""}`}
-                  onClick={() => {
-                    setSelectedQuality("Auto");
-                    if (activeSource !== src) switchQuality("Auto", src);
-                  }}
+                  type="button"
+                  className={"pc-option " + (selectedQuality === "Auto" ? "active" : "")}
+                  onClick={() => switchQuality("Auto", src)}
                 >
                   <span>Auto</span>
-                  <span className="pc-quality-note">Current source</span>
-                  {selectedQuality === "Auto" && <ICheck className="check" />}
+                  {selectedQuality === "Auto" ? <ICheck className="check" /> : null}
                 </button>
                 {qualityVariants.map((variant) => (
                   <button
-                    key={`${variant.label}-${variant.url}`}
-                    className={`pc-option ${selectedQuality === variant.label ? "active" : ""}`}
+                    type="button"
+                    key={variant.label + "-" + variant.url}
+                    className={"pc-option " + (selectedQuality === variant.label ? "active" : "")}
                     onClick={() => switchQuality(variant.label, variant.url)}
                   >
                     <span>{variant.label}</span>
                     {variant.height ? <span className="pc-quality-note">{variant.height}p</span> : null}
-                    {selectedQuality === variant.label && <ICheck className="check" />}
+                    {selectedQuality === variant.label ? <ICheck className="check" /> : null}
                   </button>
                 ))}
-                {!qualityVariants.length && (
-                  <div className="pc-empty">Quality switching is ready. Add 1080p / 720p / 480p variants to enable it.</div>
-                )}
+                {!qualityVariants.length ? (
+                  <div className="pc-empty">No alternate quality streams are configured.</div>
+                ) : null}
               </div>
-            )}
+            ) : null}
           </div>
 
           <div className="pc-menu-anchor">
             <button
+              type="button"
               className="pc-btn pc-menu-btn"
               aria-label="Playback settings"
               aria-expanded={menu === "settings"}
               onClick={() => setMenu(menu === "settings" ? null : "settings")}
+              title="Playback settings"
             >
               <ISettings />
             </button>
-            {menu === "settings" && (
+            {menu === "settings" ? (
               <div className="pc-pop pc-pop-settings">
                 <div className="pc-pop-title">PLAYBACK SPEED</div>
-                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => (
+                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
                   <button
-                    key={r}
-                    className={`pc-option ${rate === r ? "active" : ""}`}
+                    type="button"
+                    key={speed}
+                    className={"pc-option " + (rate === speed ? "active" : "")}
                     onClick={() => {
-                      const v = videoRef.current;
-                      if (v) v.playbackRate = r;
-                      setRate(r);
+                      if (videoRef.current) videoRef.current.playbackRate = speed;
+                      setRate(speed);
+                      setMenu(null);
                     }}
                   >
-                    <span>{r === 1 ? "Normal" : `${r}x`}</span>
-                    <ICheck className="check" />
+                    <span>{speed === 1 ? "Normal" : speed + "x"}</span>
+                    {rate === speed ? <ICheck className="check" /> : null}
                   </button>
                 ))}
-                <div className="pc-pop-title" style={{ marginTop: ".8rem" }}>EXTERNAL PLAYER</div>
-                <button className="pc-option" onClick={() => void shareStream()}>
+                <div className="pc-pop-title pc-pop-section-gap">EXTERNAL PLAYER</div>
+                <button type="button" className="pc-option" onClick={() => void shareStream()}>
                   <span>Share / copy stream URL</span>
                 </button>
-                {shareStatus && <div className="pc-empty">{shareStatus}. In VLC: Open Network Stream → paste the URL.</div>}
-
+                {shareStatus ? <div className="pc-empty">{shareStatus}</div> : null}
               </div>
-            )}
+            ) : null}
           </div>
 
-          <button className="pc-btn" onClick={toggleFullscreen} aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+          <button
+            type="button"
+            className="pc-btn"
+            onClick={toggleFullscreen}
+            aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
             {fullscreen ? <ICompress /> : <IExpand />}
           </button>
 
-          {nextEp && (
-            <button className="pc-btn wide" onClick={() => goEp(nextEp)} aria-label={`Next: ${nextEp.title}`}>
-              Ep {nextEp.episode} <ISkipFwd style={{ transform: "scaleX(-1)" }} />
+          {nextEp ? (
+            <button
+              type="button"
+              className="pc-btn wide"
+              onClick={() => onEpisode?.(nextEp)}
+              aria-label={"Next episode " + nextEp.episode}
+            >
+              Ep {nextEp.episode}
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
