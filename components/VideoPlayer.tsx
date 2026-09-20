@@ -36,8 +36,8 @@ type Factory = (el: HTMLVideoElement, options?: Record<string, unknown>) => Play
 declare global { interface Window { videojs?: Factory } }
 
 const VJS = "8.24.1";
-const jsUrl = `https://vjs.zencdn.net/${VJS}/video.min.js`;
-const cssUrl = `https://vjs.zencdn.net/${VJS}/video-js.min.css`;
+const jsUrl = `https://cdn.jsdelivr.net/npm/video.js@${VJS}/dist/video.min.js`;
+const cssUrl = `https://cdn.jsdelivr.net/npm/video.js@${VJS}/dist/video-js.min.css`;
 
 function loadVjs(): Promise<Factory> {
   if (window.videojs) return Promise.resolve(window.videojs);
