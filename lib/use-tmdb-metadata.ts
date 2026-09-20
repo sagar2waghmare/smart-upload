@@ -11,6 +11,8 @@ export interface TmdbMetaEnrich {
   genres?: string[];
   poster?: string;
   backdrop?: string;
+  cast?: string[];
+  creator?: string;
 }
 
 type MetaState = {
