@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MediaItem } from "../lib/types";
 import { useDetails } from "./DetailsProvider";
 import { VideoPlayer } from "./VideoPlayer";
-import { IAlert, IArrowLeft } from "./icons";
+import { IAlert } from "./icons";
 import { clearProgress, getProgress, progressPercent, saveProgress } from "../lib/watch-progress";
 
 type ApiResult = {
@@ -107,12 +107,6 @@ export function PlaybackOverlay() {
 
   return (
     <div className="player-overlay" role="dialog" aria-modal="true" aria-label={`Player — ${title}`}>
-      <div className="play-topbar">
-        <button className="btn-icon play-close" onClick={closePlayer} aria-label="Back to details">
-          <IArrowLeft />
-        </button>
-        <span className="play-title">{title}</span>
-      </div>
       <div className="play-stage">
         {error ? (
           <div className="state-box" role="alert">
@@ -139,6 +133,7 @@ export function PlaybackOverlay() {
               initialTime={resume || undefined}
               onProgress={handleProgress}
               onEnded={handleEnded}
+              onClose={closePlayer}
             />
           </>
         ) : (
