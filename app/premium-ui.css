@@ -1,0 +1,318 @@
+/* Smart Upload — Premium UI enhancement layer.
+ * UI ONLY: no data, auth, upload, playback, API, or storage behavior changes.
+ */
+
+:root {
+  --premium-glow-purple: rgba(124,58,237,.22);
+  --premium-glow-orange: rgba(255,107,53,.14);
+  --premium-glass: rgba(255,255,255,.055);
+  --premium-border: rgba(255,255,255,.095);
+  --premium-ease: cubic-bezier(.16,1,.3,1);
+}
+
+body {
+  background:
+    radial-gradient(900px 500px at 12% 0%, rgba(124,58,237,.055), transparent 65%),
+    radial-gradient(800px 500px at 88% 22%, rgba(255,107,53,.035), transparent 65%),
+    #101010 !important;
+}
+
+/* Ambient page lighting — intentionally slow and subtle. */
+body::before,
+body::after {
+  content:"";
+  position:fixed;
+  width:42vw;
+  height:42vw;
+  max-width:680px;
+  max-height:680px;
+  border-radius:50%;
+  pointer-events:none;
+  z-index:-1;
+  filter:blur(90px);
+  opacity:.32;
+  animation: premiumDrift 18s ease-in-out infinite alternate;
+}
+body::before {
+  left:-20vw;
+  top:10vh;
+  background:var(--premium-glow-purple);
+}
+body::after {
+  right:-22vw;
+  top:48vh;
+  background:var(--premium-glow-orange);
+  animation-delay:-7s;
+}
+@keyframes premiumDrift {
+  from { transform:translate3d(0,0,0) scale(.92); }
+  to { transform:translate3d(5vw,-3vh,0) scale(1.08); }
+}
+
+/* Header: floating glass rather than a flat bar. */
+.header {
+  transition:background .35s ease, border-color .35s ease, box-shadow .35s ease !important;
+}
+.header:hover {
+  background:rgba(18,18,18,.72) !important;
+  box-shadow:0 12px 40px rgba(0,0,0,.12) !important;
+}
+
+/* Buttons: tactile micro-motion and light sweep. */
+.btn,
+.icon-btn,
+.upload-chip,
+.controles-carrossel button,
+.hero-nav-btn,
+.pc-btn {
+  transition:
+    transform .28s var(--premium-ease),
+    background .28s ease,
+    border-color .28s ease,
+    box-shadow .28s ease,
+    color .2s ease !important;
+}
+.btn:hover,
+.upload-chip:hover,
+.hero-nav-btn:hover {
+  transform:translateY(-2px);
+}
+.btn:active,
+.icon-btn:active,
+.upload-chip:active,
+.hero-nav-btn:active,
+.controles-carrossel button:active,
+.pc-btn:active {
+  transform:scale(.95) !important;
+}
+.btn-primary {
+  position:relative;
+  overflow:hidden;
+}
+.btn-primary::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(110deg,transparent 20%,rgba(255,255,255,.20) 48%,transparent 76%);
+  transform:translateX(-130%);
+  transition:transform .65s var(--premium-ease);
+  pointer-events:none;
+}
+.btn-primary:hover::after { transform:translateX(130%); }
+
+/* Rails appear progressively without shifting layout. */
+.secao-conteudos {
+  animation:premiumSectionIn .55s var(--premium-ease) both;
+}
+@keyframes premiumSectionIn {
+  from { opacity:0; transform:translateY(10px); }
+  to { opacity:1; transform:none; }
+}
+
+/* Premium media cards. */
+.card-conteudo {
+  isolation:isolate;
+  transition:transform .38s var(--premium-ease), filter .38s ease !important;
+}
+.card-conteudo::after {
+  content:"";
+  position:absolute;
+  left:10%;
+  right:10%;
+  bottom:10%;
+  height:28%;
+  border-radius:50%;
+  background:rgba(124,58,237,.18);
+  filter:blur(24px);
+  opacity:0;
+  z-index:-1;
+  transition:opacity .4s ease, transform .4s var(--premium-ease);
+}
+.card-conteudo:hover::after {
+  opacity:1;
+  transform:translateY(8px) scale(1.06);
+}
+.card-conteudo .poster {
+  position:relative;
+  transform:translateZ(0);
+}
+.card-conteudo .poster::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(180deg,transparent 48%,rgba(0,0,0,.32));
+  opacity:0;
+  transition:opacity .35s ease;
+  pointer-events:none;
+}
+.card-conteudo:hover .poster::after { opacity:1; }
+.card-conteudo:hover .info-conteudo h3 { color:#fff !important; }
+.card-conteudo .info-conteudo h3 { transition:color .2s ease; }
+.media-card-progress .progress-bar span {
+  transition:width .55s var(--premium-ease) !important;
+}
+
+/* Hero lighting and editorial transition. */
+.hero-filmes {
+  isolation:isolate;
+}
+.hero-filmes::before {
+  content:"";
+  position:absolute;
+  width:52%;
+  height:72%;
+  left:24%;
+  top:13%;
+  border-radius:50%;
+  background:radial-gradient(circle,var(--premium-glow-purple),transparent 68%);
+  filter:blur(55px);
+  opacity:.65;
+  pointer-events:none;
+  animation:premiumHeroGlow 9s ease-in-out infinite alternate;
+  z-index:-1;
+}
+@keyframes premiumHeroGlow {
+  from { transform:scale(.88) translate3d(-2%,1%,0); opacity:.42; }
+  to { transform:scale(1.08) translate3d(2%,-2%,0); opacity:.72; }
+}
+.hero-editorial h1 {
+  animation:premiumTitleIn .6s var(--premium-ease) both;
+}
+.hero-editorial-overview {
+  animation:premiumCopyIn .7s .08s var(--premium-ease) both;
+}
+.hero-editorial-actions {
+  animation:premiumCopyIn .7s .14s var(--premium-ease) both;
+}
+@keyframes premiumTitleIn {
+  from { opacity:0; transform:translateY(12px); filter:blur(5px); }
+  to { opacity:1; transform:none; filter:none; }
+}
+@keyframes premiumCopyIn {
+  from { opacity:0; transform:translateY(8px); }
+  to { opacity:1; transform:none; }
+}
+.hero-poster.ativo {
+  filter:drop-shadow(0 28px 55px rgba(0,0,0,.35));
+}
+.hero-poster.ativo img {
+  box-shadow:
+    0 30px 75px rgba(0,0,0,.70),
+    0 0 70px rgba(124,58,237,.10) !important;
+}
+.hero-dot {
+  transition:width .35s var(--premium-ease),transform .25s var(--premium-ease),background .25s ease !important;
+}
+
+/* Details surface: cleaner entrance and glass metadata. */
+.details-copy,
+.details-section {
+  animation:premiumDetailsIn .5s var(--premium-ease) both;
+}
+@keyframes premiumDetailsIn {
+  from { opacity:0; transform:translateY(12px); }
+  to { opacity:1; transform:none; }
+}
+.details-stats > div,
+.meta-item,
+.nota-tmdb,
+.genero,
+.tmdb-source {
+  transition:transform .25s var(--premium-ease),background .25s ease,border-color .25s ease !important;
+}
+.details-stats > div:hover,
+.meta-item:hover {
+  transform:translateY(-2px);
+  background:rgba(255,255,255,.075) !important;
+}
+.episode-card {
+  position:relative;
+  overflow:hidden;
+}
+.episode-card::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.055) 50%,transparent 75%);
+  transform:translateX(-130%);
+  transition:transform .7s var(--premium-ease);
+  pointer-events:none;
+}
+.episode-card:hover::before { transform:translateX(130%); }
+
+/* Player: premium floating transport without changing controls/functionality. */
+.player-controls,
+.pc-pop,
+.audio-language-menu {
+  border-color:rgba(255,255,255,.11) !important;
+  box-shadow:0 20px 60px rgba(0,0,0,.48) !important;
+}
+.player-controls {
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.pc-btn {
+  border-radius:10px !important;
+}
+.pc-btn:hover {
+  background:rgba(255,255,255,.11) !important;
+  color:#fff !important;
+}
+.pc-pop {
+  animation:premiumMenuIn .22s var(--premium-ease) both;
+  transform-origin:bottom right;
+}
+@keyframes premiumMenuIn {
+  from { opacity:0; transform:translateY(7px) scale(.97); }
+  to { opacity:1; transform:none; }
+}
+.pc-option {
+  transition:background .2s ease,color .2s ease,transform .2s var(--premium-ease) !important;
+}
+.pc-option:hover { transform:translateX(2px); }
+
+/* Search and navigation overlays. */
+.search-overlay.open .search-inner {
+  animation:premiumOverlayIn .35s var(--premium-ease) both;
+}
+@keyframes premiumOverlayIn {
+  from { opacity:0; transform:translateY(12px) scale(.99); }
+  to { opacity:1; transform:none; }
+}
+.menu-backdrop.open {
+  animation:premiumFadeIn .3s ease both;
+}
+@keyframes premiumFadeIn {
+  from { opacity:0; }
+  to { opacity:1; }
+}
+
+/* Loading state. */
+.play-loading {
+  background:
+    radial-gradient(circle at 50% 45%,rgba(124,58,237,.09),transparent 32%),
+    #000;
+}
+
+/* Keep animations safe for accessibility and low-power/mobile devices. */
+@media (max-width:650px) {
+  body::before, body::after {
+    filter:blur(70px);
+    opacity:.20;
+    animation-duration:24s;
+  }
+  .card-conteudo::after { display:none; }
+  .hero-filmes::before { opacity:.38; filter:blur(45px); }
+}
+@media (prefers-reduced-motion:reduce) {
+  body::before,body::after,.hero-filmes::before,
+  .secao-conteudos,.hero-editorial h1,.hero-editorial-overview,
+  .hero-editorial-actions,.details-copy,.details-section {
+    animation:none !important;
+  }
+  .btn-primary::after,.episode-card::before { display:none !important; }
+  *,*::before,*::after {
+    transition-duration:.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
