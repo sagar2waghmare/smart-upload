@@ -329,7 +329,7 @@ async function serveRangedChunk(
 ): Promise<Response | null> {
   const chunkStart = chunkStartForByte(range.start);
   const requestUrl = new URL(request.url);
-  const cacheKey = chunkCacheKey(requestUrl, fileId, chunkStart);
+  const cacheKey = chunkCacheKey(new URL(RANGE_CACHE_ORIGIN), fileId, chunkStart);
   const ifRange = request.headers.get("If-Range");
 
   let cached = await edgeCache.match(cacheKey);
@@ -422,12 +422,15 @@ async function serveRangedChunk(
   cacheHeaders.set("X-Smart-Range-End", String(stored.end));
   cacheHeaders.set("X-Smart-Range-Total", String(stored.total));
 
-  const cacheKeyForResponse = chunkCacheKey(requestUrl, fileId, chunkStart);
+  const cacheKeyForResponse = chunkCacheKey(new URL(RANGE_CACHE_ORIGIN), fileId, chunkStart);
   const fillPromise = edgeCache.put(
     cacheKeyForResponse,
     new Response(cacheBody, { status: 200, headers: cacheHeaders }),
   );
   inFlightChunkFills.set(inFlightKey, fillPromise);
+  // Keep the cache fill alive after returning the first byte-range response.
+  // Concurrent requests for the same chunk can await this promise instead
+  // of issuing duplicate Google Drive requests.
   ctx.waitUntil(fillPromise.finally(() => {
     if (inFlightChunkFills.get(inFlightKey) === fillPromise) inFlightChunkFills.delete(inFlightKey);
   }));
