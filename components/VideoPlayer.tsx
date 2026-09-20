@@ -93,6 +93,9 @@ export function VideoPlayer({
   const [activeSource, setActiveSource] = useState(src);
   const [selectedQuality, setSelectedQuality] = useState("Auto");
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
+  const touchTapRef = useRef<{ time: number; side: "left" | "right" } | null>(null);
+  const seekFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const qualityVariants = [
     ...(item.qualityVariants ?? []),
