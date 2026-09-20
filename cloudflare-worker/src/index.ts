@@ -474,7 +474,7 @@ export default {
       const rangeHeader = request.headers.get("Range");
       const range = parseSingleRange(rangeHeader);
 
-      if (range) {
+      if (range && request.method === "GET") {
         const cachedRange = await serveRangedChunk(request, ctx, fileId, range, token);
         if (cachedRange) {
           cachedRange.headers.set("Access-Control-Allow-Origin", request.headers.get("Origin") ?? "*");
