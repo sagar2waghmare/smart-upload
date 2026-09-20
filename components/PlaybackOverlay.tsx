@@ -12,6 +12,7 @@ type ApiResult = {
   canPlay: boolean;
   defaultUrl: string;
   shareUrl?: string;
+  sourceType?: string;
   prepared?: boolean;
 };
 
@@ -20,6 +21,7 @@ export function PlaybackOverlay() {
   const [ready, setReady] = useState(false);
   const [src, setSrc] = useState("");
   const [shareUrl, setShareUrl] = useState<string | undefined>();
+  const [sourceType, setSourceType] = useState<string | undefined>();
   const [demo, setDemo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endedRef = useRef(false);
@@ -33,6 +35,7 @@ export function PlaybackOverlay() {
     setReady(false);
     setSrc("");
     setShareUrl(undefined);
+    setSourceType(undefined);
     setError(null);
   }
 
@@ -61,6 +64,7 @@ export function PlaybackOverlay() {
         }
         setSrc(url);
         setShareUrl(data.shareUrl);
+        setSourceType(data.sourceType);
         setDemo(data.demo);
         setReady(true);
       })
@@ -122,6 +126,7 @@ export function PlaybackOverlay() {
             <VideoPlayer
               key={src}
               src={src}
+              sourceType={sourceType}
               shareUrl={shareUrl}
               poster={item.poster}
               backdrop={item.backdrop}
