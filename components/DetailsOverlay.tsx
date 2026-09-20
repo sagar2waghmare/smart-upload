@@ -41,6 +41,8 @@ export function DetailsOverlay() {
   const backdrop = meta?.backdrop || item.backdrop || item.poster;
   const overview = meta?.overview || item.overview || "";
   const genres = meta?.genres?.length ? meta.genres : item.genres ?? [];
+  const cast = meta?.cast?.length ? meta.cast : item.cast ?? [];
+  const creator = meta?.creator || item.creator;
   const rating = meta?.rating ?? item.rating;
   const year = meta?.year ?? item.year;
   const runtime = meta?.runtime ?? item.runtime;
@@ -86,8 +88,8 @@ export function DetailsOverlay() {
         {overview && <p className="source-netflix-synopsis">{overview}</p>}
 
         <div className="source-netflix-cast">
-          {item.cast?.length ? <span><span className="dim">Cast: </span>{item.cast.join(", ")}</span> : null}
-          {item.creator ? <span><span className="dim">Creator: </span>{item.creator}</span> : null}
+          {cast.length ? <span><span className="dim">Cast: </span>{cast.join(", ")}</span> : null}
+          {creator ? <span><span className="dim">Creator: </span>{creator}</span> : null}
           {genres.length ? <span><span className="dim">Genres: </span>{genres.join(", ")}</span> : null}
         </div>
 
