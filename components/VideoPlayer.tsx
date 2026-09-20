@@ -421,7 +421,7 @@ export function VideoPlayer({
         }}
         onRateChange={(e) => setRate(e.currentTarget.playbackRate)}
         onEnded={() => { setStatus("ended"); setControls(true); cbRef.current.onEnded?.(); }}
-        onError={() => setError("Could not load this media source.")}
+        onError={() => setError("This media could not be decoded by your browser. Use a browser-safe H.264/AAC copy for MKV, AC-3, DTS, FLAC or other unsupported codecs.")}
       >
         <source src={activeSource} type={activeSource === src ? sourceType : undefined} />
         {subtitleUrl && (
@@ -455,7 +455,15 @@ export function VideoPlayer({
 
       {/* buffering */}
       <div className={`player-spinner ${buffering && started ? "" : "hidden"}`} role="status" aria-label="Buffering">
-        <div className="spinner" />
+        <div className="player-loading-orbit" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <i />
+        </div>
+        <span className="player-loading-label">Loading</span>
       </div>
 
       {/* error */}
@@ -499,19 +507,10 @@ export function VideoPlayer({
 
       <div className={`player-gradient ${controls ? "" : "hidden"}`} />
 
-      {controls && started && !error && (
-        <div className="player-center-transport" aria-label="Seek controls">
-          <button className="center-seek" onClick={() => seek((videoRef.current?.currentTime ?? current) - 10)} aria-label="Back 10 seconds">
-            <ISkipBack />
-            <span>10</span>
-          </button>
-          <button className="center-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
-            {playing ? <IPause /> : <IPlay />}
-          </button>
-          <button className="center-seek" onClick={() => seek((videoRef.current?.currentTime ?? current) + 10)} aria-label="Forward 10 seconds">
-            <ISkipFwd />
-            <span>10</span>
-          </button>
+      {seekFeedback && started && (
+        <div className={`seek-feedback seek-feedback-${seekFeedback}`} aria-live="polite">
+          <span className="seek-feedback-icon">{seekFeedback === "back" ? <ISkipBack /> : <ISkipFwd />}</span>
+          <span>10 seconds</span>
         </div>
       )}
       <div className={`player-controls ${controls ? "" : "hidden"}`}>
