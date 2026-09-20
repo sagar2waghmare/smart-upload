@@ -94,7 +94,9 @@ const ffmpegArgs = [
   "-hide_banner",
   "-i", resolvedInput,
   "-map", "0:v:0",
-  ...(audioIndex === null ? ["-map", "0:a?"] : ["-map", `0:a:${audioIndex}?`]),
+  // Keep the browser video copy to one AAC stereo track for reliable playback.
+  // All source audio tracks are exported separately as AAC sidecars below.
+  ...(audioIndex === null ? ["-map", "0:a:0?"] : ["-map", `0:a:${audioIndex}?`]),
   "-c:v", "libx264",
   "-preset", preset,
   "-crf", crf,
@@ -169,7 +171,7 @@ const manifest = {
     audio: selectedAudioStreams.length ? "aac" : null,
     channels: selectedAudioStreams.length ? 2 : null,
     fastStart: true,
-    audioTracks: selectedAudioStreams.map((audio, index) => ({
+    audioTracks: (audioIndex === null ? audioStreams.slice(0, 1) : selectedAudioStreams).map((audio, index) => ({
       index,
       sourceCodec: audio.codec_name ?? null,
       language: audio.tags?.language ?? null,
