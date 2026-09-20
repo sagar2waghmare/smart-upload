@@ -70,7 +70,7 @@ try {
 const streams = Array.isArray(info.streams) ? info.streams : [];
 const video = streams.find((s) => s.codec_type === "video");
 const audioStreams = streams.filter((s) => s.codec_type === "audio");
-const selectedAudioStreams = audioIndex === null ? audioStreams : [audioStreams[audioIndex]].filter(Boolean);
+const defaultAudioIndex = audioIndex ?? (audioStreams.length ? 0 : null);\nconst selectedAudioStreams = defaultAudioIndex === null ? [] : [audioStreams[defaultAudioIndex]].filter(Boolean);
 
 if (!video) die("No video stream was found.");
 if (audioIndex !== null && selectedAudioStreams.length === 0) {
@@ -94,7 +94,7 @@ const ffmpegArgs = [
   "-hide_banner",
   "-i", resolvedInput,
   "-map", "0:v:0",
-  ...(audioIndex === null ? ["-map", "0:a?"] : ["-map", `0:a:${audioIndex}?`]),
+  ...(defaultAudioIndex === null ? [] : ["-map", `0:a:${defaultAudioIndex}?`]),
   "-c:v", "libx264",
   "-preset", preset,
   "-crf", crf,
