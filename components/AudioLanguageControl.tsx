@@ -13,9 +13,8 @@ export function AudioLanguageControl({
   onSelect: (index: number) => void;
 }) {
   const [open, setOpen] = useState(false);
-  if (!tracks.length) return null;
-
   const active = tracks[activeIndex] ?? tracks[0];
+  const hasAlternates = tracks.length > 1;
   return (
     <div className="pc-menu-anchor audio-language-control">
       <button
@@ -23,14 +22,19 @@ export function AudioLanguageControl({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-label="Audio language"
-        title={`Audio: ${active.label}`}
+        title={active ? `Audio: ${active.label}` : "No alternate audio tracks"}
+        disabled={!tracks.length}
       >
-        <span className="audio-language-icon" aria-hidden="true">{active.language ? active.language.slice(0, 3).toUpperCase() : "AUD"}</span>
+        <span className="audio-language-icon" aria-hidden="true">
+          {active?.language ? active.language.slice(0, 3).toUpperCase() : "AUDIO"}
+        </span>
       </button>
 
-      {open && (
+      {open && tracks.length ? (
         <div className="pc-pop audio-language-menu" role="menu">
-          <div className="pc-pop-title">AUDIO</div>
+          <div className="pc-pop-title">
+            AUDIO {hasAlternates ? tracks.length + " TRACKS" : "TRACK"}
+          </div>
           {tracks.map((track, index) => (
             <button
               key={`${track.url}-${index}`}
