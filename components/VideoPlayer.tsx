@@ -148,13 +148,29 @@ export function VideoPlayer({
     }
   }, []);
 
+  // Resume only after the browser has started the stream once. Seeking before
+  // playback can make a remote Drive range request the critical first operation,
+  // which is noticeably slower for large files. Starting first lets the browser
+  // establish the media pipeline, then we perform the resume seek.
   const applyInitial = useCallback(() => {
     const v = videoRef.current;
-    if (!v || initialedRef.current || !initialTime || initialTime <= 0.5) return;
+    if (!v || initialedRef.current || !initialTime || initialTime <= 0.5) return false;
+
     const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
-    v.currentTime = d > 0 ? Math.min(initialTime, d - 0.25) : initialTime;
-    currentRef.current = v.currentTime;
+    const target = d > 0 ? Math.min(initialTime, Math.max(0, d - 0.25)) : initialTime;
+
     initialedRef.current = true;
+    setBuffering(true);
+    try {
+      v.currentTime = target;
+      currentRef.current = v.currentTime;
+      setCurrent(v.currentTime);
+      return true;
+    } catch {
+      initialedRef.current = false;
+      setBuffering(false);
+      return false;
+    }
   }, [initialTime]);
 
   const changeVolume = useCallback((val: number) => {
@@ -339,13 +355,15 @@ export function VideoPlayer({
         onPlay={() => { setStatus("playing"); setBuffering(false); poke(); }}
         onPause={() => { setStatus("paused"); setControls(true); emitProgress(true); }}
         onWaiting={() => setBuffering(true)}
-        onPlaying={() => setBuffering(false)}
+        onPlaying={() => {
+          const resumed = applyInitial();
+          if (!resumed) setBuffering(false);
+        }}
         onCanPlay={() => setBuffering(false)}
-        onLoadedData={() => { setBuffering(false); applyInitial(); }}
+        onLoadedData={() => setBuffering(false)}
         onLoadedMetadata={(e) => {
           durationRef.current = e.currentTarget.duration || durationRef.current;
           setDuration(e.currentTarget.duration);
-          applyInitial();
         }}
         onTimeUpdate={(e) => {
           const t = e.currentTarget.currentTime;
