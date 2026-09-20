@@ -361,7 +361,31 @@ export function VideoPlayer({
         </div>
       )}
 
+      <div className={`player-topbar ${controls ? "" : "hidden"}`}>
+        <div className="player-title-block">
+          <span className="player-title">{title}</span>
+          {episodeTitle && <span className="player-episode">{episodeTitle}</span>}
+        </div>
+        <span className="player-live-dot" aria-hidden="true" />
+      </div>
+
       <div className={`player-gradient ${controls ? "" : "hidden"}`} />
+
+      {controls && started && !error && (
+        <div className="player-center-transport" aria-label="Seek controls">
+          <button className="center-seek" onClick={() => seek((videoRef.current?.currentTime ?? current) - 10)} aria-label="Back 10 seconds">
+            <ISkipBack />
+            <span>10</span>
+          </button>
+          <button className="center-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+            {playing ? <IPause /> : <IPlay />}
+          </button>
+          <button className="center-seek" onClick={() => seek((videoRef.current?.currentTime ?? current) + 10)} aria-label="Forward 10 seconds">
+            <ISkipFwd />
+            <span>10</span>
+          </button>
+        </div>
+      )}
       <div className={`player-controls ${controls ? "" : "hidden"}`}>
         <input
           className="slider pc-seek"
@@ -379,14 +403,6 @@ export function VideoPlayer({
         <div className="pc-row">
           <button className="pc-btn pc-main-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
             {playing ? <IPause /> : <IPlay />}
-          </button>
-          <button className="pc-btn pc-skip" onClick={() => seek((videoRef.current?.currentTime ?? current) - 10)} aria-label="Back 10 seconds">
-            <ISkipBack style={{ transform: "scaleX(-1)" }} />
-            <span>BACK 10</span>
-          </button>
-          <button className="pc-btn pc-skip" onClick={() => seek((videoRef.current?.currentTime ?? current) + 10)} aria-label="Forward 10 seconds">
-            <ISkipFwd />
-            <span>FORWARD 10</span>
           </button>
           <span className="pc-time">
             {fmt(current)} / {fmt(duration)}
