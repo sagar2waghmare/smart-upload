@@ -44,11 +44,23 @@ export function Hero({ items }: { items: MediaItem[] }) {
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;
-    dragRef.current = { startX: e.clientX, dragging: true };
+    dragRef.current = { startX: e.clientX, dragging: true, moved: false };
+    trackRef.current?.setPointerCapture(e.pointerId);
+    trackRef.current?.classList.add("is-dragging");
   }, []);
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current.dragging || !trackRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    if (Math.abs(dx) > 8) dragRef.current.moved = true;
+    trackRef.current.style.setProperty("--drag-x", `${Math.max(-120, Math.min(120, dx))}px`);
+  }, []);
+
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.dragging) return;
     dragRef.current.dragging = false;
+    trackRef.current?.releasePointerCapture?.(e.pointerId);
+    trackRef.current?.classList.remove("is-dragging");
+    trackRef.current?.style.setProperty("--drag-x", "0px");
     const dx = e.clientX - dragRef.current.startX;
     if (Math.abs(dx) > 50) go(dx < 0 ? index + 1 : index - 1);
   }, [index, go]);
