@@ -1159,3 +1159,118 @@ body::after {
     min-width: 145px !important;
   }
 }
+
+
+/* --- Performance + consistent library poster sizing --- */
+.card-grid .card-conteudo,
+.lista-conteudos .card-conteudo {
+  flex: 0 0 185px !important;
+  width: 185px !important;
+  min-width: 185px !important;
+}
+.card-grid .card-conteudo .poster,
+.lista-conteudos .card-conteudo .poster {
+  width: 100% !important;
+}
+@media (max-width: 650px) {
+  .card-grid .card-conteudo,
+  .lista-conteudos .card-conteudo {
+    flex-basis: 145px !important;
+    width: 145px !important;
+    min-width: 145px !important;
+  }
+}
+
+/* Keep expensive effects limited to elements that actually move. */
+.card-conteudo,
+.card-grid,
+.lista-conteudos {
+  contain: layout style;
+}
+.card-conteudo {
+  transition: transform .18s ease, opacity .18s ease !important;
+}
+.card-conteudo:hover {
+  transform: translateY(-3px) !important;
+}
+.home-content .secao-conteudos,
+.page .card-grid {
+  content-visibility: auto;
+  contain-intrinsic-size: 520px;
+}
+
+/* Instant route feedback while Next loads a browse tab. */
+.browse-loading {
+  min-height: calc(100vh - 100px);
+}
+.browse-loading-head {
+  padding-top: 1rem;
+  margin-bottom: 1.2rem;
+}
+.loading-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255,255,255,.055);
+  border-radius: 9px;
+}
+.loading-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+  animation: libraryShimmer 1.15s ease-in-out infinite;
+}
+.loading-back { width: 70px; height: 28px; margin-bottom: 18px; }
+.loading-title { width: 190px; height: 34px; }
+.loading-subtitle { width: 260px; height: 13px; margin-top: 9px; }
+.browse-loading-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  gap: 1.15rem .8rem;
+}
+.browse-loading-card { min-width: 0; }
+.loading-poster { width: 185px; max-width: 100%; aspect-ratio: 2 / 3; border-radius: 11px; }
+.loading-line { width: 82%; height: 12px; margin-top: 9px; }
+.loading-line.short { width: 48%; height: 9px; margin-top: 6px; }
+@keyframes libraryShimmer {
+  100% { transform: translateX(100%); }
+}
+@media (max-width: 650px) {
+  .browse-loading-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .7rem .5rem;
+  }
+  .loading-poster { width: 100%; }
+}
+
+/* Reliable buffering indicator: no dependency on the older spinner animation. */
+.player-spinner {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 70 !important;
+  display: grid !important;
+  place-items: center !important;
+  pointer-events: none !important;
+  background: radial-gradient(circle, rgba(0,0,0,.10), rgba(0,0,0,.38)) !important;
+}
+.player-spinner.hidden { display: none !important; }
+.player-spinner .spinner {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 50% !important;
+  border: 3px solid rgba(255,255,255,.18) !important;
+  border-top-color: #fff !important;
+  border-right-color: rgba(124,58,237,.95) !important;
+  border-bottom-color: rgba(255,255,255,.28) !important;
+  background: transparent !important;
+  animation: smartPlayerSpin .72s linear infinite !important;
+  box-shadow: 0 0 30px rgba(124,58,237,.24) !important;
+}
+@keyframes smartPlayerSpin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-skeleton::after,
+  .player-spinner .spinner { animation: none !important; }
+}
