@@ -10,7 +10,6 @@ import {
   IPause,
   IPlay,
   IReplay,
-  ISettings,
   ISkipBack,
   ISkipFwd,
   ISubtitles,
@@ -152,7 +151,7 @@ export function VideoPlayer({
     if (!video.paused && started) {
       void audio.play().catch(() => undefined);
     }
-  }, [audioTracks, selectedAudioIndex, hasExternalAudio, started, externalAudioActive]);
+  }, [audioTracks, selectedAudioIndex, hasExternalAudio, started]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -286,7 +285,7 @@ export function VideoPlayer({
     } else {
       video.muted = nextMuted;
     }
-  }, [hasExternalAudio, muted]);
+  }, [hasExternalAudio, externalAudioActive, muted]);
 
   const switchQuality = useCallback(
     (label: string, url: string) => {
