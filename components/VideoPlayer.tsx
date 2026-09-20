@@ -136,16 +136,13 @@ export function VideoPlayer({
     if (!video) return;
 
     video.muted = hasExternalAudio;
-
     if (!audio || !hasExternalAudio) return;
+
     const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
     if (!track) return;
 
     audio.src = track.url;
-    audio.volume = muted ? 0 : volume;
-    audio.muted = muted;
     audio.load();
-
     try {
       audio.currentTime = video.currentTime || 0;
     } catch {}
@@ -153,7 +150,17 @@ export function VideoPlayer({
     if (!video.paused && started) {
       void audio.play().catch(() => undefined);
     }
-  }, [audioTracks, selectedAudioIndex, hasExternalAudio, muted, volume, started]);
+  }, [audioTracks, selectedAudioIndex, hasExternalAudio, started]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (video) video.muted = hasExternalAudio;
+    if (audio) {
+      audio.volume = muted ? 0 : volume;
+      audio.muted = muted;
+    }
+  }, [hasExternalAudio, muted, volume]);
 
   const poke = useCallback(() => {
     setControls(true);
