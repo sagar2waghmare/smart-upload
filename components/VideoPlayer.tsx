@@ -86,7 +86,21 @@ export function VideoPlayer({
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ccOn, setCcOn] = useState(false);
-  const quality = "Auto";
+  const [activeSource, setActiveSource] = useState(src);
+  const [selectedQuality, setSelectedQuality] = useState("Auto");
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
+
+  const qualityVariants = [
+    ...(item.qualityVariants ?? []),
+    ...(episode?.qualityVariants ?? []),
+  ].filter((variant, index, list) => list.findIndex((v) => v.label === variant.label && v.url === variant.url) === index);
+
+  useEffect(() => {
+    setActiveSource(src);
+    setSelectedQuality("Auto");
+    setShareStatus(null);
+    initialedRef.current = false;
+  }, [src]);
 
   const playing = status === "playing";
 
@@ -153,6 +167,52 @@ export function VideoPlayer({
     if (!v) return;
     v.muted = !v.muted;
   }, []);
+
+  const switchQuality = useCallback((label: string, url: string) => {
+    const v = videoRef.current;
+    if (!v || url === activeSource) {
+      setSelectedQuality(label);
+      return;
+    }
+    const position = v.currentTime;
+    const wasPlaying = !v.paused;
+    setBuffering(true);
+    setError(null);
+    initialedRef.current = true;
+    currentRef.current = position;
+    setCurrent(position);
+    setSelectedQuality(label);
+    setActiveSource(url);
+    window.setTimeout(() => {
+      const next = videoRef.current;
+      if (!next) return;
+      const resume = () => {
+        try {
+          if (Number.isFinite(position) && position > 0) next.currentTime = position;
+        } catch { /* wait for browser media seek support */ }
+        if (wasPlaying) void next.play().catch(() => undefined);
+      };
+      if (next.readyState >= 1) resume();
+      else next.addEventListener("loadedmetadata", resume, { once: true });
+    }, 0);
+  }, [activeSource]);
+
+  const shareStream = useCallback(async () => {
+    setShareStatus(null);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text: "Smart Upload stream", url: activeSource });
+        setShareStatus("Shared");
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(activeSource);
+        setShareStatus("Stream URL copied");
+      } else {
+        setShareStatus("Copy the stream URL from the browser");
+      }
+    } catch {
+      setShareStatus(null);
+    }
+  }, [activeSource, title]);
 
   const toggleFullscreen = useCallback(() => {
     const el = wrapRef.current;
@@ -268,7 +328,7 @@ export function VideoPlayer({
       <video
         ref={videoRef}
         className="player-video"
-        src={src}
+        src={activeSource}
         poster={poster ?? backdrop ?? undefined}
         preload="metadata"
         playsInline
@@ -469,7 +529,7 @@ export function VideoPlayer({
 
           <div className="pc-menu-anchor">
             <button
-              className={`pc-btn pc-menu-btn ${quality === "Auto" ? "accent" : ""}`}
+              className={`pc-btn pc-menu-btn ${selectedQuality === "Auto" ? "accent" : ""}`}
               aria-label="Quality"
               aria-expanded={menu === "quality"}
               onClick={() => setMenu(menu === "quality" ? null : "quality")}
@@ -479,12 +539,31 @@ export function VideoPlayer({
             {menu === "quality" && (
               <div className="pc-pop pc-pop-quality">
                 <div className="pc-pop-title">VIDEO QUALITY</div>
-                <button className="pc-option active" disabled aria-disabled>
+                <button
+                  className={`pc-option ${selectedQuality === "Auto" ? "active" : ""}`}
+                  onClick={() => {
+                    setSelectedQuality("Auto");
+                    if (activeSource !== src) switchQuality("Auto", src);
+                  }}
+                >
                   <span>Auto</span>
-                  <span className="pc-quality-note">Recommended</span>
-                  <ICheck className="check" />
+                  <span className="pc-quality-note">Current source</span>
+                  {selectedQuality === "Auto" && <ICheck className="check" />}
                 </button>
-                <div className="pc-empty">1080p / 720p / 480p will appear when the stream provides quality variants.</div>
+                {qualityVariants.map((variant) => (
+                  <button
+                    key={`${variant.label}-${variant.url}`}
+                    className={`pc-option ${selectedQuality === variant.label ? "active" : ""}`}
+                    onClick={() => switchQuality(variant.label, variant.url)}
+                  >
+                    <span>{variant.label}</span>
+                    {variant.height ? <span className="pc-quality-note">{variant.height}p</span> : null}
+                    {selectedQuality === variant.label && <ICheck className="check" />}
+                  </button>
+                ))}
+                {!qualityVariants.length && (
+                  <div className="pc-empty">Quality switching is ready. Add 1080p / 720p / 480p variants to enable it.</div>
+                )}
               </div>
             )}
           </div>
@@ -515,6 +594,12 @@ export function VideoPlayer({
                     <ICheck className="check" />
                   </button>
                 ))}
+                <div className="pc-pop-title" style={{ marginTop: ".8rem" }}>EXTERNAL PLAYER</div>
+                <button className="pc-option" onClick={() => void shareStream()}>
+                  <span>Share / copy stream URL</span>
+                </button>
+                {shareStatus && <div className="pc-empty">{shareStatus}. In VLC: Open Network Stream → paste the URL.</div>}
+
               </div>
             )}
           </div>
