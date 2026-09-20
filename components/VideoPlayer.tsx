@@ -1,25 +1,8 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Episode, MediaItem } from "../lib/types";
-import {
-  IAlert,
-  ICheck,
-  ICompress,
-  IExpand,
-  IPause,
-  IPlay,
-  IReplay,
-  ISettings,
-  ISkipBack,
-  ISkipFwd,
-  ISubtitles,
-  IVolumeHigh,
-  IVolumeLow,
-  IVolumeMute,
-} from "./icons";
-import { SmartImage } from "./SmartImage";
 
-type Menu = "settings" | "subtitles" | "quality" | null;
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Episode, MediaItem } from "../lib/types";
+import { IAlert, IReplay } from "./icons";
 
 type Props = {
   src: string;
@@ -37,584 +20,174 @@ type Props = {
   onEnded?: () => void;
 };
 
-const fmt = (t: number) => {
-  if (!Number.isFinite(t) || t < 0) return "0:00";
-  const h = Math.floor(t / 3600);
-  const m = Math.floor((t % 3600) / 60);
-  const s = Math.floor(t % 60);
-  return h > 0 ? `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}` : `${m}:${s.toString().padStart(2, "0")}`;
+type Player = {
+  src: (s: {src: string; type?: string}) => void;
+  currentTime: (v?: number) => number | undefined;
+  duration: () => number;
+  paused: () => boolean;
+  play: () => Promise<void> | void;
+  on: (e: string, cb: (...a: unknown[]) => void) => void;
+  off: (e: string, cb: (...a: unknown[]) => void) => void;
+  dispose: () => void;
+  error: () => {message?: string} | null;
 };
+type Factory = (el: HTMLVideoElement, options?: Record<string, unknown>) => Player;
 
-export function VideoPlayer({
-  src,
-  poster,
-  backdrop,
-  title,
-  episodeTitle,
-  demo,
-  subtitleUrl,
-  item,
-  episode,
-  onEpisode,
-  initialTime,
-  onProgress,
-  onEnded,
-}: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const currentRef = useRef(0);
-  const durationRef = useRef(0);
-  const lastEmitRef = useRef(0);
-  const initialedRef = useRef(false);
-  const playedRef = useRef(false);
-  const cbRef = useRef({ onProgress, onEnded });
-  useEffect(() => {
-    cbRef.current = { onProgress, onEnded };
-  }, [onProgress, onEnded]);
+declare global { interface Window { videojs?: Factory } }
 
-  const [started, setStarted] = useState(false);
-  const [status, setStatus] = useState<"idle" | "playing" | "paused" | "ended" | "error">("idle");
-  const [buffering, setBuffering] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
-  const [rate, setRate] = useState(1);
-  const [menu, setMenu] = useState<Menu>(null);
-  const [controls, setControls] = useState(true);
-  const [fullscreen, setFullscreen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ccOn, setCcOn] = useState(false);
-  const [activeSource, setActiveSource] = useState(src);
-  const [selectedQuality, setSelectedQuality] = useState("Auto");
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
+const VJS = "8.24.1";
+const jsUrl = `https://vjs.zencdn.net/${VJS}/video.min.js`;
+const cssUrl = `https://vjs.zencdn.net/${VJS}/video-js.min.css`;
 
-  const qualityVariants = [
-    ...(item.qualityVariants ?? []),
-    ...(episode?.qualityVariants ?? []),
-  ].filter((variant, index, list) => list.findIndex((v) => v.label === variant.label && v.url === variant.url) === index);
-
-  useEffect(() => {
-    setActiveSource(src);
-    setSelectedQuality("Auto");
-    setShareStatus(null);
-    initialedRef.current = false;
-  }, [src]);
-
-  const playing = status === "playing";
-
-  const poke = useCallback(() => {
-    setControls(true);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    const v = videoRef.current;
-    if (v && !v.paused) {
-      hideTimer.current = setTimeout(() => setControls(false), 3200);
-    }
-  }, []);
-
-  const wake = useCallback(() => {
-    poke();
-    setMenu(null);
-  }, [poke]);
-
-  const togglePlay = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused) void v.play().catch(() => setError("Playback was blocked. Try clicking again."));
-    else v.pause();
-  }, []);
-
-  const seek = useCallback((t: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = Math.max(0, Math.min(Number.isFinite(duration) ? duration : 1e9, t));
-    currentRef.current = v.currentTime;
-    setCurrent(v.currentTime);
-  }, [duration]);
-
-  const emitProgress = useCallback((force = false) => {
-    if (!playedRef.current) return;
-    const now = Date.now();
-    if (!force && now - lastEmitRef.current < 4000) return;
-    const pos = currentRef.current;
-    lastEmitRef.current = now;
-    if (Number.isFinite(pos) && pos >= 0) {
-      cbRef.current.onProgress?.({ position: pos, duration: durationRef.current });
-    }
-  }, []);
-
-  const applyInitial = useCallback(() => {
-    const v = videoRef.current;
-    if (!v || initialedRef.current || !initialTime || initialTime <= 0.5) return;
-    const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
-    v.currentTime = d > 0 ? Math.min(initialTime, d - 0.25) : initialTime;
-    currentRef.current = v.currentTime;
-    initialedRef.current = true;
-  }, [initialTime]);
-
-  const changeVolume = useCallback((val: number) => {
-    const v = videoRef.current;
-    const clamped = Math.max(0, Math.min(1, val));
-    if (v) {
-      v.volume = clamped;
-      v.muted = clamped === 0;
-    }
-  }, []);
-
-  const toggleMute = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-  }, []);
-
-  const switchQuality = useCallback((label: string, url: string) => {
-    const v = videoRef.current;
-    if (!v || url === activeSource) {
-      setSelectedQuality(label);
+function loadVjs(): Promise<Factory> {
+  if (window.videojs) return Promise.resolve(window.videojs);
+  return new Promise((resolve, reject) => {
+    const old = document.querySelector<HTMLScriptElement>("script[data-smart-vjs]");
+    if (old) {
+      old.addEventListener("load", () => window.videojs ? resolve(window.videojs) : reject(new Error("Video.js failed")), {once:true});
+      old.addEventListener("error", () => reject(new Error("Video.js failed to load")), {once:true});
       return;
     }
-    const position = v.currentTime;
-    const wasPlaying = !v.paused;
-    setBuffering(true);
-    setError(null);
-    initialedRef.current = true;
-    currentRef.current = position;
-    setCurrent(position);
-    setSelectedQuality(label);
-    setActiveSource(url);
-    window.setTimeout(() => {
-      const next = videoRef.current;
-      if (!next) return;
-      const resume = () => {
-        try {
-          if (Number.isFinite(position) && position > 0) next.currentTime = position;
-        } catch { /* wait for browser media seek support */ }
-        if (wasPlaying) void next.play().catch(() => undefined);
+    const s = document.createElement("script");
+    s.src = jsUrl; s.async = true; s.dataset.smartVjs = "1";
+    s.onload = () => window.videojs ? resolve(window.videojs) : reject(new Error("Video.js failed"));
+    s.onerror = () => reject(new Error("Video.js failed to load"));
+    document.head.appendChild(s);
+  });
+}
+function loadCss() {
+  if (document.querySelector("link[data-smart-vjs]")) return;
+  const l = document.createElement("link");
+  l.rel = "stylesheet"; l.href = cssUrl; l.dataset.smartVjs = "1";
+  document.head.appendChild(l);
+}
+function typeOf(url: string) {
+  const p = url.split("?")[0].toLowerCase();
+  if (p.endsWith(".m3u8")) return "application/x-mpegURL";
+  if (p.endsWith(".mpd")) return "application/dash+xml";
+  if (p.endsWith(".webm")) return "video/webm";
+  if (p.endsWith(".ogg") || p.endsWith(".ogv")) return "video/ogg";
+  if (p.endsWith(".mp4") || p.endsWith(".m4v")) return "video/mp4";
+  return undefined;
+}
+const source = (src: string) => ({src, type: typeOf(src)});
+
+export function VideoPlayer({
+  src, poster, backdrop, title, episodeTitle, demo, subtitleUrl, item, episode,
+  onEpisode, initialTime = 0, onProgress, onEnded,
+}: Props) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<Player | null>(null);
+  const lastSource = useRef(src);
+  const initialApplied = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [quality, setQuality] = useState("Auto");
+
+  const variants = useMemo(() => [
+    ...(item.qualityVariants ?? []), ...(episode?.qualityVariants ?? [])
+  ].filter((v,i,a) => a.findIndex(x => x.label === v.label && x.url === v.url) === i),
+  [item.qualityVariants, episode?.qualityVariants]);
+
+  useEffect(() => {
+    loadCss();
+    let dead = false;
+    loadVjs().then(videojs => {
+      if (dead || !videoRef.current) return;
+      const p = videojs(videoRef.current, {
+        controls: true, responsive: true, fluid: true, preload: "metadata",
+        playbackRates: [0.5,0.75,1,1.25,1.5,2],
+        userActions: {hotkeys: true},
+        controlBar: {pictureInPictureToggle: true, volumePanel: {inline: false}},
+        html5: {vhs: {overrideNative: true, enableLowInitialPlaylist: true, smoothQualityChange: true}},
+      });
+      playerRef.current = p;
+      p.src(source(src));
+      lastSource.current = src;
+
+      const loaded = () => {
+        if (dead) return;
+        setReady(true); setError(null);
+        if (!initialApplied.current && initialTime > 0.5) {
+          const d = p.duration();
+          p.currentTime(Number.isFinite(d) && d > 0 ? Math.min(initialTime, d - .25) : initialTime);
+          initialApplied.current = true;
+        }
       };
-      if (next.readyState >= 1) resume();
-      else next.addEventListener("loadedmetadata", resume, { once: true });
-    }, 0);
-  }, [activeSource]);
-
-  const shareStream = useCallback(async () => {
-    setShareStatus(null);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, text: "Smart Upload stream", url: activeSource });
-        setShareStatus("Shared");
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(activeSource);
-        setShareStatus("Stream URL copied");
-      } else {
-        setShareStatus("Copy the stream URL from the browser");
-      }
-    } catch {
-      setShareStatus(null);
-    }
-  }, [activeSource, title]);
-
-  const toggleFullscreen = useCallback(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void el.requestFullscreen().catch(() => undefined);
-  }, []);
-
-  const startPlayback = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    setStarted(true);
-    setError(null);
-    setBuffering(true);
-    void v.play().catch(() => {
-      setBuffering(false);
-      setError("Playback was blocked. Try clicking again.");
-    });
-  }, []);
-
-  // reset on source change (component is remounted via key)
-  useEffect(() => {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-  }, []);
-
-  // flush the latest position when the player unmounts (e.g. overlay close)
-  useEffect(() => {
+      const tick = () => {
+        const pos = Number(p.currentTime() ?? 0), dur = Number(p.duration() ?? 0);
+        if (pos > .5) onProgress?.({position: pos, duration: Number.isFinite(dur) ? dur : 0});
+      };
+      const fail = () => setError(p.error()?.message || "This browser could not play this media source.");
+      p.on("loadedmetadata", loaded); p.on("durationchange", loaded); p.on("error", fail); p.on("ended", () => onEnded?.());
+      const timer = window.setInterval(tick, 4000);
+      return () => { window.clearInterval(timer); p.off("loadedmetadata", loaded); p.off("durationchange", loaded); p.off("error", fail); };
+    }).catch(e => !dead && setError(e instanceof Error ? e.message : "Video.js could not load"));
     return () => {
-      emitProgress(true);
+      dead = true;
+      playerRef.current?.dispose();
+      playerRef.current = null;
     };
-  }, [emitProgress]);
-
-  useEffect(() => {
-    const onFs = () => setFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener("fullscreenchange", onFs);
-    return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
-  const hasEpisodes = Boolean(item.kind !== "movie" && episode && onEpisode);
-  const episodeIndex =
-    episode && onEpisode
-      ? item.seasons?.flatMap((s) => s.episodes).findIndex((e) => e.id === episode.id) ?? -1
-      : -1;
-  const flatEpisodes = item.seasons?.flatMap((s) => s.episodes) ?? [];
-  const prevEp = hasEpisodes && episodeIndex > 0 ? flatEpisodes[episodeIndex - 1] : null;
-  const nextEp = hasEpisodes && episodeIndex < flatEpisodes.length - 1 ? flatEpisodes[episodeIndex + 1] : null;
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!p || src === lastSource.current) return;
+    const pos = Number(p.currentTime() ?? 0), playing = !p.paused();
+    p.src(source(src)); lastSource.current = src; setQuality("Auto");
+    window.setTimeout(() => {
+      if (pos > 0) p.currentTime(pos);
+      if (playing) void p.play();
+    }, 0);
+  }, [src]);
 
-  const goEp = (ep: Episode) => {
-    if (!onEpisode) return;
-    onEpisode(ep);
+  const changeQuality = (url: string, label: string) => {
+    const p = playerRef.current; if (!p) return;
+    const pos = Number(p.currentTime() ?? 0), playing = !p.paused();
+    setQuality(label); setError(null); p.src(source(url)); lastSource.current = url;
+    window.setTimeout(() => { if (pos > 0) p.currentTime(pos); if (playing) void p.play(); }, 0);
   };
 
-  // keyboard controls
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (menu) {
-        if (e.key === "Escape") setMenu(null);
-        return;
-      }
-      switch (e.key) {
-        case " ":
-        case "k":
-        case "K":
-          e.preventDefault();
-          togglePlay();
-          break;
-        case "m":
-        case "M":
-          toggleMute();
-          break;
-        case "f":
-        case "F":
-          toggleFullscreen();
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          seek((videoRef.current?.currentTime ?? current) + 10);
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          seek((videoRef.current?.currentTime ?? current) - 10);
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          changeVolume((videoRef.current?.volume ?? volume) + 0.1);
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          changeVolume((videoRef.current?.volume ?? volume) - 0.1);
-          break;
-        case "Escape":
-          setControls(true);
-          break;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [menu, current, volume, playing, togglePlay, toggleMute, toggleFullscreen, seek, changeVolume]);
+  const share = async () => {
+    try {
+      if (navigator.share) await navigator.share({title, text:"Smart Upload stream", url:lastSource.current});
+      else await navigator.clipboard.writeText(lastSource.current);
+      setShareStatus("Stream URL copied/shared");
+    } catch { setShareStatus(null); }
+  };
 
-  const pct = duration ? (current / duration) * 100 : 0;
-  const hideCursor = !controls && playing;
-  const showCenter = !buffering && !error && (status === "paused" || status === "ended" || !started);
+  const retry = () => {
+    const p = playerRef.current; if (!p) return;
+    setError(null); p.src(source(lastSource.current)); window.setTimeout(() => void p.play(), 0);
+  };
 
-  return (
-    <div
-      ref={wrapRef}
-      className={`player-wrap ${hideCursor ? "hidden-cursor" : ""} controls-on`}
-      onMouseMove={wake}
-      onTouchStart={wake}
-      onPointerMove={wake}
-    >
-      <video
-        ref={videoRef}
-        className="player-video"
-        src={activeSource}
-        poster={poster ?? backdrop ?? undefined}
-        preload="metadata"
-        playsInline
-        onLoadStart={() => setBuffering(true)}
-        onPlay={() => { setStatus("playing"); setBuffering(false); poke(); }}
-        onPause={() => { setStatus("paused"); setControls(true); emitProgress(true); }}
-        onWaiting={() => setBuffering(true)}
-        onPlaying={() => setBuffering(false)}
-        onCanPlay={() => setBuffering(false)}
-        onLoadedData={() => { setBuffering(false); applyInitial(); }}
-        onLoadedMetadata={(e) => {
-          durationRef.current = e.currentTarget.duration || durationRef.current;
-          setDuration(e.currentTarget.duration);
-          applyInitial();
-        }}
-        onTimeUpdate={(e) => {
-          const t = e.currentTarget.currentTime;
-          currentRef.current = t;
-          durationRef.current = e.currentTarget.duration || durationRef.current;
-          if (t > 0.5) playedRef.current = true;
-          setCurrent(t);
-          emitProgress();
-        }}
-        onSeeked={() => emitProgress(true)}
-        onVolumeChange={(e) => {
-          setMuted(e.currentTarget.muted);
-          setVolume(e.currentTarget.volume);
-        }}
-        onRateChange={(e) => setRate(e.currentTarget.playbackRate)}
-        onEnded={() => { setStatus("ended"); setControls(true); cbRef.current.onEnded?.(); }}
-        onError={() => setError("Could not load this media source.")}
-      >
-        {subtitleUrl && (
-          <track kind="subtitles" src={subtitleUrl} srcLang="en" label="English" default={ccOn} />
-        )}
-      </video>
+  const eps = item.seasons?.flatMap(s => s.episodes) ?? [];
+  const index = episode ? eps.findIndex(e => e.id === episode.id) : -1;
+  const prev = index > 0 ? eps[index - 1] : null;
+  const next = index >= 0 && index < eps.length - 1 ? eps[index + 1] : null;
 
-      {/* poster / start screen */}
-      <div className={`player-poster ${started ? "hidden" : ""}`}>
-        <SmartImage src={poster ?? backdrop} alt="" className="player-poster-img" priority sizes="100vw" />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "linear-gradient(0deg,rgba(0,0,0,.55),transparent 40%)",
-            pointerEvents: "none",
-          }}
-        />
-      </div>
-      {!started && (
-        <div className="player-center">
-          <button className="big-play" onClick={startPlayback} aria-label={`Play ${episodeTitle ?? title}`}>
-            <IPlay />
-          </button>
-        </div>
-      )}
-
-      {demo && (
-        <span className="pill pill-warn player-demo-badge">Demo preview stream</span>
-      )}
-
-      {/* buffering */}
-      <div className={`player-spinner ${buffering && started ? "" : "hidden"}`} role="status" aria-label="Buffering">
-        <div className="spinner" />
-      </div>
-
-      {/* error */}
-      {error && (
-        <div className="player-error" role="alert">
-          <IAlert />
-          <h3>Playback unavailable</h3>
-          <p>{error}</p>
-          <div style={{ display: "flex", gap: ".6rem", flexWrap: "wrap", justifyContent: "center" }}>
-            <button className="btn btn-primary" onClick={() => { setError(null); setStarted(false); }}>
-              <IReplay /> Try again
-            </button>
-            {demo && <span className="pill pill-warn">Demo stream offline — configure your media URL</span>}
-          </div>
-        </div>
-      )}
-
-      {/* pause overlay */}
-      {showCenter && started && !error && status !== "ended" && (
-        <div className="player-center">
-          <button className="big-play" onClick={togglePlay} aria-label="Play">
-            <IPlay />
-          </button>
-        </div>
-      )}
-      {showCenter && status === "ended" && (
-        <div className="player-center">
-          <button className="big-play" onClick={() => { const v = videoRef.current; if (v) { v.currentTime = 0; void v.play(); } }} aria-label="Replay">
-            <IReplay />
-          </button>
-        </div>
-      )}
-
-      <div className={`player-topbar ${controls ? "" : "hidden"}`}>
-        <div className="player-title-block">
-          <span className="player-title">{title}</span>
-          {episodeTitle && <span className="player-episode">{episodeTitle}</span>}
-        </div>
-        <span className="player-live-dot" aria-hidden="true" />
-      </div>
-
-      <div className={`player-gradient ${controls ? "" : "hidden"}`} />
-
-      {controls && started && !error && (
-        <div className="player-center-transport" aria-label="Seek controls">
-          <button className="center-seek" onClick={() => seek((videoRef.current?.currentTime ?? current) - 10)} aria-label="Back 10 seconds">
-            <ISkipBack />
-            <span>10</span>
-          </button>
-          <button className="center-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
-            {playing ? <IPause /> : <IPlay />}
-          </button>
-          <button className="center-seek" onClick={() => seek((videoRef.current?.currentTime ?? current) + 10)} aria-label="Forward 10 seconds">
-            <ISkipFwd />
-            <span>10</span>
-          </button>
-        </div>
-      )}
-      <div className={`player-controls ${controls ? "" : "hidden"}`}>
-        <input
-          className="slider pc-seek"
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.1}
-          value={Math.min(current, duration || 0)}
-          onChange={(e) => seek(Number(e.target.value))}
-          style={{ "--fill": `${pct}%` } as React.CSSProperties}
-          aria-label="Seek"
-          aria-valuetext={fmt(current)}
-        />
-
-        <div className="pc-row">
-          <button className="pc-btn pc-main-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
-            {playing ? <IPause /> : <IPlay />}
-          </button>
-          <span className="pc-time">
-            {fmt(current)} / {fmt(duration)}
-          </span>
-
-          <div className="pc-spacer" />
-
-          {prevEp && (
-            <button className="pc-btn wide" onClick={() => goEp(prevEp)} aria-label={`Previous: ${prevEp.title}`}>
-              <ISkipBack /> Ep {prevEp.episode}
-            </button>
-          )}
-
-          <div style={{ position: "relative" }}>
-            <button
-              className="pc-btn"
-              aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
-              onClick={toggleMute}
-            >
-              {muted || volume === 0 ? <IVolumeMute /> : volume < 0.5 ? <IVolumeLow /> : <IVolumeHigh />}
-            </button>
-            <input
-              className="slider volume"
-              type="range"
-              min={0}
-              max={1}
-              step={0.02}
-              value={muted ? 0 : volume}
-              onChange={(e) => changeVolume(Number(e.target.value))}
-              style={{ "--fill": `${muted ? 0 : volume * 100}%` } as React.CSSProperties}
-              aria-label="Volume"
-            />
-          </div>
-
-          <div className="pc-menu-anchor">
-            <button
-              className={`pc-btn pc-menu-btn ${ccOn ? "accent" : ""}`}
-              aria-label="Subtitles"
-              aria-expanded={menu === "subtitles"}
-              onClick={() => setMenu(menu === "subtitles" ? null : "subtitles")}
-            >
-              <ISubtitles />
-              <span className="pc-btn-label">CC</span>
-            </button>
-            {menu === "subtitles" && (
-              <div className="pc-pop pc-pop-subtitles">
-                <div className="pc-pop-title">SUBTITLES</div>
-                {subtitleUrl ? (
-                  <button className={`pc-option ${ccOn ? "active" : ""}`} onClick={() => setCcOn((v) => !v)}>
-                    <span>English</span>
-                    <ICheck className="check" />
-                  </button>
-                ) : (
-                  <div className="pc-empty">No subtitles in this stream</div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="pc-menu-anchor">
-            <button
-              className={`pc-btn pc-menu-btn ${selectedQuality === "Auto" ? "accent" : ""}`}
-              aria-label="Quality"
-              aria-expanded={menu === "quality"}
-              onClick={() => setMenu(menu === "quality" ? null : "quality")}
-            >
-              <span className="pc-quality-mark">HD</span>
-            </button>
-            {menu === "quality" && (
-              <div className="pc-pop pc-pop-quality">
-                <div className="pc-pop-title">VIDEO QUALITY</div>
-                <button
-                  className={`pc-option ${selectedQuality === "Auto" ? "active" : ""}`}
-                  onClick={() => {
-                    setSelectedQuality("Auto");
-                    if (activeSource !== src) switchQuality("Auto", src);
-                  }}
-                >
-                  <span>Auto</span>
-                  <span className="pc-quality-note">Current source</span>
-                  {selectedQuality === "Auto" && <ICheck className="check" />}
-                </button>
-                {qualityVariants.map((variant) => (
-                  <button
-                    key={`${variant.label}-${variant.url}`}
-                    className={`pc-option ${selectedQuality === variant.label ? "active" : ""}`}
-                    onClick={() => switchQuality(variant.label, variant.url)}
-                  >
-                    <span>{variant.label}</span>
-                    {variant.height ? <span className="pc-quality-note">{variant.height}p</span> : null}
-                    {selectedQuality === variant.label && <ICheck className="check" />}
-                  </button>
-                ))}
-                {!qualityVariants.length && (
-                  <div className="pc-empty">Quality switching is ready. Add 1080p / 720p / 480p variants to enable it.</div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="pc-menu-anchor">
-            <button
-              className="pc-btn pc-menu-btn"
-              aria-label="Playback settings"
-              aria-expanded={menu === "settings"}
-              onClick={() => setMenu(menu === "settings" ? null : "settings")}
-            >
-              <ISettings />
-            </button>
-            {menu === "settings" && (
-              <div className="pc-pop pc-pop-settings">
-                <div className="pc-pop-title">PLAYBACK SPEED</div>
-                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => (
-                  <button
-                    key={r}
-                    className={`pc-option ${rate === r ? "active" : ""}`}
-                    onClick={() => {
-                      const v = videoRef.current;
-                      if (v) v.playbackRate = r;
-                      setRate(r);
-                    }}
-                  >
-                    <span>{r === 1 ? "Normal" : `${r}x`}</span>
-                    <ICheck className="check" />
-                  </button>
-                ))}
-                <div className="pc-pop-title" style={{ marginTop: ".8rem" }}>EXTERNAL PLAYER</div>
-                <button className="pc-option" onClick={() => void shareStream()}>
-                  <span>Share / copy stream URL</span>
-                </button>
-                {shareStatus && <div className="pc-empty">{shareStatus}. In VLC: Open Network Stream → paste the URL.</div>}
-
-              </div>
-            )}
-          </div>
-
-          <button className="pc-btn" onClick={toggleFullscreen} aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
-            {fullscreen ? <ICompress /> : <IExpand />}
-          </button>
-
-          {nextEp && (
-            <button className="pc-btn wide" onClick={() => goEp(nextEp)} aria-label={`Next: ${nextEp.title}`}>
-              Ep {nextEp.episode} <ISkipFwd style={{ transform: "scaleX(-1)" }} />
-            </button>
-          )}
-        </div>
+  return <div className="smart-videojs-shell">
+    <div className="smart-videojs-heading">
+      <div className="smart-videojs-title"><strong>{title}</strong>{episodeTitle && <span>{episodeTitle}</span>}</div>
+      <div className="smart-videojs-actions">
+        {demo && <span className="pill pill-warn">Demo</span>}
+        <button className="smart-videojs-action" onClick={() => void share()}>VLC / Share</button>
       </div>
     </div>
-  );
+    <div className="video-js-host">
+      <video ref={videoRef} className="video-js vjs-big-play-centered smart-videojs" playsInline preload="metadata" crossOrigin="anonymous">
+        {subtitleUrl && <track kind="subtitles" src={subtitleUrl} srcLang="en" label="English" default />}
+      </video>
+      {!ready && !error && <div className="smart-videojs-loading"><div className="spinner"/><span>Preparing player…</span></div>}
+      {error && <div className="smart-videojs-error" role="alert"><IAlert/><strong>Playback unavailable</strong><span>{error}</span><div className="smart-videojs-error-actions"><button className="btn btn-primary" onClick={retry}><IReplay/> Try again</button><button className="btn btn-secondary" onClick={() => void share()}>Open in VLC / Share</button></div></div>}
+    </div>
+    {(variants.length || prev || next || shareStatus) ? <div className="smart-videojs-toolbar">
+      {variants.length > 0 && <label className="smart-videojs-quality">Quality <select value={quality} onChange={e => { const v=e.target.value; if(v==="Auto") changeQuality(src,"Auto"); else { const x=variants.find(q=>q.label===v); if(x) changeQuality(x.url,x.label); }}}><option>Auto</option>{variants.map(v=><option key={v.label+v.url}>{v.label}</option>)}</select></label>}
+      <div className="smart-videojs-spacer"/>
+      {shareStatus && <span className="smart-videojs-status">{shareStatus}</span>}
+      {prev && onEpisode && <button className="smart-videojs-action" onClick={() => onEpisode(prev)}>Previous</button>}
+      {next && onEpisode && <button className="smart-videojs-action" onClick={() => onEpisode(next)}>Next</button>}
+    </div> : null}
+  </div>;
 }
