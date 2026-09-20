@@ -5,11 +5,12 @@ import "./cinematic-polish.css";
 import "./ui-motion.css";
 import "./player-polish.css";
 import "./premium-ui.css";
+import "./netflix-inspired.css";
 import { Header } from "../components/Header";
 import { AuthProvider } from "../components/AuthProvider";
 import { DetailsProvider } from "../components/DetailsProvider";
 import { authIntended, requireSession } from "../lib/auth";
-import { getAppMode, getAppName, getAppVersion } from "../lib/config";
+import { getAppName, getAppVersion } from "../lib/config";
 import { ICloudUpload } from "../components/icons";
 
 export const metadata: Metadata = {
@@ -18,7 +19,6 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const mode = getAppMode();
   const gate = authIntended() && !(await requireSession());
   return (
     <html lang="en">
@@ -34,9 +34,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                   {getAppName()}
                 </span>
                 <span>Private media library · v{getAppVersion()}</span>
-                <span className="pill pill-neutral mode-pill" title={`Smart Upload is running in ${mode} mode`}>
-                  {mode} mode
-                </span>
                 <a href="/upload" style={{ display: "inline-flex", alignItems: "center", gap: ".35em", color: "var(--laranja)" }}>
                   <ICloudUpload /> Upload a URL
                 </a>
