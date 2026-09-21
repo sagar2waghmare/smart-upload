@@ -15,7 +15,7 @@ import {
   DefaultVideoLayout,
 } from "@vidstack/react/player/layouts/default";
 import type { Episode, MediaItem } from "../lib/types";
-import { IArrowLeft, IArrowRight, IClose, IShare } from "./icons";
+import { IArrowLeft, IArrowRight, IClose, ILink } from "./icons";
 
 type Props = {
   src: string;
@@ -59,8 +59,7 @@ export function VideoPlayer({
   onClose,
 }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
-  const activeSource = useState(() => hlsUrl || src)[0];
-  const [source, setSource] = useState(activeSource);
+  const [source, setSource] = useState(hlsUrl || src);
   const [fallbackUsed, setFallbackUsed] = useState(false);
   const [resumeApplied, setResumeApplied] = useState(false);
   const lastProgressRef = useRef(0);
@@ -255,7 +254,7 @@ export function VideoPlayer({
               aria-label="Share stream"
               title="Share"
             >
-              <IShare />
+              <ILink />
             </button>
           ) : null}
         </div>
