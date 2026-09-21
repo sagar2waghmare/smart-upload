@@ -2030,3 +2030,50 @@ button, a {
        .form-card, .library-grid, .search-results) > * {
   min-width: 0;
 }
+
+
+/* ============================================================
+   SMART UPLOAD — INTERACTION FIXES V6
+   Android scrolling + reliable back + touch/mouse hero swipe.
+   ============================================================ */
+
+.details-overlay {
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: auto !important;
+  touch-action: pan-y !important;
+}
+
+.details-back {
+  min-width: 44px !important;
+  min-height: 44px !important;
+  touch-action: manipulation !important;
+}
+
+.hero-track {
+  pointer-events: auto !important;
+  touch-action: pan-y !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: grab !important;
+}
+
+.hero-track.is-dragging {
+  cursor: grabbing !important;
+}
+
+.hero-track.is-dragging .hero-poster.ativo {
+  transform: translateY(-50%) translateX(var(--drag-x, 0px)) scale(.985) !important;
+  transition: none !important;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .hero-track {
+    touch-action: pan-y !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .hero-track {
+    touch-action: pan-y !important;
+  }
+}
