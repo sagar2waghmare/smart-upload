@@ -25,7 +25,7 @@ export function MediaCard({ item }: { item: MediaItem }) {
   return (
     <article className="card-conteudo">
       <button className="poster" onClick={open} aria-label={`Open details for ${item.title}`}>
-        <SmartImage src={item.poster} alt={`${item.title} poster`} />
+        <SmartImage src={item.poster} alt={`${item.title} poster`} objectFit="contain" />
       </button>
       <FavButton id={item.id} />
       <div className="info-conteudo">
