@@ -21,7 +21,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const count = items.length;
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
-  const dragRef = useRef({ startX: 0, dragging: false, moved: false });
+  const dragRef = useRef({ startX: 0, startY: 0, dragging: false, moved: false, horizontal: false });
   const trackRef = useRef<HTMLDivElement>(null);
 
   const go = useCallback((next: number) => {
@@ -43,27 +43,31 @@ export function Hero({ items }: { items: MediaItem[] }) {
   }, []);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
-    // The active poster itself is the swipe surface. A tap still opens details;
-    // a horizontal drag changes the featured title.
-    dragRef.current = { startX: e.clientX, dragging: true, moved: false };
-    trackRef.current?.setPointerCapture(e.pointerId);
-    trackRef.current?.classList.add("is-dragging");
+    const target = e.target as HTMLElement;
+    if (target.closest("button") && !target.closest(".hero-poster")) return;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: true, moved: false, horizontal: false };
+    trackRef.current?.classList.add("is-pressing");
   }, []);
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.dragging || !trackRef.current) return;
     const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    if (!dragRef.current.horizontal && Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+    if (!dragRef.current.horizontal) {
+      dragRef.current.horizontal = Math.abs(dx) > Math.abs(dy);
+      if (!dragRef.current.horizontal) return;
+    }
     if (Math.abs(dx) > 8) dragRef.current.moved = true;
-    trackRef.current.style.setProperty("--drag-x", `${Math.max(-120, Math.min(120, dx))}px`);
+    trackRef.current.style.setProperty("--drag-x", `${Math.max(-140, Math.min(140, dx))}px`);
   }, []);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.dragging) return;
     dragRef.current.dragging = false;
-    trackRef.current?.releasePointerCapture?.(e.pointerId);
-    trackRef.current?.classList.remove("is-dragging");
+    trackRef.current?.classList.remove("is-pressing", "is-dragging");
     trackRef.current?.style.setProperty("--drag-x", "0px");
     const dx = e.clientX - dragRef.current.startX;
-    if (Math.abs(dx) > 50) go(dx < 0 ? index + 1 : index - 1);
+    if (dragRef.current.horizontal && Math.abs(dx) > 45) go(dx < 0 ? index + 1 : index - 1);
   }, [index, go]);
 
 
