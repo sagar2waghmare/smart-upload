@@ -4,7 +4,9 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 function die(message) {
-  console.error(`\n[media-prep] ${message}\n`);
+  console.error(`
+[media-prep] ${message}
+`);
   process.exit(1);
 }
 
@@ -29,7 +31,8 @@ function run(command, args, { json = false } = {}) {
     child.on("error", (error) => reject(error));
     child.on("close", (code) => {
       if (code === 0) resolve({ stdout, stderr });
-      else reject(new Error(`${command} exited with code ${code}\n${stderr}`));
+      else reject(new Error(`${command} exited with code ${code}
+${stderr}`));
     });
   });
 }
@@ -64,13 +67,15 @@ let info;
 try {
   info = await probe(resolvedInput);
 } catch (error) {
-  die(`ffprobe failed. Make sure FFmpeg is installed and available in PATH.\n${error.message}`);
+  die(`ffprobe failed. Make sure FFmpeg is installed and available in PATH.
+${error.message}`);
 }
 
 const streams = Array.isArray(info.streams) ? info.streams : [];
 const video = streams.find((s) => s.codec_type === "video");
 const audioStreams = streams.filter((s) => s.codec_type === "audio");
-const defaultAudioIndex = audioIndex ?? (audioStreams.length ? 0 : null);\nconst selectedAudioStreams = defaultAudioIndex === null ? [] : [audioStreams[defaultAudioIndex]].filter(Boolean);
+const defaultAudioIndex = audioIndex ?? (audioStreams.length ? 0 : null);
+const selectedAudioStreams = defaultAudioIndex === null ? [] : [audioStreams[defaultAudioIndex]].filter(Boolean);
 
 if (!video) die("No video stream was found.");
 if (audioIndex !== null && selectedAudioStreams.length === 0) {
@@ -120,41 +125,41 @@ try {
 // Create one browser-safe AAC audio sidecar per source audio track.
 // Chrome/Edge do not expose HTMLMediaElement.audioTracks reliably, so the
 // player can use these files for Hindi/English/etc. switching.
+// Generate sidecars even when --audio-index is used, so a preferred default
+// track and alternate language tracks can coexist.
 const audioSidecars = [];
-if (audioIndex === null) {
-  for (let i = 0; i < audioStreams.length; i += 1) {
-    const audio = audioStreams[i];
-    const language = String(audio.tags?.language ?? "und")
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "") || "und";
-    const sidecar = path.resolve(`${base}.browser.audio.${i}.${language}.m4a`);
+for (let i = 0; i < audioStreams.length; i += 1) {
+  const audio = audioStreams[i];
+  const language = String(audio.tags?.language ?? "und")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "") || "und";
+  const sidecar = path.resolve(`${base}.browser.audio.${i}.${language}.m4a`);
 
-    const sidecarArgs = [
-      "-hide_banner",
-      "-i", resolvedInput,
-      "-map", `0:a:${i}`,
-      "-vn",
-      "-c:a", "aac",
-      "-b:a", "160k",
-      "-ac", "2",
-      "-ar", "48000",
-      "-movflags", "+faststart",
-      ...(overwrite ? ["-y"] : ["-n"]),
-      sidecar,
-    ];
+  const sidecarArgs = [
+    "-hide_banner",
+    "-i", resolvedInput,
+    "-map", `0:a:${i}`,
+    "-vn",
+    "-c:a", "aac",
+    "-b:a", "160k",
+    "-ac", "2",
+    "-ar", "48000",
+    "-movflags", "+faststart",
+    ...(overwrite ? ["-y"] : ["-n"]),
+    sidecar,
+  ];
 
-    try {
-      await run("ffmpeg", sidecarArgs);
-      audioSidecars.push({
-        index: i,
-        file: path.basename(sidecar),
-        language: audio.tags?.language ?? null,
-        title: audio.tags?.title ?? null,
-        sourceCodec: audio.codec_name ?? null,
-      });
-    } catch (error) {
-      console.warn(`[media-prep] Warning: audio track #${i + 1} could not be converted to AAC: ${error.message}`);
-    }
+  try {
+    await run("ffmpeg", sidecarArgs);
+    audioSidecars.push({
+      index: i,
+      file: path.basename(sidecar),
+      language: audio.tags?.language ?? null,
+      title: audio.tags?.title ?? null,
+      sourceCodec: audio.codec_name ?? null,
+    });
+  } catch (error) {
+    console.warn(`[media-prep] Warning: audio track #${i + 1} could not be converted to AAC: ${error.message}`);
   }
 }
 
@@ -185,9 +190,11 @@ const manifest = {
 
 const manifestPath = `${output}.smart-upload.json`;
 await import("node:fs/promises").then(({ writeFile }) =>
-  writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8")
+  writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "
+", "utf8")
 );
 
-console.log(`\n[media-prep] Done. Browser copy: ${output}`);
+console.log(`
+[media-prep] Done. Browser copy: ${output}`);
 console.log(`[media-prep] Manifest: ${manifestPath}`);
 console.log("[media-prep] Upload the .browser.mp4 and any .browser.audio.*.m4a sidecars beside the original file in the same Drive folder.");
