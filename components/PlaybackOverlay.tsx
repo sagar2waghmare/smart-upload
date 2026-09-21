@@ -139,6 +139,7 @@ export function PlaybackOverlay() {
               onEnded={handleEnded}
               onClose={closePlayer}
               audioTracks={audioTracks}
+              preparedBrowserCopy={Boolean(prepared)}
             />
           </>
         ) : (
