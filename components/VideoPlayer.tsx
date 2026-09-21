@@ -41,7 +41,6 @@ type Props = {
   onEnded?: () => void;
   onClose?: () => void;
   audioTracks?: AudioVariant[];
-  preparedBrowserCopy?: boolean;
 };
 
 const fmt = (t: number) => {
@@ -72,7 +71,6 @@ export function VideoPlayer({
   onEnded,
   onClose,
   audioTracks = [],
-  preparedBrowserCopy = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -107,7 +105,6 @@ export function VideoPlayer({
   const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
   const [audioFallback, setAudioFallback] = useState(false);
   const [externalAudioActive, setExternalAudioActive] = useState(false);
-  const [useExternalAudio, setUseExternalAudio] = useState(false);
 
   const qualityVariants = [
     ...(item.qualityVariants ?? []),
@@ -118,7 +115,9 @@ export function VideoPlayer({
   );
 
   const hasExternalAudio = audioTracks.length > 0;
-  const externalAudioEnabled = hasExternalAudio && !audioFallback && (!preparedBrowserCopy || useExternalAudio);
+  // Prepared AAC/M4A sidecars are the authoritative browser-safe audio path when present.
+  // This avoids depending on the source video's original audio codec.
+  const externalAudioEnabled = hasExternalAudio && !audioFallback;
   const externalAudioPlaying = externalAudioEnabled && externalAudioActive;
   const playing = status === "playing";
 
@@ -133,7 +132,6 @@ export function VideoPlayer({
     setCcOn(false);
     setAudioFallback(false);
     setExternalAudioActive(false);
-    setUseExternalAudio(false);
     setShareStatus(null);
     setError(null);
     setStarted(false);
@@ -414,17 +412,7 @@ export function VideoPlayer({
 
       setSelectedAudioIndex(index);
       const shouldUseExternal = !preparedBrowserCopy || index !== 0;
-      setUseExternalAudio(shouldUseExternal);
-
-      if (!shouldUseExternal) {
-        setAudioFallback(false);
-        setExternalAudioActive(false);
-        audio?.pause();
-        if (video) video.muted = false;
-        return;
-      }
-
-      if (audio) {
+        if (audio) {
         setAudioFallback(false);
         setExternalAudioActive(false);
         audio.src = audioTracks[index].url;
@@ -443,7 +431,7 @@ export function VideoPlayer({
         }
       }
     },
-    [audioTracks, current, muted, volume, preparedBrowserCopy]
+    [audioTracks, current, muted, volume]
   );
 
   const startPlayback = useCallback(() => {
