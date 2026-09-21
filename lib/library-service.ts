@@ -38,7 +38,7 @@ async function normalizeItem(raw: {
         ...base,
         title: identified.title || fallbackTitle,
         year: identified.year,
-        kind: identified.kind,
+        kind: base.kind,
         season: identified.season,
         episode: identified.episode,
         tmdbId,
@@ -51,7 +51,7 @@ async function normalizeItem(raw: {
       ...base,
       title: identified.title || fallbackTitle,
       year: identified.year,
-      kind: identified.kind,
+      kind: base.kind,
       season: identified.season,
       episode: identified.episode,
       tmdbId,
@@ -217,6 +217,17 @@ export async function getPublished(): Promise<MediaItem[]> {
   return (await getLibrary()).items;
 }
 
+function findMediaInItems(items: MediaItem[], id: string): MediaItem | undefined {
+  for (const item of items) {
+    if (item.id === id) return item;
+    for (const season of item.seasons ?? []) {
+      const episode = season.episodes.find((ep) => ep.id === id);
+      if (episode) return item;
+    }
+  }
+  return undefined;
+}
+
 export async function getMediaById(id: string): Promise<MediaItem | undefined> {
-  return (await getPublished()).find((m) => m.id === id);
+  return findMediaInItems(await getPublished(), id);
 }
