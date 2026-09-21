@@ -40,6 +40,7 @@ export function PlaybackOverlay() {
     setShareUrl(undefined);
     setSourceType(undefined);
     setAudioTracks([]);
+    setPrepared(false);
     setError(null);
   }
 
@@ -70,6 +71,7 @@ export function PlaybackOverlay() {
         setShareUrl(data.shareUrl);
         setSourceType(data.sourceType);
         setDemo(data.demo);
+        setPrepared(Boolean(data.prepared));
         setAudioTracks(data.audioTracks ?? []);
         setReady(true);
       })
