@@ -900,7 +900,8 @@ export function VideoPlayer({
             onSelect={selectAudio}
           />
 
-          <div className="pc-menu-anchor">
+          {subtitleUrl ? (
+            <div className="pc-menu-anchor">
             <button
               type="button"
               className={"pc-btn pc-menu-btn pc-label-btn " + (ccOn ? "accent" : "")}
@@ -928,7 +929,8 @@ export function VideoPlayer({
                 )}
               </div>
             ) : null}
-          </div>
+            </div>
+          ) : null}
 
           {qualityVariants.length > 0 ? (
             <div className="pc-menu-anchor">
