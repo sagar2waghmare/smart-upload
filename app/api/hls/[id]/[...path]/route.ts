@@ -43,48 +43,64 @@ function mediaUrl(fileId: string): string {
 
 async function rewritePlaylist(sourceId: string, playlistPath: string, source: string): Promise<string> {
   const lines = source.split(/\\r?\\n/);
-  const rewritten = lines.map((line) => {
-    const replaceUri = (uri: string) => {
+  const rewritten: string[] = [];
+
+  for (const line of lines) {
+    const replaceUri = async (uri: string) => {
       const cleanUri = uri.split("#", 1)[0].split("?", 1)[0];
       const base = path.posix.dirname(playlistPath);
       const resolved = safeRelativePath(path.posix.join(base, cleanUri));
       if (!resolved) return uri;
 
-      const target = resolved.endsWith(".m3u8")
-        ? publicHlsUrl(sourceId, resolved)
-        : null;
+      if (resolved.endsWith(".m3u8")) {
+        return publicHlsUrl(sourceId, resolved);
+      }
 
-      return target ?? uri;
+      return mediaUrlForPath(sourceId, resolved);
     };
 
     if (line.startsWith("#")) {
-      return line.replace(/URI="([^"]+)"/g, (_match, uri: string) => {
-        const cleanUri = uri.split("#", 1)[0].split("?", 1)[0];
-        const base = path.posix.dirname(playlistPath);
-        const resolved = safeRelativePath(path.posix.join(base, cleanUri));
-        if (!resolved) return `URI="${uri}"`;
+      const matches = [...line.matchAll(/URI="([^"]+)"/g)];
+      if (matches.length === 0) {
+        rewritten.push(line);
+        continue;
+      }
 
-        if (resolved.endsWith(".m3u8")) {
-          return `URI="${publicHlsUrl(sourceId, resolved)}"`;
-        }
-
-        return `URI="${mediaUrlForPath(sourceId, resolved)}"`;
-      });
+      let next = line;
+      for (const match of matches.reverse()) {
+        const original = match[1];
+        const replacement = await replaceUri(original);
+        next =
+          next.slice(0, match.index! + 5) +
+          replacement +
+          next.slice(match.index! + 5 + original.length);
+      }
+      rewritten.push(next);
+      continue;
     }
 
-    if (!line || line.startsWith("#")) return line;
+    if (!line.trim()) {
+      rewritten.push(line);
+      continue;
+    }
 
     const base = path.posix.dirname(playlistPath);
     const resolved = safeRelativePath(path.posix.join(base, line.trim()));
-    if (!resolved) return line;
+    if (!resolved) {
+      rewritten.push(line);
+      continue;
+    }
 
-    return resolved.endsWith(".m3u8")
-      ? publicHlsUrl(sourceId, resolved)
-      : mediaUrlForPath(sourceId, resolved);
-  });
+    rewritten.push(
+      resolved.endsWith(".m3u8")
+        ? publicHlsUrl(sourceId, resolved)
+        : await mediaUrlForPath(sourceId, resolved),
+    );
+  }
 
   return rewritten.join("\n");
 }
+
 
 const entryCache = new Map<string, { url: string; expiresAt: number }>();
 
