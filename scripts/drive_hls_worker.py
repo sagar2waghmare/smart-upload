@@ -69,6 +69,34 @@ def prepare_browser_audio_sidecars(src: Path, tracks, temp_root: Path):
             print(r.stderr[-1200:])
     return sidecars
 
+def prepare_browser_copy(src: Path, tracks, temp_root: Path):
+    """Create a browser-safe progressive MP4 used as the audio-reliable baseline."""
+    ext = src.suffix
+    base = src.name[:-len(ext)] if ext else src.name
+    dst = temp_root / f"{base}.browser.mp4"
+    audio_tracks = [x for x in tracks if x.get("codec_type") == "audio"]
+
+    cmd = ["ffmpeg", "-y", "-i", str(src), "-map", "0:v:0"]
+    if audio_tracks:
+        cmd += ["-map", f"0:{audio_tracks[0]['index']}?"]
+    cmd += [
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-profile:v", "high", "-pix_fmt", "yuv420p",
+    ]
+    if audio_tracks:
+        cmd += [
+            "-c:a", "aac", "-profile:a", "aac_low", "-b:a", "160k",
+            "-ac", "2", "-ar", "48000",
+        ]
+    else:
+        cmd += ["-an"]
+    cmd += ["-movflags", "+faststart", str(dst)]
+
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"browser MP4 conversion failed:\\n{r.stderr[-1600:]}")
+    return dst
+
 def process(src: Path, out: Path):
     out.mkdir(parents=True,exist_ok=True); tracks=ffprobe_tracks(src)
     variants=[(1920,1080,5500000),(1280,720,3200000),(854,480,1500000)]; maps=[]
@@ -164,6 +192,8 @@ def main():
             download(drive,item["id"],src)
             tracks=process(src,out)
             upload_tree(drive,hls_folder,out)
+            browser_copy = prepare_browser_copy(src,tracks,td)
+            upload_file(drive,args.media_folder,browser_copy,"video/mp4")
             for sidecar in prepare_browser_audio_sidecars(src,tracks,td):
                 upload_file(drive,args.media_folder,sidecar,"audio/mp4")
             print(f"Finished {item['id']}")
