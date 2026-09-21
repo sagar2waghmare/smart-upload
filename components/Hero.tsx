@@ -22,6 +22,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, dragging: false, moved: false, horizontal: false });
+  const heroRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
   const go = useCallback((next: number) => {
@@ -43,14 +44,10 @@ export function Hero({ items }: { items: MediaItem[] }) {
   }, []);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.closest("button") && !target.closest(".hero-poster")) return;
     dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: true, moved: false, horizontal: false };
-    // Capture the pointer on the whole hero track. This is important when the
-    // gesture starts directly on the poster: once the finger/mouse moves off
-    // the poster, the carousel must continue receiving pointer events.
-    try { trackRef.current?.setPointerCapture(e.pointerId); } catch {}
-    trackRef.current?.classList.add("is-pressing");
+    // The entire hero is a swipe surface: poster, title, metadata and action
+    // buttons. We wait for the direction before taking control of the gesture.
+    heroRef.current?.classList.add("is-pressing");
   }, []);
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.dragging || !trackRef.current) return;
@@ -64,7 +61,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
         trackRef.current?.classList.remove("is-pressing");
         return;
       }
-      trackRef.current.classList.add("is-dragging");
+      try { heroRef.current?.setPointerCapture(e.pointerId); } catch {}
+      heroRef.current?.classList.add("is-dragging");
     }
     if (Math.abs(dx) > 8) dragRef.current.moved = true;
     trackRef.current.style.setProperty("--drag-x", `${Math.max(-140, Math.min(140, dx))}px`);
@@ -74,7 +72,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
     if (!dragRef.current.dragging) return;
     dragRef.current.dragging = false;
     try { trackRef.current?.releasePointerCapture(e.pointerId); } catch {}
-    trackRef.current?.classList.remove("is-pressing", "is-dragging");
+    try { heroRef.current?.releasePointerCapture(e.pointerId); } catch {}
+    heroRef.current?.classList.remove("is-pressing", "is-dragging");
     trackRef.current?.style.setProperty("--drag-x", "0px");
     const dx = e.clientX - dragRef.current.startX;
     if (dragRef.current.horizontal && Math.abs(dx) > 45) go(dx < 0 ? index + 1 : index - 1);
@@ -96,7 +95,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const ambientTone = AMBIENT_TONES[index % AMBIENT_TONES.length];
 
   return (
-    <section className="hero-filmes" aria-roledescription="carousel" aria-label="Featured titles">
+    <section ref={heroRef} className="hero-filmes" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} aria-roledescription="carousel" aria-label="Featured titles">
       <div className="hero-ambient" aria-hidden="true" style={{ backgroundColor: ambientTone }}><SmartImage src={active.backdrop ?? active.poster} alt="" sizes="100vw" priority /></div>
       <div className="hero-vignette" aria-hidden="true" />
 
@@ -116,7 +115,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
         </div>
       </div>
 
-      <div ref={trackRef} className="hero-track" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+      <div ref={trackRef} className="hero-track">
         {items.map((item, i) => {
           let posicao = i - index;
           if (posicao > count / 2) posicao -= count;
