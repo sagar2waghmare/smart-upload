@@ -39,8 +39,8 @@ async function normalizeItem(raw: {
         title: identified.title || fallbackTitle,
         year: identified.year,
         kind: base.kind,
-        season: identified.season,
-        episode: identified.episode,
+        season: base.kind === "movie" ? undefined : identified.season,
+        episode: base.kind === "movie" ? undefined : identified.episode,
         tmdbId,
         poster: identified.tmdb.poster,
         backdrop: identified.tmdb.backdrop ?? identified.tmdb.poster,
@@ -52,8 +52,8 @@ async function normalizeItem(raw: {
       title: identified.title || fallbackTitle,
       year: identified.year,
       kind: base.kind,
-      season: identified.season,
-      episode: identified.episode,
+      season: base.kind === "movie" ? undefined : identified.season,
+      episode: base.kind === "movie" ? undefined : identified.episode,
       tmdbId,
     };
   } catch {
