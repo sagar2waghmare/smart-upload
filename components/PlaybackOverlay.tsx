@@ -25,6 +25,7 @@ export function PlaybackOverlay() {
   const [sourceType, setSourceType] = useState<string | undefined>();
   const [demo, setDemo] = useState(false);
   const [audioTracks, setAudioTracks] = useState<AudioVariant[]>([]);
+  const [prepared, setPrepared] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endedRef = useRef(false);
 
@@ -39,6 +40,7 @@ export function PlaybackOverlay() {
     setShareUrl(undefined);
     setSourceType(undefined);
     setAudioTracks([]);
+    setPrepared(false);
     setError(null);
   }
 
@@ -69,6 +71,7 @@ export function PlaybackOverlay() {
         setShareUrl(data.shareUrl);
         setSourceType(data.sourceType);
         setDemo(data.demo);
+        setPrepared(Boolean(data.prepared));
         setAudioTracks(data.audioTracks ?? []);
         setReady(true);
       })
@@ -139,6 +142,7 @@ export function PlaybackOverlay() {
               onEnded={handleEnded}
               onClose={closePlayer}
               audioTracks={audioTracks}
+              preparedBrowserCopy={Boolean(prepared)}
             />
           </>
         ) : (

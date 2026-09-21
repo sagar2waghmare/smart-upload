@@ -9,11 +9,12 @@ import { useDetails } from "./DetailsProvider";
 export function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const { playerOpen } = useDetails();
+  const { item, playerOpen } = useDetails();
+  const overlayOpen = Boolean(item);
 
   return (
     <header className={`header nav-hover-zone compact-header ${playerOpen ? "player-active" : ""}`}>
-      {!playerOpen ? (
+      {!overlayOpen ? (
         <button
           className="icon-btn nav-trigger"
           aria-label="Open navigation menu"
@@ -25,7 +26,7 @@ export function Header() {
         </button>
       ) : null}
 
-      {!playerOpen ? (
+      {!overlayOpen ? (
         <>
           <NavigationMenu
             open={menuOpen}

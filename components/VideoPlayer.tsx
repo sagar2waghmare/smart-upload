@@ -41,6 +41,7 @@ type Props = {
   onEnded?: () => void;
   onClose?: () => void;
   audioTracks?: AudioVariant[];
+  preparedBrowserCopy?: boolean;
 };
 
 const fmt = (t: number) => {
@@ -71,6 +72,7 @@ export function VideoPlayer({
   onEnded,
   onClose,
   audioTracks = [],
+  preparedBrowserCopy = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -104,6 +106,8 @@ export function VideoPlayer({
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
   const [audioFallback, setAudioFallback] = useState(false);
+  const [externalAudioActive, setExternalAudioActive] = useState(false);
+  const [useExternalAudio, setUseExternalAudio] = useState(false);
 
   const qualityVariants = [
     ...(item.qualityVariants ?? []),
@@ -114,7 +118,8 @@ export function VideoPlayer({
   );
 
   const hasExternalAudio = audioTracks.length > 0;
-  const externalAudioEnabled = hasExternalAudio && !audioFallback;
+  const externalAudioEnabled = hasExternalAudio && !audioFallback && (!preparedBrowserCopy || useExternalAudio);
+  const externalAudioPlaying = externalAudioEnabled && externalAudioActive;
   const playing = status === "playing";
 
   useEffect(() => {
@@ -126,6 +131,8 @@ export function VideoPlayer({
     setSelectedQuality("Auto");
     setSelectedAudioIndex(0);
     setAudioFallback(false);
+    setExternalAudioActive(false);
+    setUseExternalAudio(false);
     setShareStatus(null);
     setError(null);
     setStarted(false);
@@ -138,7 +145,7 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    video.muted = externalAudioEnabled;
+    video.muted = externalAudioPlaying;
     if (!audio || !externalAudioEnabled) return;
 
     const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
@@ -153,17 +160,17 @@ export function VideoPlayer({
     if (!video.paused && started) {
       void audio.play().catch(() => undefined);
     }
-  }, [audioTracks, selectedAudioIndex, externalAudioEnabled, started]);
+  }, [audioTracks, selectedAudioIndex, externalAudioEnabled, externalAudioPlaying, started]);
 
   useEffect(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    if (video) video.muted = externalAudioEnabled;
+    if (video) video.muted = externalAudioPlaying;
     if (audio) {
       audio.volume = muted ? 0 : volume;
       audio.muted = muted;
     }
-  }, [externalAudioEnabled, muted, volume]);
+  }, [externalAudioPlaying, muted, volume]);
 
   const poke = useCallback(() => {
     setControls(true);
@@ -193,11 +200,11 @@ export function VideoPlayer({
   const syncAudioToVideo = useCallback(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    if (!externalAudioEnabled || !video || !audio) return;
+    if (!externalAudioPlaying || !video || !audio) return;
     try {
       audio.currentTime = Math.max(0, video.currentTime || 0);
     } catch {}
-  }, [externalAudioEnabled]);
+  }, [externalAudioPlaying]);
 
   const seek = useCallback(
     (time: number) => {
@@ -209,10 +216,10 @@ export function VideoPlayer({
         video.currentTime = next;
         currentRef.current = next;
         setCurrent(next);
-        if (audioRef.current && externalAudioEnabled) audioRef.current.currentTime = next;
+        if (audioRef.current && externalAudioPlaying) audioRef.current.currentTime = next;
       } catch {}
     },
-    [duration, externalAudioEnabled]
+    [duration, externalAudioPlaying]
   );
 
   const emitProgress = useCallback((force = false) => {
@@ -245,12 +252,12 @@ export function VideoPlayer({
       else video.currentTime = target;
       currentRef.current = video.currentTime;
       setCurrent(video.currentTime);
-      if (audioRef.current && externalAudioEnabled) audioRef.current.currentTime = video.currentTime;
+      if (audioRef.current && externalAudioPlaying) audioRef.current.currentTime = video.currentTime;
     } catch {
       initialedRef.current = false;
       setBuffering(false);
     }
-  }, [initialTime, externalAudioEnabled]);
+  }, [initialTime, externalAudioPlaying]);
 
   const changeVolume = useCallback(
     (value: number) => {
@@ -263,14 +270,14 @@ export function VideoPlayer({
 
       if (video) {
         video.volume = next;
-        video.muted = externalAudioEnabled ? true : next === 0;
+        video.muted = externalAudioPlaying ? true : next === 0;
       }
       if (audio) {
         audio.volume = next;
         audio.muted = next === 0;
       }
     },
-    [externalAudioEnabled]
+    [externalAudioPlaying]
   );
 
   const toggleMute = useCallback(() => {
@@ -278,16 +285,16 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    const nextMuted = externalAudioEnabled ? !(audio?.muted ?? muted) : !video.muted;
+    const nextMuted = externalAudioPlaying ? !(audio?.muted ?? muted) : !video.muted;
     setMuted(nextMuted);
 
-    if (externalAudioEnabled) {
+    if (externalAudioPlaying) {
       if (audio) audio.muted = nextMuted;
       video.muted = true;
     } else {
       video.muted = nextMuted;
     }
-  }, [externalAudioEnabled, muted]);
+  }, [externalAudioPlaying, muted]);
 
   const switchQuality = useCallback(
     (label: string, url: string) => {
@@ -388,9 +395,20 @@ export function VideoPlayer({
       const position = video?.currentTime ?? current;
 
       setSelectedAudioIndex(index);
+      const shouldUseExternal = !preparedBrowserCopy || index !== 0;
+      setUseExternalAudio(shouldUseExternal);
+
+      if (!shouldUseExternal) {
+        setAudioFallback(false);
+        setExternalAudioActive(false);
+        audio?.pause();
+        if (video) video.muted = false;
+        return;
+      }
 
       if (audio) {
         setAudioFallback(false);
+        setExternalAudioActive(false);
         audio.src = audioTracks[index].url;
         audio.volume = muted ? 0 : volume;
         audio.muted = muted;
@@ -398,10 +416,16 @@ export function VideoPlayer({
         try {
           audio.currentTime = position;
         } catch {}
-        if (video && !video.paused) void audio.play().catch(() => undefined);
+        if (video && !video.paused) {
+          void audio.play().catch(() => {
+            setAudioFallback(true);
+            setExternalAudioActive(false);
+            video.muted = false;
+          });
+        }
       }
     },
-    [audioTracks, current, muted, volume]
+    [audioTracks, current, muted, volume, preparedBrowserCopy]
   );
 
   const startPlayback = useCallback(() => {
@@ -412,19 +436,22 @@ export function VideoPlayer({
     setError(null);
     setBuffering(true);
 
+    // Start both elements from the same user gesture. Browsers can reject a
+    // second, later play() call as autoplay even when the video was started by
+    // a tap, so do not wait for video.play() to resolve first.
     if (audioRef.current && externalAudioEnabled) {
       audioRef.current.currentTime = video.currentTime || 0;
       audioRef.current.volume = muted ? 0 : volume;
       audioRef.current.muted = muted;
+      void audioRef.current.play().catch(() => {
+        setAudioFallback(true);
+        setExternalAudioActive(false);
+        video.muted = false;
+      });
     }
 
     void video
       .play()
-      .then(() => {
-        if (audioRef.current && externalAudioEnabled) {
-          void audioRef.current.play().catch(() => undefined);
-        }
-      })
       .catch(() => {
         setBuffering(false);
         setStarted(false);
@@ -568,10 +595,15 @@ export function VideoPlayer({
           aria-hidden="true"
           onCanPlay={() => {
             setAudioFallback(false);
-            if (videoRef.current && audioTracks.length > 0) videoRef.current.muted = true;
+          }}
+          onPlaying={() => {
+            setAudioFallback(false);
+            setExternalAudioActive(true);
+            syncAudioToVideo();
           }}
           onError={() => {
             setAudioFallback(true);
+            setExternalAudioActive(false);
             if (videoRef.current) videoRef.current.muted = false;
           }}
         />
@@ -589,19 +621,24 @@ export function VideoPlayer({
           setBuffering(false);
           poke();
           if (audioRef.current && externalAudioEnabled) {
-            void audioRef.current.play().catch(() => undefined);
+            void audioRef.current.play().catch(() => {
+              setAudioFallback(true);
+              setExternalAudioActive(false);
+              if (videoRef.current) videoRef.current.muted = false;
+            });
           }
         }}
         onPause={() => {
           setStatus("paused");
           setControls(true);
+          setExternalAudioActive(false);
           emitProgress(true);
           audioRef.current?.pause();
         }}
         onWaiting={() => setBuffering(true)}
         onPlaying={() => setBuffering(false)}
         onSeeking={() => {
-          if (externalAudioEnabled) syncAudioToVideo();
+          if (externalAudioPlaying) syncAudioToVideo();
           if (initialTime && initialTime > 0.5 && !initialedRef.current) setBuffering(true);
         }}
         onCanPlay={() => setBuffering(false)}
@@ -619,7 +656,7 @@ export function VideoPlayer({
           setCurrent(time);
 
           if (
-            externalAudioEnabled &&
+            externalAudioPlaying &&
             audioRef.current &&
             Math.abs(audioRef.current.currentTime - time) > 0.35
           ) {
@@ -631,12 +668,12 @@ export function VideoPlayer({
           emitProgress();
         }}
         onSeeked={() => {
-          if (externalAudioEnabled) syncAudioToVideo();
+          if (externalAudioPlaying) syncAudioToVideo();
           setBuffering(false);
           emitProgress(true);
         }}
         onVolumeChange={(event) => {
-          if (externalAudioEnabled) return;
+          if (externalAudioPlaying) return;
           setMuted(event.currentTarget.muted);
           setVolume(event.currentTarget.volume);
         }}
@@ -644,6 +681,7 @@ export function VideoPlayer({
         onEnded={() => {
           setStatus("ended");
           setControls(true);
+          setExternalAudioActive(false);
           audioRef.current?.pause();
           cbRef.current.onEnded?.();
         }}
