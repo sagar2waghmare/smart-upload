@@ -403,12 +403,10 @@ export function VideoPlayer({
           audio.currentTime = position;
         } catch {}
         if (video && !video.paused) {
-          void audio.play().catch((error: unknown) => {
-            const name = error instanceof DOMException ? error.name : "";
-            if (name === "NotSupportedError" || name === "AbortError") {
-              setAudioFallback(true);
-              setExternalAudioActive(false);
-            }
+          void audio.play().catch(() => {
+            setAudioFallback(true);
+            setExternalAudioActive(false);
+            video.muted = false;
           });
         }
       }
@@ -431,12 +429,10 @@ export function VideoPlayer({
       audioRef.current.currentTime = video.currentTime || 0;
       audioRef.current.volume = muted ? 0 : volume;
       audioRef.current.muted = muted;
-      void audioRef.current.play().catch((error: unknown) => {
-        const name = error instanceof DOMException ? error.name : "";
-        if (name === "NotSupportedError" || name === "AbortError") {
-          setAudioFallback(true);
-          setExternalAudioActive(false);
-        }
+      void audioRef.current.play().catch(() => {
+        setAudioFallback(true);
+        setExternalAudioActive(false);
+        video.muted = false;
       });
     }
 
@@ -624,6 +620,7 @@ export function VideoPlayer({
         onPause={() => {
           setStatus("paused");
           setControls(true);
+          setExternalAudioActive(false);
           emitProgress(true);
           audioRef.current?.pause();
         }}
@@ -673,6 +670,7 @@ export function VideoPlayer({
         onEnded={() => {
           setStatus("ended");
           setControls(true);
+          setExternalAudioActive(false);
           audioRef.current?.pause();
           cbRef.current.onEnded?.();
         }}
