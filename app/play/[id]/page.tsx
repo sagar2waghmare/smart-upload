@@ -24,6 +24,7 @@ type ApiResult = {
   shareUrl?: string;
   sourceType?: string;
   prepared?: boolean;
+  playbackId?: string;
   audioTracks?: AudioVariant[];
 };
 
@@ -34,6 +35,7 @@ export default function PlayPage() {
   const [error, setError] = useState<string | null>(null);
   const [seasonIdx, setSeasonIdx] = useState(0);
   const [episode, setEpisode] = useState<Episode | null>(null);
+  const [playback, setPlayback] = useState<ApiResult | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -45,9 +47,12 @@ export default function PlayPage() {
         const json = (await r.json()) as ApiResult;
         if (!alive) return;
         setData(json);
-        const first = json.item.seasons?.[0]?.episodes?.[0] ?? null;
+        setPlayback(json);
+
+        const allEpisodes = json.item.seasons?.flatMap((season) => season.episodes) ?? [];
+        const requestedEpisode = allEpisodes.find((ep) => ep.id === id) ?? allEpisodes[0] ?? null;
         setSeasonIdx(0);
-        setEpisode(first);
+        setEpisode(requestedEpisode);
       })
       .catch((e: Error) => {
         if (alive) setError(e.message ?? "Something went wrong.");
@@ -60,17 +65,54 @@ export default function PlayPage() {
     };
   }, [id]);
 
+  // Each episode can have its own browser-safe MP4 and AAC sidecars. Resolve
+  // playback for the selected episode instead of reusing the first episode's
+  // manifest. The existing direct /api/stream fallback remains available while
+  // the manifest is loading.
+  useEffect(() => {
+    if (!item || item.kind === "movie" || !episode?.id) return;
+    if (playback?.playbackId === episode.id) return;
+
+    let alive = true;
+    fetch(`/api/play/${encodeURIComponent(episode.id)}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`Playback manifest returned ${r.status}`);
+        return (await r.json()) as ApiResult;
+      })
+      .then((json) => {
+        if (alive) setPlayback(json);
+      })
+      .catch((err) => {
+        if (alive) {
+          console.warn("[play-page] Episode playback manifest unavailable", err);
+          setPlayback(null);
+        }
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [episode?.id, item, playback?.playbackId]);
+
   const item = data?.item;
 
   const seasons = useMemo(() => item?.seasons ?? [], [item]);
   const currentSeason = seasons[seasonIdx];
   const episodes = currentSeason?.episodes ?? [];
 
+  const activePlayback = useMemo(() => {
+    if (item?.kind === "movie") return data;
+    if (!episode?.id) return null;
+    return playback?.playbackId === episode.id ? playback : null;
+  }, [data, episode?.id, item?.kind, playback]);
+
   const src = useMemo(() => {
     if (!data) return "";
     if (item?.kind === "movie") return data.canPlay ? data.defaultUrl : "";
-    return episode?.mediaUrl || item?.mediaUrl || (data.demo ? data.defaultUrl : "");
-  }, [data, item, episode]);
+    return activePlayback?.canPlay && activePlayback.defaultUrl
+      ? activePlayback.defaultUrl
+      : episode?.mediaUrl || item?.mediaUrl || (data.demo ? data.defaultUrl : "");
+  }, [activePlayback, data, item, episode]);
 
   if (loading)
     return (
@@ -132,8 +174,8 @@ export default function PlayPage() {
           <VideoPlayer
             key={src}
             src={src}
-            sourceType={data.sourceType}
-            shareUrl={data.shareUrl}
+            sourceType={activePlayback?.sourceType ?? data.sourceType}
+            shareUrl={activePlayback?.shareUrl ?? data.shareUrl}
             poster={item.poster}
             backdrop={item.backdrop}
             title={item.title}
@@ -142,7 +184,8 @@ export default function PlayPage() {
             item={item}
             episode={episode}
             onEpisode={hasEpisodes ? (ep) => setEpisode(ep) : undefined}
-            audioTracks={data.audioTracks ?? []}
+            audioTracks={activePlayback?.audioTracks ?? []}
+            preparedBrowserCopy={Boolean(activePlayback?.prepared)}
           />
         ) : (
           <div className="state-box" style={{ borderRadius: "var(--radius-xl)", border: 0 }}>
