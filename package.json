@@ -15,7 +15,9 @@
     "next": "16.3.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "hls.js": "^1.7.3"
+    "hls.js": "^1.7.3",
+    "@vidstack/react": "1.12.13",
+    "vidstack": "1.12.13"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
