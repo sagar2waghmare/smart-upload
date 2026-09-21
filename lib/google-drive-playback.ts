@@ -295,9 +295,33 @@ async function getHlsTree(sourceFileId: string, token: string): Promise<CachedHl
 export async function findPreparedHlsManifest(fileId: string): Promise<string | null> {
   const id = fileId.trim();
   if (!id) return null;
+
   const token = await accessToken();
-  const tree = await getHlsTree(id, token);
-  return tree?.entries.get("master.m3u8")?.id ?? null;
+  const source = await metadata(id, token);
+  if (!source.parents?.[0]) return null;
+
+  const hlsRoot = await findChildFolder(token, source.parents[0], "SMART-HLS");
+  if (!hlsRoot?.id) return null;
+
+  const mediaFolder = await findChildFolder(token, hlsRoot.id, id);
+  if (!mediaFolder?.id) return null;
+
+  const query =
+    `'${escapeDriveQueryValue(mediaFolder.id)}' in parents and name = 'master.m3u8' and trashed = false`;
+  const url = new URL(DRIVE_API_URL);
+  url.searchParams.set("q", query);
+  url.searchParams.set("spaces", "drive");
+  url.searchParams.set("pageSize", "1");
+  url.searchParams.set("fields", "files(id,name,mimeType,parents,trashed)");
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+
+  const data = (await res.json()) as { files?: MediaCheck[] };
+  return data.files?.find((file) => file.id && file.name === "master.m3u8")?.id ?? null;
 }
 
 export async function readPreparedHlsPlaylist(
