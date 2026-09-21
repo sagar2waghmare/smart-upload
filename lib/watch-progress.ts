@@ -88,10 +88,15 @@ export function formatPosition(seconds: number): string {
 }
 
 export function useWatchProgress(): Record<string, WatchProgress> {
-  const [map, setMap] = useState<Record<string, WatchProgress>>(() => loadMap());
+  // Keep the first render identical on the server and client. Reading
+  // localStorage during the initial client render can produce a React hydration
+  // mismatch when saved progress changes the rendered markup.
+  const [map, setMap] = useState<Record<string, WatchProgress>>({});
 
   useEffect(() => {
     const sync = () => setMap(loadMap());
+
+    sync();
     window.addEventListener(PROGRESS_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
