@@ -65,6 +65,8 @@ export default function PlayPage() {
     };
   }, [id]);
 
+  const item = data?.item;
+
   // Each episode can have its own browser-safe MP4 and AAC sidecars. Resolve
   // playback for the selected episode instead of reusing the first episode's
   // manifest. The existing direct /api/stream fallback remains available while
@@ -93,8 +95,6 @@ export default function PlayPage() {
       alive = false;
     };
   }, [episode?.id, item, playback?.playbackId]);
-
-  const item = data?.item;
 
   const seasons = useMemo(() => item?.seasons ?? [], [item]);
   const currentSeason = seasons[seasonIdx];
