@@ -46,6 +46,10 @@ export function Hero({ items }: { items: MediaItem[] }) {
     const target = e.target as HTMLElement;
     if (target.closest("button") && !target.closest(".hero-poster")) return;
     dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: true, moved: false, horizontal: false };
+    // Capture the pointer on the whole hero track. This is important when the
+    // gesture starts directly on the poster: once the finger/mouse moves off
+    // the poster, the carousel must continue receiving pointer events.
+    try { trackRef.current?.setPointerCapture(e.pointerId); } catch {}
     trackRef.current?.classList.add("is-pressing");
   }, []);
   const onPointerMove = useCallback((e: React.PointerEvent) => {
@@ -55,7 +59,12 @@ export function Hero({ items }: { items: MediaItem[] }) {
     if (!dragRef.current.horizontal && Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
     if (!dragRef.current.horizontal) {
       dragRef.current.horizontal = Math.abs(dx) > Math.abs(dy);
-      if (!dragRef.current.horizontal) return;
+      if (!dragRef.current.horizontal) {
+        dragRef.current.dragging = false;
+        trackRef.current?.classList.remove("is-pressing");
+        return;
+      }
+      trackRef.current.classList.add("is-dragging");
     }
     if (Math.abs(dx) > 8) dragRef.current.moved = true;
     trackRef.current.style.setProperty("--drag-x", `${Math.max(-140, Math.min(140, dx))}px`);
@@ -64,6 +73,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.dragging) return;
     dragRef.current.dragging = false;
+    try { trackRef.current?.releasePointerCapture(e.pointerId); } catch {}
     trackRef.current?.classList.remove("is-pressing", "is-dragging");
     trackRef.current?.style.setProperty("--drag-x", "0px");
     const dx = e.clientX - dragRef.current.startX;
