@@ -747,3 +747,17 @@ Ask the user which one to start, or continue in the order above if they say "res
 - Current latest GitHub main commit for this work is cb01ef06c38c2386913d4a146adac2a0e6744afa for media preparation; the episode manifest fixes precede it in the same main history.
 - Vercel CI currently reports build-rate-limit on the connected project, so GitHub/Vercel has not produced a new verified production deployment for these commits. The last READY deployment remains tied to the earlier known-good player baseline. Do not claim these changes are live until a READY deployment is observed.
 - Remaining architecture gap: the repository contains an FFmpeg HLS worker, but it is not yet wired as an automatic on-demand transcoder for incompatible browser audio. Adding HLS playback in Chrome would require an HLS client such as hls.js; project policy requires explicit approval before introducing a new runtime package. Until that is approved and a transcode service is connected, browser-incompatible source audio still requires a prepared browser-safe rendition.
+
+ 
+---
+## 2026-09-21 — HLS-capable player rebuild
+
+- User explicitly requested replacing the previous player because some Google Drive movies show video with silent audio in Chrome.
+- Web research confirmed that HLS.js is a current maintained browser HLS/MSE client (1.7.3) and supports HLS audio track handling; browser playback still depends on codecs the browser can decode, so HLS output must contain browser-safe audio such as AAC. MDN documents H.264 + AAC in MP4 as broadly compatible across major browsers.
+- The Smart Upload player was rebuilt to prefer a prepared HLS manifest when available, use HLS.js with MSE, recover from fatal network/media errors, expose HLS audio-track selection and adaptive quality controls, and fall back to the original direct source.
+- Added app/api/hls/[id]/[...path]/route.ts to serve prepared HLS playlists and rewrite media URIs. Prepared video/audio segments can be redirected to the existing signed Cloudflare playback worker or protected /api/stream route.
+- app/api/play/[id]/route.ts now exposes hlsUrl when a SMART-HLS/<source-id>/master.m3u8 package exists. app/play/[id]/page.tsx and components/PlaybackOverlay.tsx pass that manifest into VideoPlayer.
+- scripts/drive_hls_worker.py now creates video-only HLS renditions and separate browser-safe AAC HLS audio renditions for every source audio track, then advertises them in the HLS master playlist.
+- hls.js 1.7.3 was added to package.json/package-lock.json. This is the intentional runtime-dependency exception for the player rebuild.
+- Deployment verification: the connected Vercel GitHub status currently reports "Deployment rate limited — retry in 24 hours", so the rebuilt player has NOT been verified live on Vercel yet. Do not claim the current production/site URL contains this rebuild until a READY deployment for a current commit is observed.
+- Important remaining gap: the HLS worker is currently a prepared-media processor, not an on-demand transcoding API. A source movie with no browser-safe copy and no SMART-HLS package still cannot be transformed inside Chrome alone. The upload/processing service contract must be connected before every incompatible movie can be automatically prepared.
