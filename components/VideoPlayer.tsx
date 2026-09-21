@@ -41,6 +41,7 @@ type Props = {
   onEnded?: () => void;
   onClose?: () => void;
   audioTracks?: AudioVariant[];
+  preparedBrowserCopy?: boolean;
 };
 
 const fmt = (t: number) => {
@@ -71,6 +72,7 @@ export function VideoPlayer({
   onEnded,
   onClose,
   audioTracks = [],
+  preparedBrowserCopy = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -105,6 +107,7 @@ export function VideoPlayer({
   const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
   const [audioFallback, setAudioFallback] = useState(false);
   const [externalAudioActive, setExternalAudioActive] = useState(false);
+  const [useExternalAudio, setUseExternalAudio] = useState(false);
 
   const qualityVariants = [
     ...(item.qualityVariants ?? []),
@@ -115,9 +118,7 @@ export function VideoPlayer({
   );
 
   const hasExternalAudio = audioTracks.length > 0;
-  // Prepared AAC/M4A sidecars are the authoritative browser-safe audio path when present.
-  // This avoids depending on the source video's original audio codec.
-  const externalAudioEnabled = hasExternalAudio && !audioFallback;
+  const externalAudioEnabled = hasExternalAudio && !audioFallback && (!preparedBrowserCopy || useExternalAudio);
   const externalAudioPlaying = externalAudioEnabled && externalAudioActive;
   const playing = status === "playing";
 
@@ -132,6 +133,7 @@ export function VideoPlayer({
     setCcOn(false);
     setAudioFallback(false);
     setExternalAudioActive(false);
+    setUseExternalAudio(false);
     setShareStatus(null);
     setError(null);
     setStarted(false);
@@ -161,7 +163,7 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    video.muted = externalAudioEnabled;
+    video.muted = externalAudioPlaying;
     if (!audio || !externalAudioEnabled) return;
 
     const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
@@ -181,12 +183,12 @@ export function VideoPlayer({
   useEffect(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    if (video) video.muted = externalAudioEnabled;
+    if (video) video.muted = externalAudioPlaying;
     if (audio) {
       audio.volume = muted ? 0 : volume;
       audio.muted = muted;
     }
-  }, [externalAudioEnabled, muted, volume]);
+  }, [externalAudioPlaying, muted, volume]);
 
   const poke = useCallback(() => {
     setControls(true);
@@ -286,14 +288,14 @@ export function VideoPlayer({
 
       if (video) {
         video.volume = next;
-        video.muted = externalAudioEnabled ? true : next === 0;
+        video.muted = externalAudioPlaying ? true : next === 0;
       }
       if (audio) {
         audio.volume = next;
         audio.muted = next === 0;
       }
     },
-    [externalAudioEnabled]
+    [externalAudioPlaying]
   );
 
   const toggleMute = useCallback(() => {
@@ -301,16 +303,16 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    const nextMuted = externalAudioEnabled ? !(audio?.muted ?? muted) : !video.muted;
+    const nextMuted = externalAudioPlaying ? !(audio?.muted ?? muted) : !video.muted;
     setMuted(nextMuted);
 
-    if (externalAudioEnabled) {
+    if (externalAudioPlaying) {
       if (audio) audio.muted = nextMuted;
       video.muted = true;
     } else {
       video.muted = nextMuted;
     }
-  }, [externalAudioEnabled, muted]);
+  }, [externalAudioPlaying, muted]);
 
   const switchQuality = useCallback(
     (label: string, url: string) => {
@@ -411,7 +413,18 @@ export function VideoPlayer({
       const position = video?.currentTime ?? current;
 
       setSelectedAudioIndex(index);
-          if (audio) {
+      const shouldUseExternal = !preparedBrowserCopy || index !== 0;
+      setUseExternalAudio(shouldUseExternal);
+
+      if (!shouldUseExternal) {
+        setAudioFallback(false);
+        setExternalAudioActive(false);
+        audio?.pause();
+        if (video) video.muted = false;
+        return;
+      }
+
+      if (audio) {
         setAudioFallback(false);
         setExternalAudioActive(false);
         audio.src = audioTracks[index].url;
@@ -430,7 +443,7 @@ export function VideoPlayer({
         }
       }
     },
-    [audioTracks, current, muted, volume]
+    [audioTracks, current, muted, volume, preparedBrowserCopy]
   );
 
   const startPlayback = useCallback(() => {
@@ -613,20 +626,9 @@ export function VideoPlayer({
             syncAudioToVideo();
           }}
           onError={() => {
-            const mediaError = audioRef.current?.error;
-            console.warn("[player] External audio track failed", {
-              code: mediaError?.code ?? null,
-              message: mediaError?.message ?? null,
-              track: audioTracks[selectedAudioIndex]?.label ?? null,
-            });
             setAudioFallback(true);
             setExternalAudioActive(false);
             if (videoRef.current) videoRef.current.muted = false;
-          }}
-          onStalled={() => {
-            if (started && externalAudioEnabled) {
-              console.warn("[player] External audio stalled");
-            }
           }}
         />
       ) : null}
