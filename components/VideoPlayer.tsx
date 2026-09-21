@@ -57,9 +57,17 @@ export function VideoPlayer({
   onProgress,
   onEnded,
   onClose,
+  audioTracks = [],
+  preparedBrowserCopy = false,
 }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
-  const [source, setSource] = useState(hlsUrl || src);
+
+  // A prepared browser MP4 is the reliability path: H.264 + AAC plays through
+  // the browser's native media pipeline and does not depend on HLS alternate
+  // audio selection. HLS remains the fallback for media that has no prepared
+  // browser-safe copy.
+  const preferredSource = preparedBrowserCopy && src ? src : hlsUrl || src;
+  const [source, setSource] = useState(preferredSource);
   const [fallbackUsed, setFallbackUsed] = useState(false);
   const [resumeApplied, setResumeApplied] = useState(false);
   const lastProgressRef = useRef(0);
@@ -75,11 +83,10 @@ export function VideoPlayer({
   }, [onEnded]);
 
   useEffect(() => {
-    const nextSource = hlsUrl || src;
-    setSource(nextSource);
+    setSource(preferredSource);
     setFallbackUsed(false);
     setResumeApplied(false);
-  }, [hlsUrl, src]);
+  }, [preferredSource]);
 
   const emitProgress = useCallback((force = false) => {
     const player = playerRef.current;
@@ -139,16 +146,6 @@ export function VideoPlayer({
 
   const handleCanPlay = useCallback(() => {
     const player = playerRef.current;
-
-    // Some older prepared HLS masters can expose a video-only stream with no
-    // usable audio rendition. In that case, immediately use the browser MP4
-    // backup instead of leaving the user with silent playback.
-    if (player && hlsUrl && source === hlsUrl && src && player.audioTracks.length === 0) {
-      setFallbackUsed(true);
-      setSource(src);
-      setResumeApplied(false);
-      return;
-    }
 
     applyResume();
   }, [applyResume, hlsUrl, source, src]);
