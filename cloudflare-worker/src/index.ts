@@ -444,7 +444,16 @@ async function serveRangedChunk(
     ctx.waitUntil(fillChunkCache(ctx, requestUrl.origin, fileId, nextStart, token).catch(() => undefined));
   }
 
-  return makeRangeResponse(clientBody, stored, range, "MISS", mediaHeaders);
+  const rangeResponse = makeRangeResponse(clientBody, stored, range, "MISS", mediaHeaders);
+  if (rangeResponse) return rangeResponse;
+
+  // The range was validated above, so this is only a defensive fallback.
+  // It prevents a null range response from turning into an unexpected 500.
+  const fallbackHeaders = new Headers(corsHeaders(request.headers.get("Origin") ?? "*"));
+  copyMediaHeaders(upstream, fallbackHeaders);
+  fallbackHeaders.set("Accept-Ranges", "bytes");
+  fallbackHeaders.set("X-Content-Type-Options", "nosniff");
+  return new Response(clientBody, { status: upstream.status, headers: fallbackHeaders });
 }
 
 async function driveMediaFetch(url: string, headers: Headers): Promise<Response> {
