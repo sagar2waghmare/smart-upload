@@ -165,7 +165,19 @@ export function VideoPlayer({
         key={source}
         className="premium-player-v2__media"
         title={episodeTitle ? `${title} — ${episodeTitle}` : title}
-        src={{ src: source, type: hlsUrl && !fallbackUsed && source === hlsUrl ? "application/x-mpegurl" : sourceType || "video/mp4" }}
+        src={{
+          src: source,
+          type:
+            hlsUrl && !fallbackUsed && source === hlsUrl
+              ? "application/x-mpegurl"
+              : (sourceType === "audio/mpeg" ||
+                  sourceType === "audio/mp4" ||
+                  sourceType === "video/mp4" ||
+                  sourceType === "video/webm" ||
+                  sourceType === "video/ogg"
+                  ? sourceType
+                  : "video/mp4"),
+        }}
         load="eager"
         crossOrigin="anonymous"
         playsInline
