@@ -1,5 +1,4 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
-import { unstable_cache } from "next/cache";
 import { identifyFilename } from "./identify";
 import { getEpisodeMeta, tmdbConfigured } from "./metadata/tmdb";
 import type { Episode, LibraryResponse, MediaItem, Season } from "./types";
@@ -154,30 +153,65 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
   return output.sort((a, b) => a.title.localeCompare(b.title));
 }
 
+// Do not put the Drive read behind Next's persistent Data Cache. A transient
+// Google Drive/API failure can otherwise cache an empty library and make the
+// home page appear to have no movies after a deployment. Keep the last
+// successful library only in the current server instance, and never replace
+// it with an empty/error response.
+let lastGoodLibrary: { at: number; response: LibraryResponse } | null = null;
+const GOOD_LIBRARY_TTL_MS = 30_000;
+
 async function loadLibrary(): Promise<LibraryResponse> {
   if (!googleDriveConfigured()) {
     console.error("[library] Google Drive is not configured");
+    if (lastGoodLibrary) return lastGoodLibrary.response;
     return { mode: "google-drive", items: [], count: 0, error: "Google Drive is not configured" };
   }
+
   try {
     const rawItems = await listDriveLibrary();
     const normalized = await Promise.all(rawItems.map(normalizeItem));
     const items = normalized.filter((item): item is MediaItem => item !== null);
     const grouped = await groupSeries(items);
+
     console.log(`[library] Google Drive returned ${items.length} files as ${grouped.length} library entries`);
-    return { mode: "google-drive", items: grouped, count: grouped.length };
+
+    // Only remember a non-empty successful response. This prevents a transient
+    // empty Drive response from wiping an already working library.
+    if (grouped.length > 0) {
+      lastGoodLibrary = {
+        at: Date.now(),
+        response: { mode: "google-drive", items: grouped, count: grouped.length },
+      };
+      return lastGoodLibrary.response;
+    }
+
+    if (lastGoodLibrary && Date.now() - lastGoodLibrary.at < GOOD_LIBRARY_TTL_MS) {
+      console.warn("[library] Drive returned 0 items; keeping the last successful library");
+      return lastGoodLibrary.response;
+    }
+
+    return { mode: "google-drive", items: [], count: 0 };
   } catch (err) {
     console.error("[library] Google Drive fetch failed", err);
-    return { mode: "google-drive", items: [], count: 0, error: err instanceof Error ? err.message : "Google Drive library unavailable" };
+
+    if (lastGoodLibrary) {
+      console.warn("[library] Serving the last successful library after Drive failure");
+      return lastGoodLibrary.response;
+    }
+
+    return {
+      mode: "google-drive",
+      items: [],
+      count: 0,
+      error: err instanceof Error ? err.message : "Google Drive library unavailable",
+    };
   }
 }
 
-// Browse tabs all read the same library. Cache the expensive Drive + TMDB normalization
-// work briefly so moving between Movies / TV / Anime does not repeat it per request.
-export const getLibrary = unstable_cache(loadLibrary, ["smart-upload-library"], {
-  revalidate: 30,
-  tags: ["library"],
-});
+export async function getLibrary(): Promise<LibraryResponse> {
+  return loadLibrary();
+}
 
 export async function getPublished(): Promise<MediaItem[]> {
   return (await getLibrary()).items;
