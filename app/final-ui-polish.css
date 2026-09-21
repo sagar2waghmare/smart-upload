@@ -2172,3 +2172,59 @@ main, .page, .main-content {
     -webkit-tap-highlight-color: transparent !important;
   }
 }
+
+
+/* ============================================================
+   SMART UPLOAD — HERO TOUCH SURFACE V8
+   Entire hero is swipeable; controls remain clickable.
+   ============================================================ */
+
+.hero-filmes {
+  touch-action: pan-y !important;
+}
+
+.hero-filmes.is-pressing {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.hero-filmes.is-dragging {
+  cursor: grabbing !important;
+}
+
+.hero-filmes.is-dragging .hero-poster.ativo {
+  transform: translateY(-50%) translateX(var(--drag-x, 0px)) scale(.985) !important;
+  transition: none !important;
+}
+
+/* Keep the indicator compact on phones. The button remains an actual control,
+   but its visual footprint is no longer a 44px circle. */
+.hero-dots {
+  gap: 7px !important;
+  min-height: 14px !important;
+}
+
+.hero-dots .hero-dot {
+  width: 8px !important;
+  height: 8px !important;
+  min-width: 8px !important;
+  min-height: 8px !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  flex: 0 0 8px !important;
+}
+
+@media (max-width: 680px) {
+  .hero-dots {
+    gap: 6px !important;
+    bottom: 22px !important;
+  }
+
+  .hero-dots .hero-dot {
+    width: 7px !important;
+    height: 7px !important;
+    min-width: 7px !important;
+    min-height: 7px !important;
+    flex-basis: 7px !important;
+  }
+}
