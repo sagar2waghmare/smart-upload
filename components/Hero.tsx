@@ -43,7 +43,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
   }, []);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest("button")) return;
+    // The active poster itself is the swipe surface. A tap still opens details;
+    // a horizontal drag changes the featured title.
     dragRef.current = { startX: e.clientX, dragging: true, moved: false };
     trackRef.current?.setPointerCapture(e.pointerId);
     trackRef.current?.classList.add("is-dragging");
