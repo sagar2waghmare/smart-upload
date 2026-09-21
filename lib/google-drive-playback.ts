@@ -18,6 +18,22 @@ let tokenPromise: Promise<string> | null = null;
 const mediaChecks = new Map<string, { valid: boolean; expiresAt: number }>();
 const mediaMetadata = new Map<string, CachedMedia>();
 
+type HlsTreeEntry = {
+  id: string;
+  name: string;
+  mimeType?: string;
+  path: string;
+};
+
+type CachedHlsTree = {
+  rootId: string;
+  entries: Map<string, HlsTreeEntry>;
+  expiresAt: number;
+};
+
+let hlsTreeCache = new Map<string, CachedHlsTree>();
+
+
 function serviceAccount(): ServiceAccount | null {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
   if (raw) {
@@ -189,6 +205,122 @@ export async function findPreparedAudioTracks(fileId: string): Promise<Array<{ l
     .map(({ id: trackId, label, language }) => ({ id: trackId, label, language }));
 }
 
+async function listChildren(token: string, parentId: string): Promise<MediaCheck[]> {
+  const files: MediaCheck[] = [];
+  let pageToken: string | undefined;
+  do {
+    const url = new URL(DRIVE_API_URL);
+    url.searchParams.set("q", `'${escapeDriveQueryValue(parentId)}' in parents and trashed = false`);
+    url.searchParams.set("spaces", "drive");
+    url.searchParams.set("pageSize", "1000");
+    url.searchParams.set("fields", "nextPageToken,files(id,name,parents,mimeType,size,trashed)");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return files;
+
+    const data = (await res.json()) as { nextPageToken?: string; files?: MediaCheck[] };
+    files.push(...(data.files ?? []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return files;
+}
+
+async function findChildFolder(token: string, parentId: string, name: string): Promise<MediaCheck | null> {
+  const query = `'${escapeDriveQueryValue(parentId)}' in parents and name = '${escapeDriveQueryValue(name)}' and mimeType = '${DRIVE_FOLDER_MIME}' and trashed = false`;
+  const url = new URL(DRIVE_API_URL);
+  url.searchParams.set("q", query);
+  url.searchParams.set("spaces", "drive");
+  url.searchParams.set("pageSize", "10");
+  url.searchParams.set("fields", "files(id,name,mimeType,parents,trashed)");
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+
+  const data = (await res.json()) as { files?: MediaCheck[] };
+  return data.files?.find((file) => file.id && file.name === name) ?? null;
+}
+
+async function getHlsTree(sourceFileId: string, token: string): Promise<CachedHlsTree | null> {
+  const cached = hlsTreeCache.get(sourceFileId);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+
+  const source = await metadata(sourceFileId, token);
+  if (!source.parents?.[0]) return null;
+
+  const hlsRoot = await findChildFolder(token, source.parents[0], "SMART-HLS");
+  if (!hlsRoot?.id) return null;
+
+  const mediaFolder = await findChildFolder(token, hlsRoot.id, sourceFileId);
+  if (!mediaFolder?.id) return null;
+
+  const entries = new Map<string, HlsTreeEntry>();
+  const queue: Array<{ id: string; path: string }> = [{ id: mediaFolder.id, path: "" }];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current) break;
+    const children = await listChildren(token, current.id);
+
+    for (const child of children) {
+      if (!child.id || !child.name) continue;
+      const relativePath = current.path ? `${current.path}/${child.name}` : child.name;
+      if (child.mimeType === DRIVE_FOLDER_MIME) {
+        queue.push({ id: child.id, path: relativePath });
+      } else {
+        entries.set(relativePath, {
+          id: child.id,
+          name: child.name,
+          mimeType: child.mimeType,
+          path: relativePath,
+        });
+      }
+    }
+  }
+
+  if (!entries.has("master.m3u8")) return null;
+
+  const result = { rootId: mediaFolder.id, entries, expiresAt: Date.now() + 10 * 60 * 1000 };
+  hlsTreeCache.set(sourceFileId, result);
+  return result;
+}
+
+export async function findPreparedHlsManifest(fileId: string): Promise<string | null> {
+  const id = fileId.trim();
+  if (!id) return null;
+  const token = await accessToken();
+  const tree = await getHlsTree(id, token);
+  return tree?.entries.get("master.m3u8")?.id ?? null;
+}
+
+export async function readPreparedHlsPlaylist(
+  sourceFileId: string,
+  relativePath: string,
+): Promise<{ content: string; tree: CachedHlsTree } | null> {
+  const id = sourceFileId.trim();
+  const safePath = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!id || !safePath || safePath.includes("..") || safePath.includes("\0")) return null;
+
+  const token = await accessToken();
+  const tree = await getHlsTree(id, token);
+  const entry = tree?.entries.get(safePath);
+  if (!entry) return null;
+
+  const res = await fetch(
+    `${DRIVE_API_URL}/${encodeURIComponent(entry.id)}?alt=media`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (!res.ok) return null;
+  return { content: await res.text(), tree };
+}
+
 export async function getDriveMediaMimeType(fileId: string): Promise<string | null> {
   const id = fileId.trim();
   if (!id) return null;
@@ -205,6 +337,18 @@ export async function validateDriveMedia(fileId: string): Promise<boolean> {
   const item = await metadata(id, token);
   if (item.trashed || !item.mimeType?.startsWith("video/")) return false;
   return isInsideMedia(id, token);
+}
+
+export async function getPreparedHlsEntry(
+  sourceFileId: string,
+  relativePath: string,
+): Promise<HlsTreeEntry | null> {
+  const id = sourceFileId.trim();
+  const safePath = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!id || !safePath || safePath.includes("..") || safePath.includes("\0")) return null;
+  const token = await accessToken();
+  const tree = await getHlsTree(id, token);
+  return tree?.entries.get(safePath) ?? null;
 }
 
 export async function drivePlaybackFetch(fileId: string, headers: Record<string, string>): Promise<Response> {
