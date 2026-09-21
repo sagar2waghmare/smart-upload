@@ -25,6 +25,7 @@ export function PlaybackOverlay() {
   const [sourceType, setSourceType] = useState<string | undefined>();
   const [demo, setDemo] = useState(false);
   const [audioTracks, setAudioTracks] = useState<AudioVariant[]>([]);
+  const [prepared, setPrepared] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endedRef = useRef(false);
 
