@@ -181,12 +181,12 @@ export function VideoPlayer({
   useEffect(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    if (video) video.muted = externalAudioPlaying;
+    if (video) video.muted = externalAudioEnabled;
     if (audio) {
       audio.volume = muted ? 0 : volume;
       audio.muted = muted;
     }
-  }, [externalAudioPlaying, muted, volume]);
+  }, [externalAudioEnabled, muted, volume]);
 
   const poke = useCallback(() => {
     setControls(true);
@@ -293,7 +293,7 @@ export function VideoPlayer({
         audio.muted = next === 0;
       }
     },
-    [externalAudioPlaying]
+    [externalAudioEnabled]
   );
 
   const toggleMute = useCallback(() => {
@@ -310,7 +310,7 @@ export function VideoPlayer({
     } else {
       video.muted = nextMuted;
     }
-  }, [externalAudioPlaying, muted]);
+  }, [externalAudioEnabled, muted]);
 
   const switchQuality = useCallback(
     (label: string, url: string) => {
@@ -411,8 +411,7 @@ export function VideoPlayer({
       const position = video?.currentTime ?? current;
 
       setSelectedAudioIndex(index);
-      const shouldUseExternal = !preparedBrowserCopy || index !== 0;
-        if (audio) {
+          if (audio) {
         setAudioFallback(false);
         setExternalAudioActive(false);
         audio.src = audioTracks[index].url;
