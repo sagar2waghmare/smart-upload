@@ -621,13 +621,10 @@ export function VideoPlayer({
           setBuffering(false);
           poke();
           if (audioRef.current && externalAudioEnabled) {
-            void audioRef.current.play().catch((error: unknown) => {
-              const name = error instanceof DOMException ? error.name : "";
-              if (name === "NotSupportedError" || name === "AbortError") {
-                setAudioFallback(true);
-                setExternalAudioActive(false);
-                videoRef.current.muted = false;
-              }
+            void audioRef.current.play().catch(() => {
+              setAudioFallback(true);
+              setExternalAudioActive(false);
+              videoRef.current.muted = false;
             });
           }
         }}
@@ -659,7 +656,7 @@ export function VideoPlayer({
           setCurrent(time);
 
           if (
-            externalAudioEnabled &&
+            externalAudioPlaying &&
             audioRef.current &&
             Math.abs(audioRef.current.currentTime - time) > 0.35
           ) {
