@@ -121,22 +121,6 @@ export function VideoPlayer({
     }
   }, []);
 
-  const handleCanPlay = useCallback(() => {
-    const player = playerRef.current;
-
-    // Some older prepared HLS masters can expose a video-only stream with no
-    // usable audio rendition. In that case, immediately use the browser MP4
-    // backup instead of leaving the user with silent playback.
-    if (player && hlsUrl && source === hlsUrl && src && player.audioTracks.length === 0) {
-      setFallbackUsed(true);
-      setSource(src);
-      setResumeApplied(false);
-      return;
-    }
-
-    applyResume();
-  }, [applyResume, hlsUrl, source, src]);
-
   const applyResume = useCallback(() => {
     const player = playerRef.current;
     if (!player || resumeApplied || !initialTime || initialTime <= 0.5) return;
@@ -152,6 +136,22 @@ export function VideoPlayer({
       setResumeApplied(false);
     }
   }, [initialTime, resumeApplied]);
+
+  const handleCanPlay = useCallback(() => {
+    const player = playerRef.current;
+
+    // Some older prepared HLS masters can expose a video-only stream with no
+    // usable audio rendition. In that case, immediately use the browser MP4
+    // backup instead of leaving the user with silent playback.
+    if (player && hlsUrl && source === hlsUrl && src && player.audioTracks.length === 0) {
+      setFallbackUsed(true);
+      setSource(src);
+      setResumeApplied(false);
+      return;
+    }
+
+    applyResume();
+  }, [applyResume, hlsUrl, source, src]);
 
   const flatEpisodes = item.seasons?.flatMap((season) => season.episodes) ?? [];
   const episodeIndex = episode
