@@ -212,7 +212,7 @@ export async function drivePlaybackFetch(fileId: string, headers: Record<string,
   if (!id) throw new Error("Invalid media id");
   let token = await accessToken();
   const item = await metadata(id, token);
-  if (item.trashed || !item.mimeType?.startsWith("video/")) throw new Error("Media is not a playable video");
+  if (item.trashed || !item.mimeType || (!item.mimeType.startsWith("video/") && !item.mimeType.startsWith("audio/"))) throw new Error("Media is not a playable media stream");
   if (!(await isInsideMedia(id, token))) throw new Error("Media is outside the Smart Upload library");
   const url = `${DRIVE_API_URL}/${encodeURIComponent(id)}?alt=media`;
   let res = await fetch(url, { headers: { ...headers, Authorization: `Bearer ${token}` }, cache: "no-store" });
