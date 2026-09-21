@@ -144,10 +144,8 @@ export function VideoPlayer({
   }, [initialTime, resumeApplied]);
 
   const handleCanPlay = useCallback(() => {
-    const player = playerRef.current;
-
     applyResume();
-  }, [applyResume, hlsUrl, source, src]);
+  }, [applyResume]);
 
   const flatEpisodes = item.seasons?.flatMap((season) => season.episodes) ?? [];
   const episodeIndex = episode
