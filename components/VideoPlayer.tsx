@@ -161,7 +161,7 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    video.muted = externalAudioPlaying;
+    video.muted = externalAudioEnabled;
     if (!audio || !externalAudioEnabled) return;
 
     const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
@@ -286,7 +286,7 @@ export function VideoPlayer({
 
       if (video) {
         video.volume = next;
-        video.muted = externalAudioPlaying ? true : next === 0;
+        video.muted = externalAudioEnabled ? true : next === 0;
       }
       if (audio) {
         audio.volume = next;
@@ -301,10 +301,10 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    const nextMuted = externalAudioPlaying ? !(audio?.muted ?? muted) : !video.muted;
+    const nextMuted = externalAudioEnabled ? !(audio?.muted ?? muted) : !video.muted;
     setMuted(nextMuted);
 
-    if (externalAudioPlaying) {
+    if (externalAudioEnabled) {
       if (audio) audio.muted = nextMuted;
       video.muted = true;
     } else {
@@ -614,9 +614,20 @@ export function VideoPlayer({
             syncAudioToVideo();
           }}
           onError={() => {
+            const mediaError = audioRef.current?.error;
+            console.warn("[player] External audio track failed", {
+              code: mediaError?.code ?? null,
+              message: mediaError?.message ?? null,
+              track: audioTracks[selectedAudioIndex]?.label ?? null,
+            });
             setAudioFallback(true);
             setExternalAudioActive(false);
             if (videoRef.current) videoRef.current.muted = false;
+          }}
+          onStalled={() => {
+            if (started && externalAudioEnabled) {
+              console.warn("[player] External audio stalled");
+            }
           }}
         />
       ) : null}
