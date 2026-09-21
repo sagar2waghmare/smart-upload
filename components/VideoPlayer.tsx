@@ -126,7 +126,6 @@ export function VideoPlayer({
   const [selectedLevel, setSelectedLevel] = useState(-1);
   const [audioFallback, setAudioFallback] = useState(false);
   const [externalAudioActive, setExternalAudioActive] = useState(false);
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
 
   const usingHls = Boolean(hlsUrl && !hlsFailed);
@@ -366,6 +365,16 @@ export function VideoPlayer({
             setBuffering(false);
           });
 
+          localHls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+            if (disposed) return;
+            const tracks = (localHls?.audioTracks ?? []) as HlsAudioTrack[];
+            setHlsAudioTracks(tracks.map((track, index) => ({
+              id: track.id ?? index,
+              name: track.name,
+              lang: track.lang,
+            })));
+          });
+
           localHls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
             if (!disposed && Number.isInteger(data.id)) setSelectedAudioIndex(data.id);
           });
@@ -563,10 +572,8 @@ export function VideoPlayer({
       const url = shareUrl ?? src;
       if (navigator.share) {
         await navigator.share({ title, text: "Smart Upload stream", url });
-        setShareStatus("Shared");
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(url);
-        setShareStatus("Stream URL copied");
       }
     } catch {}
   }, [shareUrl, src, title]);
