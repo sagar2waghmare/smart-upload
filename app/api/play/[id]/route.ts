@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMediaById } from "../../../../lib/library-service";
 import { resolvePlaybackUrl } from "../../../../lib/playback";
-import { findPreparedAudioTracks, findPreparedBrowserMedia, getDriveMediaMimeType, validateDriveMedia } from "../../../../lib/google-drive-playback";
+import { findPreparedAudioTracks, findPreparedBrowserMedia, findPreparedHlsManifest, getDriveMediaMimeType, validateDriveMedia } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 import { cloudflarePlaybackConfigured, createCloudflarePlaybackUrl } from "../../../../lib/cloudflare-playback";
 
@@ -33,6 +33,7 @@ export async function GET(_req: Request, { params }: Params) {
 
   if (driveMedia && libraryItem) {
     const preparedId = await findPreparedBrowserMedia(playbackId);
+    const hlsManifestId = await findPreparedHlsManifest(playbackId);
     // Sidecar AAC tracks are independent of the browser MP4 copy, so discover
     // them even when playback falls back to the original source.
     const audioTracks = await findPreparedAudioTracks(playbackId);
@@ -45,6 +46,7 @@ export async function GET(_req: Request, { params }: Params) {
       demo: false,
       canPlay: true,
       playbackId,
+      hlsUrl: hlsManifestId ? `/api/hls/${encodeURIComponent(playbackId)}/master.m3u8` : undefined,
       defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
       shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(playbackId)}`,
       prepared: Boolean(preparedId),
