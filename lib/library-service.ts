@@ -153,6 +153,22 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
   return output.sort((a, b) => a.title.localeCompare(b.title));
 }
 
+async function mapWithConcurrency<T, R>(items: T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  return results;
+}
+
 // Do not put the Drive read behind Next's persistent Data Cache. A transient
 // Google Drive/API failure can otherwise cache an empty library and make the
 // home page appear to have no movies after a deployment. Keep the last
@@ -162,6 +178,10 @@ let lastGoodLibrary: { at: number; response: LibraryResponse } | null = null;
 const GOOD_LIBRARY_TTL_MS = 30_000;
 
 async function loadLibrary(): Promise<LibraryResponse> {
+  if (lastGoodLibrary && Date.now() - lastGoodLibrary.at < GOOD_LIBRARY_TTL_MS) {
+    return lastGoodLibrary.response;
+  }
+
   if (!googleDriveConfigured()) {
     console.error("[library] Google Drive is not configured");
     if (lastGoodLibrary) return lastGoodLibrary.response;
@@ -170,7 +190,10 @@ async function loadLibrary(): Promise<LibraryResponse> {
 
   try {
     const rawItems = await listDriveLibrary();
-    const normalized = await Promise.all(rawItems.map(normalizeItem));
+    // Keep metadata lookups bounded. A large Drive folder can contain hundreds
+    // of files; firing one TMDB request chain per file at once causes bursts,
+    // rate limits, and slow/unstable page loads.
+    const normalized = await mapWithConcurrency(rawItems, 4, normalizeItem);
     const items = normalized.filter((item): item is MediaItem => item !== null);
     const grouped = await groupSeries(items);
 
