@@ -15,25 +15,41 @@ export async function GET(_req: Request, { params }: Params) {
   // Resolve metadata from the library first. This preserves movie/series/anime
   // classification and grouped episode metadata for Drive-backed playback.
   const libraryItem = await getMediaById(id);
-  if (await validateDriveMedia(id)) {
-    if (libraryItem) {
-      const preparedId = await findPreparedBrowserMedia(id);
-      // Sidecar AAC tracks are independent of the browser MP4 copy, so discover
-      // them even when playback falls back to the original source.
-      const audioTracks = await findPreparedAudioTracks(id);
-      const sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(id);
-      const browserId = preparedId ?? id;
-      const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(browserId) : null;
-      const shareUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(id) : null;
-      return NextResponse.json({
-        item: libraryItem,
-        demo: false,
-        canPlay: true,
-        defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
-        shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(id)}`,
-        prepared: Boolean(preparedId),
-        sourceType: sourceType ?? undefined,
-        audioTracks: audioTracks
+
+  // A series/anime library card is a grouped metadata entry, not a Drive file.
+  // Resolve its first available episode so the initial player still gets the
+  // same prepared-browser copy and AAC sidecars as a direct episode URL.
+  let playbackId = id;
+  let driveMedia = await validateDriveMedia(id);
+  if (!driveMedia && libraryItem?.seasons?.length) {
+    const firstEpisode = libraryItem.seasons
+      .flatMap((season) => season.episodes)
+      .find((ep) => ep.id);
+    if (firstEpisode?.id) {
+      playbackId = firstEpisode.id;
+      driveMedia = await validateDriveMedia(playbackId);
+    }
+  }
+
+  if (driveMedia && libraryItem) {
+    const preparedId = await findPreparedBrowserMedia(playbackId);
+    // Sidecar AAC tracks are independent of the browser MP4 copy, so discover
+    // them even when playback falls back to the original source.
+    const audioTracks = await findPreparedAudioTracks(playbackId);
+    const sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(playbackId);
+    const browserId = preparedId ?? playbackId;
+    const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(browserId) : null;
+    const shareUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(playbackId) : null;
+    return NextResponse.json({
+      item: libraryItem,
+      demo: false,
+      canPlay: true,
+      playbackId,
+      defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
+      shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(playbackId)}`,
+      prepared: Boolean(preparedId),
+      sourceType: sourceType ?? undefined,
+      audioTracks: audioTracks
         .map((track) => ({
           label: track.label,
           language: track.language,
@@ -42,8 +58,7 @@ export async function GET(_req: Request, { params }: Params) {
             : `/api/stream/${encodeURIComponent(track.id)}`,
         }))
         .filter((track) => Boolean(track.url)),
-      });
-    }
+    });
   }
 
   const item = libraryItem;
