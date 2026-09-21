@@ -3,6 +3,15 @@
 import { useState } from "react";
 import type { AudioVariant } from "../lib/types";
 
+function compactLabel(track?: AudioVariant): string {
+  if (!track) return "AUDIO";
+  const language = (track.language ?? "").trim().toLowerCase();
+  if (language) return language.slice(0, 3).toUpperCase();
+  const label = track.label.trim();
+  if (!label) return "AUDIO";
+  return label.length <= 6 ? label.toUpperCase() : label.slice(0, 5).toUpperCase();
+}
+
 export function AudioLanguageControl({
   tracks,
   activeIndex,
@@ -15,6 +24,7 @@ export function AudioLanguageControl({
   const [open, setOpen] = useState(false);
   const active = tracks[activeIndex] ?? tracks[0];
   const hasAlternates = tracks.length > 1;
+  const buttonLabel = compactLabel(active);
 
   return (
     <div className="pc-menu-anchor audio-language-control">
@@ -25,17 +35,15 @@ export function AudioLanguageControl({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Audio language"
-        title={active ? `Audio: ${active.label}` : "No alternate audio tracks"}
+        title={active ? `Audio: ${active.label}` : "Audio tracks"}
       >
-        <span className="audio-language-icon" aria-hidden="true">
-          {active?.language ? active.language.slice(0, 3).toUpperCase() : "AUDIO"}
-        </span>
+        <span className="audio-language-icon" aria-hidden="true">{buttonLabel}</span>
       </button>
 
       {open ? (
         <div className="pc-pop audio-language-menu" role="menu">
           <div className="pc-pop-title">
-            AUDIO {hasAlternates ? tracks.length + " TRACKS" : "TRACK"}
+            AUDIO {hasAlternates ? `${tracks.length} TRACKS` : "TRACKS"}
           </div>
 
           {tracks.length ? (
@@ -59,7 +67,7 @@ export function AudioLanguageControl({
             ))
           ) : (
             <div className="pc-empty">
-              No alternate audio tracks are prepared for this video.
+              No alternate AAC audio tracks are prepared for this video.
             </div>
           )}
         </div>
