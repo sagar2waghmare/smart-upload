@@ -6,6 +6,7 @@ import "./ui-motion.css";
 import "./player-polish.css";
 import "./premium-ui.css";
 import "./player-mobile-fixes.css";
+import "./final-ui-polish.css";
 import { Header } from "../components/Header";
 import { AuthProvider } from "../components/AuthProvider";
 import { DetailsProvider } from "../components/DetailsProvider";
