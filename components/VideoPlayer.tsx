@@ -130,6 +130,7 @@ export function VideoPlayer({
     setActiveSource(src);
     setSelectedQuality("Auto");
     setSelectedAudioIndex(0);
+    setCcOn(false);
     setAudioFallback(false);
     setExternalAudioActive(false);
     setUseExternalAudio(false);
@@ -722,7 +723,6 @@ export function VideoPlayer({
             src={subtitleUrl}
             srcLang="en"
             label="English"
-            default={ccOn}
           />
         ) : null}
       </video>
