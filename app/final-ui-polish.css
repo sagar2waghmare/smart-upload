@@ -622,3 +622,7 @@ main { padding-bottom: clamp(3rem, 6vw, 5rem); }
     min-width: 40px !important;
   }
 }
+
+
+.audio-language-icon-svg { width: 15px !important; height: 15px !important; flex: 0 0 auto !important; }
+.audio-language-control .audio-language-icon { line-height: 1 !important; }
