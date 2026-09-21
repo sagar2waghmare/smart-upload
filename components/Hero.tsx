@@ -65,6 +65,17 @@ export function Hero({ items }: { items: MediaItem[] }) {
     if (Math.abs(dx) > 50) go(dx < 0 ? index + 1 : index - 1);
   }, [index, go]);
 
+
+  // Keyboard/remote navigation: desktop and TV can move the hero without clicking arrows.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(index - 1); }
+      if (e.key === "ArrowRight") { e.preventDefault(); go(index + 1); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [go, index]);
+
   if (!count) return null;
   const active = items[index];
   const ambientTone = AMBIENT_TONES[index % AMBIENT_TONES.length];
