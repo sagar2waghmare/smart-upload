@@ -57,7 +57,6 @@ export function VideoPlayer({
   onProgress,
   onEnded,
   onClose,
-  audioTracks = [],
   preparedBrowserCopy = false,
 }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
