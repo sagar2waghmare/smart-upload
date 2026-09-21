@@ -103,6 +103,7 @@ export function VideoPlayer({
   const [selectedAudioIndex, setSelectedAudioIndex] = useState(0);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
+  const [audioFallback, setAudioFallback] = useState(false);
 
   const qualityVariants = [
     ...(item.qualityVariants ?? []),
@@ -113,6 +114,7 @@ export function VideoPlayer({
   );
 
   const hasExternalAudio = audioTracks.length > 0;
+  const externalAudioEnabled = hasExternalAudio && !audioFallback;
   const playing = status === "playing";
 
   useEffect(() => {
@@ -123,6 +125,7 @@ export function VideoPlayer({
     setActiveSource(src);
     setSelectedQuality("Auto");
     setSelectedAudioIndex(0);
+    setAudioFallback(false);
     setShareStatus(null);
     setError(null);
     setStarted(false);
@@ -135,8 +138,8 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    video.muted = hasExternalAudio;
-    if (!audio || !hasExternalAudio) return;
+    video.muted = externalAudioEnabled;
+    if (!audio || !externalAudioEnabled) return;
 
     const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
     if (!track) return;
@@ -150,17 +153,17 @@ export function VideoPlayer({
     if (!video.paused && started) {
       void audio.play().catch(() => undefined);
     }
-  }, [audioTracks, selectedAudioIndex, hasExternalAudio, started]);
+  }, [audioTracks, selectedAudioIndex, externalAudioEnabled, started]);
 
   useEffect(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    if (video) video.muted = hasExternalAudio;
+    if (video) video.muted = externalAudioEnabled;
     if (audio) {
       audio.volume = muted ? 0 : volume;
       audio.muted = muted;
     }
-  }, [hasExternalAudio, muted, volume]);
+  }, [externalAudioEnabled, muted, volume]);
 
   const poke = useCallback(() => {
     setControls(true);
@@ -190,11 +193,11 @@ export function VideoPlayer({
   const syncAudioToVideo = useCallback(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
-    if (!hasExternalAudio || !video || !audio) return;
+    if (!externalAudioEnabled || !video || !audio) return;
     try {
       audio.currentTime = Math.max(0, video.currentTime || 0);
     } catch {}
-  }, [hasExternalAudio]);
+  }, [externalAudioEnabled]);
 
   const seek = useCallback(
     (time: number) => {
@@ -206,10 +209,10 @@ export function VideoPlayer({
         video.currentTime = next;
         currentRef.current = next;
         setCurrent(next);
-        if (audioRef.current && hasExternalAudio) audioRef.current.currentTime = next;
+        if (audioRef.current && externalAudioEnabled) audioRef.current.currentTime = next;
       } catch {}
     },
-    [duration, hasExternalAudio]
+    [duration, externalAudioEnabled]
   );
 
   const emitProgress = useCallback((force = false) => {
@@ -242,12 +245,12 @@ export function VideoPlayer({
       else video.currentTime = target;
       currentRef.current = video.currentTime;
       setCurrent(video.currentTime);
-      if (audioRef.current && hasExternalAudio) audioRef.current.currentTime = video.currentTime;
+      if (audioRef.current && externalAudioEnabled) audioRef.current.currentTime = video.currentTime;
     } catch {
       initialedRef.current = false;
       setBuffering(false);
     }
-  }, [initialTime, hasExternalAudio]);
+  }, [initialTime, externalAudioEnabled]);
 
   const changeVolume = useCallback(
     (value: number) => {
@@ -260,14 +263,14 @@ export function VideoPlayer({
 
       if (video) {
         video.volume = next;
-        video.muted = hasExternalAudio ? true : next === 0;
+        video.muted = externalAudioEnabled ? true : next === 0;
       }
       if (audio) {
         audio.volume = next;
         audio.muted = next === 0;
       }
     },
-    [hasExternalAudio]
+    [externalAudioEnabled]
   );
 
   const toggleMute = useCallback(() => {
@@ -275,16 +278,16 @@ export function VideoPlayer({
     const audio = audioRef.current;
     if (!video) return;
 
-    const nextMuted = hasExternalAudio ? !(audio?.muted ?? muted) : !video.muted;
+    const nextMuted = externalAudioEnabled ? !(audio?.muted ?? muted) : !video.muted;
     setMuted(nextMuted);
 
-    if (hasExternalAudio) {
+    if (externalAudioEnabled) {
       if (audio) audio.muted = nextMuted;
       video.muted = true;
     } else {
       video.muted = nextMuted;
     }
-  }, [hasExternalAudio, muted]);
+  }, [externalAudioEnabled, muted]);
 
   const switchQuality = useCallback(
     (label: string, url: string) => {
@@ -387,6 +390,7 @@ export function VideoPlayer({
       setSelectedAudioIndex(index);
 
       if (audio) {
+        setAudioFallback(false);
         audio.src = audioTracks[index].url;
         audio.volume = muted ? 0 : volume;
         audio.muted = muted;
@@ -408,7 +412,7 @@ export function VideoPlayer({
     setError(null);
     setBuffering(true);
 
-    if (audioRef.current && hasExternalAudio) {
+    if (audioRef.current && externalAudioEnabled) {
       audioRef.current.currentTime = video.currentTime || 0;
       audioRef.current.volume = muted ? 0 : volume;
       audioRef.current.muted = muted;
@@ -417,7 +421,7 @@ export function VideoPlayer({
     void video
       .play()
       .then(() => {
-        if (audioRef.current && hasExternalAudio) {
+        if (audioRef.current && externalAudioEnabled) {
           void audioRef.current.play().catch(() => undefined);
         }
       })
@@ -426,7 +430,7 @@ export function VideoPlayer({
         setStarted(false);
         setError("Playback was blocked. Tap Play again.");
       });
-  }, [hasExternalAudio, muted, volume]);
+  }, [externalAudioEnabled, muted, volume]);
 
   const toggleFullscreen = useCallback(() => {
     const element = wrapRef.current;
@@ -557,8 +561,20 @@ export function VideoPlayer({
       onTouchEnd={handleTouchEnd}
       onDoubleClick={handleDoubleClick}
     >
-      {hasExternalAudio ? (
-        <audio ref={audioRef} preload="auto" aria-hidden="true" />
+      {audioTracks.length > 0 ? (
+        <audio
+          ref={audioRef}
+          preload="auto"
+          aria-hidden="true"
+          onCanPlay={() => {
+            setAudioFallback(false);
+            if (videoRef.current && audioTracks.length > 0) videoRef.current.muted = true;
+          }}
+          onError={() => {
+            setAudioFallback(true);
+            if (videoRef.current) videoRef.current.muted = false;
+          }}
+        />
       ) : null}
 
       <video
@@ -572,7 +588,7 @@ export function VideoPlayer({
           setStatus("playing");
           setBuffering(false);
           poke();
-          if (audioRef.current && hasExternalAudio) {
+          if (audioRef.current && externalAudioEnabled) {
             void audioRef.current.play().catch(() => undefined);
           }
         }}
@@ -585,7 +601,7 @@ export function VideoPlayer({
         onWaiting={() => setBuffering(true)}
         onPlaying={() => setBuffering(false)}
         onSeeking={() => {
-          if (hasExternalAudio) syncAudioToVideo();
+          if (externalAudioEnabled) syncAudioToVideo();
           if (initialTime && initialTime > 0.5 && !initialedRef.current) setBuffering(true);
         }}
         onCanPlay={() => setBuffering(false)}
@@ -603,7 +619,7 @@ export function VideoPlayer({
           setCurrent(time);
 
           if (
-            hasExternalAudio &&
+            externalAudioEnabled &&
             audioRef.current &&
             Math.abs(audioRef.current.currentTime - time) > 0.35
           ) {
@@ -615,12 +631,12 @@ export function VideoPlayer({
           emitProgress();
         }}
         onSeeked={() => {
-          if (hasExternalAudio) syncAudioToVideo();
+          if (externalAudioEnabled) syncAudioToVideo();
           setBuffering(false);
           emitProgress(true);
         }}
         onVolumeChange={(event) => {
-          if (hasExternalAudio) return;
+          if (externalAudioEnabled) return;
           setMuted(event.currentTarget.muted);
           setVolume(event.currentTarget.volume);
         }}

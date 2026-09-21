@@ -243,3 +243,37 @@
     margin-bottom: 4px !important;
   }
 }
+
+
+/* Final player cleanup: consistent controls and safe mobile spacing. */
+.player-controls .pc-main-play {
+  background: #fff !important;
+  color: #111 !important;
+  border: 0 !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.34) !important;
+}
+.player-controls .pc-main-play svg {
+  color: #111 !important;
+  fill: currentColor !important;
+}
+.player-controls .pc-btn {
+  border-radius: 10px !important;
+}
+.player-controls .pc-menu-btn,
+.player-controls .audio-language-trigger {
+  border-radius: 10px !important;
+}
+.audio-language-trigger {
+  min-width: 68px !important;
+  padding-inline: 10px !important;
+}
+@media (max-width: 780px) {
+  .player-controls .pc-row { gap: 8px !important; }
+  .player-controls .pc-main-play { width: 38px !important; min-width: 38px !important; height: 38px !important; }
+  .player-controls .pc-btn,
+  .player-controls .pc-menu-btn { width: 36px !important; min-width: 36px !important; height: 36px !important; }
+  .audio-language-trigger { min-width: 66px !important; }
+  .home-content .lista-conteudos { gap: 16px !important; padding-inline: 8px !important; }
+  .home-content .lista-conteudos .card-conteudo { flex-basis: 130px !important; width: 130px !important; min-width: 130px !important; }
+  .card-grid { column-gap: 14px !important; row-gap: 20px !important; padding-inline: 4px !important; }
+}

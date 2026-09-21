@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import type { Episode, MediaItem } from "../../../lib/types";
+import type { AudioVariant, Episode, MediaItem } from "../../../lib/types";
 import { VideoPlayer } from "../../../components/VideoPlayer";
 import { FavButton } from "../../../components/FavButton";
 import { SmartImage } from "../../../components/SmartImage";
@@ -21,6 +21,10 @@ type ApiResult = {
   demo: boolean;
   canPlay: boolean;
   defaultUrl: string;
+  shareUrl?: string;
+  sourceType?: string;
+  prepared?: boolean;
+  audioTracks?: AudioVariant[];
 };
 
 export default function PlayPage() {
@@ -128,6 +132,8 @@ export default function PlayPage() {
           <VideoPlayer
             key={src}
             src={src}
+            sourceType={data.sourceType}
+            shareUrl={data.shareUrl}
             poster={item.poster}
             backdrop={item.backdrop}
             title={item.title}
@@ -136,6 +142,7 @@ export default function PlayPage() {
             item={item}
             episode={episode}
             onEpisode={hasEpisodes ? (ep) => setEpisode(ep) : undefined}
+            audioTracks={data.audioTracks ?? []}
           />
         ) : (
           <div className="state-box" style={{ borderRadius: "var(--radius-xl)", border: 0 }}>
