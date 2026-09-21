@@ -723,3 +723,15 @@ Ask the user which one to start, or continue in the order above if they say "res
    - Server Components rendering private content call `requireSession()` BEFORE fetching the
      library (never rely on middleware cookie presence) — H1 fix `c75dbab`.
 7. **Auth is additive:** the app must keep working in demo mode until real Firebase env vars are set.
+
+---
+## 2026-09-21 — Responsive poster-card fix
+
+- User reported that the movie poster cards look forcibly compact/cropped on Android while the laptop layout is acceptable.
+- Root cause confirmed in `app/globals.css`: `.card-conteudo .poster` used a fixed `height: 320px`, while the mobile breakpoint changed it to `height: 240px` for a ~190px card width. This produces a squat poster box and forces `object-fit: cover` cropping.
+- `components/SmartImage.tsx` now accepts an optional `objectFit` prop.
+- `components/MediaCard.tsx` uses `objectFit="contain"` for posters so the full poster artwork is preserved instead of being cropped.
+- `app/globals.css` now uses a responsive `aspect-ratio: 2 / 3` poster box, removes the forced mobile height, and removes the old poster padding.
+- Changes are isolated on branch `fix/responsive-poster-cards`; production `main` has not been modified.
+- Vercel created a preview deployment for commit `710d015f032d26abdc76e585c856b9625e494b06`; at the time of this update its state is BUILDING.
+- Local lint/build could not be run because this connected GitHub workspace exposes repository operations, not a local checkout/runtime. Vercel preview build is being used for build verification.
