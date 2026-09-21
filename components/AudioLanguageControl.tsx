@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { AudioVariant } from "../lib/types";
-import { IVolumeHigh } from "./icons";
 
 export function AudioLanguageControl({
   tracks,
@@ -16,6 +15,7 @@ export function AudioLanguageControl({
   const [open, setOpen] = useState(false);
   const active = tracks[activeIndex] ?? tracks[0];
   const hasAlternates = tracks.length > 1;
+  const language = active?.language?.slice(0, 2).toUpperCase() || "EN";
 
   return (
     <div className="pc-menu-anchor audio-language-control">
@@ -25,13 +25,11 @@ export function AudioLanguageControl({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="Audio language"
-        title={active ? `Audio: ${active.label}` : "No alternate audio tracks"}
+        aria-label={active ? `Audio language: ${active.label}` : "Audio language"}
+        title={active ? `Audio: ${active.label}` : "Audio language"}
       >
-        <IVolumeHigh className="audio-language-icon-svg" />
-        <span className="audio-language-icon" aria-hidden="true">
-          {active?.language ? active.language.slice(0, 3).toUpperCase() : "AUDIO"}
-        </span>
+        <span className="audio-language-glyph" aria-hidden="true">A</span>
+        <span className="audio-language-label">{language}</span>
       </button>
 
       {open ? (
