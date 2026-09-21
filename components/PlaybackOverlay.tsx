@@ -14,6 +14,7 @@ type ApiResult = {
   shareUrl?: string;
   sourceType?: string;
   prepared?: boolean;
+  hlsUrl?: string;
   audioTracks?: AudioVariant[];
 };
 
@@ -26,6 +27,7 @@ export function PlaybackOverlay() {
   const [demo, setDemo] = useState(false);
   const [audioTracks, setAudioTracks] = useState<AudioVariant[]>([]);
   const [prepared, setPrepared] = useState(false);
+  const [hlsUrl, setHlsUrl] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const endedRef = useRef(false);
 
@@ -41,6 +43,7 @@ export function PlaybackOverlay() {
     setSourceType(undefined);
     setAudioTracks([]);
     setPrepared(false);
+    setHlsUrl(undefined);
     setError(null);
   }
 
@@ -72,6 +75,7 @@ export function PlaybackOverlay() {
         setSourceType(data.sourceType);
         setDemo(data.demo);
         setPrepared(Boolean(data.prepared));
+        setHlsUrl(data.hlsUrl);
         setAudioTracks(data.audioTracks ?? []);
         setReady(true);
       })
@@ -127,6 +131,7 @@ export function PlaybackOverlay() {
             <VideoPlayer
               key={src}
               src={src}
+              hlsUrl={hlsUrl}
               sourceType={sourceType}
               shareUrl={shareUrl}
               poster={item.poster}
