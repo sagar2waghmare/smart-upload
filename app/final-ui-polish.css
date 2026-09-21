@@ -1567,3 +1567,466 @@ body {
     transform: translateX(-50%) !important;
   }
 }
+
+
+/* ============================================================
+   SMART UPLOAD — RESPONSIVE SYSTEM V5
+   One fluid layout system for Android phones, tablets,
+   desktop browsers and TV/10-foot UIs.
+   Uses fluid sizing first; breakpoints only change composition.
+   ============================================================ */
+
+:root {
+  --su-gutter: clamp(14px, 2.6vw, 56px);
+  --su-header-h: clamp(56px, 5vw, 88px);
+  --su-section-gap: clamp(28px, 4vw, 64px);
+  --su-card-gap: clamp(8px, 1.15vw, 18px);
+  --su-radius: clamp(12px, 1.15vw, 22px);
+}
+
+html {
+  width: 100%;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+img, video, canvas, svg {
+  max-width: 100%;
+}
+
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page {
+  width: min(100%, 1920px) !important;
+  min-width: 0 !important;
+  margin-inline: auto !important;
+}
+
+.page > main,
+.page-main,
+.main-content {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+/* Fluid horizontal content rails */
+.secao-conteudos,
+.page-head,
+.site-footer {
+  width: min(calc(100% - (2 * var(--su-gutter))), 1760px) !important;
+  margin-inline: auto !important;
+}
+
+.secao-conteudos {
+  padding-top: var(--su-section-gap) !important;
+}
+
+.titulo-secao {
+  gap: 12px !important;
+  min-width: 0 !important;
+}
+
+.titulo-secao h2,
+.titulo-secao > a {
+  min-width: 0 !important;
+}
+
+.lista-conteudos {
+  display: flex !important;
+  gap: var(--su-card-gap) !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-inline: 2px !important;
+}
+
+.lista-conteudos::-webkit-scrollbar {
+  display: none;
+}
+
+.lista-conteudos .card-conteudo {
+  flex: 0 0 clamp(145px, 15vw, 245px) !important;
+  width: clamp(145px, 15vw, 245px) !important;
+  min-width: 0 !important;
+  scroll-snap-align: start;
+}
+
+.card-grid {
+  width: 100% !important;
+  min-width: 0 !important;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(145px, 14vw, 230px), 1fr)) !important;
+  gap: clamp(12px, 1.5vw, 24px) !important;
+}
+
+.card-conteudo {
+  min-width: 0 !important;
+  width: 100% !important;
+  overflow: hidden !important;
+  border-radius: var(--su-radius) !important;
+}
+
+.card-conteudo .poster {
+  width: 100% !important;
+  aspect-ratio: 2 / 3 !important;
+  overflow: hidden !important;
+}
+
+.card-conteudo .poster img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* Touch devices: remove hover lift so cards do not jump after tapping. */
+@media (hover: none), (pointer: coarse) {
+  .card-conteudo:hover {
+    transform: none !important;
+    box-shadow: 0 12px 35px rgba(0,0,0,.18) !important;
+  }
+
+  .card-conteudo:hover .poster img {
+    transform: none !important;
+  }
+
+  .btn:hover {
+    transform: none !important;
+  }
+}
+
+/* Phone: portrait and landscape */
+@media (max-width: 599px) {
+  :root {
+    --su-gutter: 12px;
+    --su-card-gap: 9px;
+  }
+
+  .header {
+    padding-inline: 8px !important;
+  }
+
+  .page-head {
+    padding-top: 22px !important;
+  }
+
+  .page-head h1 {
+    font-size: clamp(1.65rem, 8vw, 2.3rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  .hero-filmes {
+    width: 100% !important;
+    min-height: min(620px, 165vw) !important;
+    height: auto !important;
+    aspect-ratio: 10 / 14 !important;
+    max-height: none !important;
+  }
+
+  .hero-editorial {
+    left: var(--su-gutter) !important;
+    bottom: clamp(62px, 12vw, 92px) !important;
+    width: calc(100% - (2 * var(--su-gutter))) !important;
+  }
+
+  .hero-editorial h1 {
+    max-width: 11ch !important;
+    font-size: clamp(2.15rem, 11vw, 3.6rem) !important;
+  }
+
+  .hero-editorial-overview {
+    max-width: 48ch !important;
+    font-size: clamp(.74rem, 3.2vw, .9rem) !important;
+  }
+
+  .hero-poster.ativo {
+    width: clamp(150px, 43vw, 205px) !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+    right: var(--su-gutter) !important;
+    top: clamp(130px, 27vw, 190px) !important;
+  }
+
+  .hero-nav {
+    display: none !important;
+  }
+
+  .hero-dots {
+    bottom: clamp(20px, 5vw, 32px) !important;
+  }
+
+  .hero-editorial-actions {
+    flex-wrap: wrap !important;
+    gap: 7px !important;
+  }
+
+  .hero-editorial-actions .btn {
+    min-height: 42px !important;
+    min-width: 42px !important;
+  }
+
+  .form-card {
+    width: 100% !important;
+    margin-top: 22px !important;
+    padding: clamp(16px, 5vw, 22px) !important;
+  }
+
+  .form-actions {
+    flex-wrap: wrap !important;
+  }
+
+  .form-actions .btn {
+    flex: 1 1 140px !important;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .details-hero,
+  .details-section {
+    padding-inline: var(--su-gutter) !important;
+  }
+
+  .details-copy {
+    grid-template-columns: 1fr !important;
+  }
+
+  .details-poster {
+    width: min(62vw, 250px) !important;
+  }
+
+  .episode-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .search-inner {
+    width: calc(100% - 2 * var(--su-gutter)) !important;
+    padding-top: 72px !important;
+  }
+
+  .search-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+}
+
+/* Small Android landscape phones */
+@media (max-width: 899px) and (orientation: landscape) {
+  .hero-filmes {
+    aspect-ratio: 16 / 8.5 !important;
+    min-height: 360px !important;
+  }
+
+  .hero-poster.ativo {
+    width: clamp(150px, 25vw, 220px) !important;
+    right: clamp(28px, 6vw, 70px) !important;
+    top: 50% !important;
+  }
+
+  .hero-editorial {
+    left: clamp(20px, 5vw, 60px) !important;
+    bottom: auto !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 58% !important;
+  }
+
+  .hero-editorial h1 {
+    font-size: clamp(2rem, 6vw, 3.8rem) !important;
+    max-width: 12ch !important;
+  }
+
+  .hero-editorial-overview {
+    display: none !important;
+  }
+}
+
+/* Tablet portrait / landscape */
+@media (min-width: 600px) and (max-width: 1199px) {
+  :root {
+    --su-gutter: clamp(20px, 3vw, 36px);
+  }
+
+  .hero-filmes {
+    min-height: 560px !important;
+    height: clamp(560px, 76vw, 720px) !important;
+    max-height: 760px !important;
+  }
+
+  .hero-editorial {
+    left: var(--su-gutter) !important;
+    width: min(62%, 650px) !important;
+  }
+
+  .hero-editorial h1 {
+    font-size: clamp(2.8rem, 6vw, 4.7rem) !important;
+  }
+
+  .hero-poster.ativo {
+    width: clamp(220px, 27vw, 310px) !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+    right: clamp(24px, 5vw, 70px) !important;
+  }
+
+  .lista-conteudos .card-conteudo {
+    flex-basis: clamp(165px, 20vw, 215px) !important;
+    width: clamp(165px, 20vw, 215px) !important;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)) !important;
+  }
+
+  .details-copy {
+    grid-template-columns: minmax(190px, 270px) minmax(0, 1fr) !important;
+  }
+}
+
+/* TV / large Android TV / desktop */
+@media (min-width: 1200px) {
+  :root {
+    --su-gutter: clamp(28px, 3vw, 72px);
+  }
+
+  body {
+    font-size: clamp(15px, .8vw, 21px);
+  }
+
+  .header {
+    min-height: var(--su-header-h) !important;
+  }
+
+  .hero-filmes {
+    min-height: 650px !important;
+    height: clamp(650px, 43vw, 900px) !important;
+    max-height: 900px !important;
+  }
+
+  .hero-editorial h1 {
+    font-size: clamp(3.6rem, 5vw, 6.5rem) !important;
+  }
+
+  .hero-editorial-overview {
+    font-size: clamp(.9rem, 1vw, 1.15rem) !important;
+  }
+
+  .hero-poster.ativo {
+    width: clamp(280px, 20vw, 410px) !important;
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+    right: clamp(52px, 7vw, 130px) !important;
+  }
+
+  .hero-nav-btn,
+  .controles-carrossel button,
+  .card-fav {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .lista-conteudos .card-conteudo {
+    flex-basis: clamp(190px, 13vw, 270px) !important;
+    width: clamp(190px, 13vw, 270px) !important;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(clamp(190px, 12vw, 270px), 1fr)) !important;
+  }
+
+  .details-copy,
+  .details-section {
+    max-width: 1760px !important;
+  }
+
+  .episode-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+  }
+}
+
+/* 4K TV / very wide displays */
+@media (min-width: 2000px) {
+  :root {
+    --su-gutter: clamp(48px, 3vw, 96px);
+  }
+
+  .page {
+    max-width: 2400px !important;
+  }
+
+  .hero-filmes {
+    max-width: 2400px !important;
+    min-height: 760px !important;
+    height: min(52vw, 1100px) !important;
+  }
+
+  .hero-editorial h1 {
+    font-size: clamp(4.8rem, 5vw, 7.5rem) !important;
+  }
+
+  .hero-editorial {
+    width: min(58%, 900px) !important;
+  }
+
+  .hero-poster.ativo {
+    width: clamp(360px, 18vw, 500px) !important;
+    right: clamp(70px, 7vw, 160px) !important;
+  }
+
+  .lista-conteudos .card-conteudo {
+    flex-basis: clamp(220px, 12vw, 300px) !important;
+    width: clamp(220px, 12vw, 300px) !important;
+  }
+}
+
+/* Android/browser safe-area support */
+@supports (padding: max(0px)) {
+  .header {
+    padding-left: max(8px, env(safe-area-inset-left)) !important;
+    padding-right: max(8px, env(safe-area-inset-right)) !important;
+  }
+
+  .page,
+  .details-hero,
+  .details-section {
+    padding-left: max(var(--su-gutter), env(safe-area-inset-left)) !important;
+    padding-right: max(var(--su-gutter), env(safe-area-inset-right)) !important;
+  }
+}
+
+/* Keyboard/focus navigation for TV remotes and Android TV */
+@media (min-width: 1200px), (hover: none) {
+  :where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid rgba(255,255,255,.9) !important;
+    outline-offset: 3px !important;
+  }
+}
+
+/* Prevent text/content from forcing horizontal overflow at every size. */
+:where(h1, h2, h3, h4, p, span, a, button) {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+:where(.page, .page-head, .secao-conteudos, .details-copy, .grid-2,
+       .form-card, .library-grid, .search-results) > * {
+  min-width: 0;
+}
