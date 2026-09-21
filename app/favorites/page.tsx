@@ -8,7 +8,9 @@ import { MediaCard } from "../../components/MediaCard";
 import { IArrowLeft, IHeart } from "../../components/icons";
 
 export default function FavoritesPage() {
-  const [ids, setIds] = useState<string[]>(() => favIds());
+  // Load browser-only favorites after hydration so SSR and the first client
+  // render remain identical.
+  const [ids, setIds] = useState<string[]>([]);
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,9 +21,11 @@ export default function FavoritesPage() {
   }, []);
 
   useEffect(() => {
-    const onFocus = () => setIds(favIds());
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    const sync = () => setIds(favIds());
+
+    sync();
+    window.addEventListener("focus", sync);
+    return () => window.removeEventListener("focus", sync);
   }, []);
 
   const favItems = items?.filter((m) => ids.includes(m.id)) ?? [];
