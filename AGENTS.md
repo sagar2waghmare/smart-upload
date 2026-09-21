@@ -605,6 +605,13 @@ All /api/* (except /api/health, /api/auth/session) require __session when NEXT_P
 
 ---
 
+## 2026-09-21 — Audio playback root-cause fix
+
+- **Exact player-side cause found:** `components/VideoPlayer.tsx` already receives `audioTracks` and `preparedBrowserCopy` from both playback callers, but the player previously did not use either prop. The HLS stream was always preferred whenever `hlsUrl` existed, so the newly generated browser-safe AAC sidecars could never participate in playback. The old fallback also inferred "no audio" from `player.audioTracks.length === 0`, which is not a reliable test for in-band or otherwise playable audio.
+- **Player strategy changed without replacing the UI library:** Vidstack remains the player because it is already the production-oriented, open-source player used by this repo. When a prepared browser MP4 exists, the player now uses that H.264/AAC copy as the primary source. HLS remains the fallback for media without a prepared browser-safe copy or when the HLS source errors. This removes HLS alternate-audio selection from the critical sound path.
+- **Future-media processing hardened:** `scripts/drive_hls_worker.py` now creates and uploads a `<base>.browser.mp4` H.264/AAC copy for every processed source, in addition to its HLS tree and AAC sidecars. Re-running the worker for a problematic movie is therefore sufficient to produce the browser-safe baseline that the player prefers.
+- **Research:** Vidstack documents HLS audio tracks and a production-ready Default Video Layout; its GitHub repository describes it as a robust, customizable open-source alternative to JW Player and Video.js. HLS.js has documented historical/current edge cases around alternate audio track selection, which supports keeping alternate audio out of the default playback path.
+- **Verification status:** changed files were re-read after editing. The latest GitHub commit `055e5480229acaecd8dbb5d4e79d11e638ae3846` currently reports a Vercel status of `failure` caused by the connected Vercel scope's `build-rate-limit`, so a completed `npm run lint` / `npm run build` result is not available yet. Do not claim the new commit is deployed until the Vercel build succeeds.
 ## 7. Stopping point (START HERE next session)
 
 > **REQUIREMENT (13 Sep 2026, owner):** the ENTIRE website must require authentication; unauthenticated
