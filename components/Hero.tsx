@@ -76,7 +76,10 @@ export function Hero({ items }: { items: MediaItem[] }) {
     heroRef.current?.classList.remove("is-pressing", "is-dragging");
     trackRef.current?.style.setProperty("--drag-x", "0px");
     const dx = e.clientX - dragRef.current.startX;
-    if (dragRef.current.horizontal && Math.abs(dx) > 45) go(dx < 0 ? index + 1 : index - 1);
+    if (dragRef.current.horizontal && Math.abs(dx) > 45) {
+      e.preventDefault();
+      go(dx < 0 ? index + 1 : index - 1);
+    }
   }, [index, go]);
 
 
