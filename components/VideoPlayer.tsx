@@ -121,6 +121,22 @@ export function VideoPlayer({
     }
   }, []);
 
+  const handleCanPlay = useCallback(() => {
+    const player = playerRef.current;
+
+    // Some older prepared HLS masters can expose a video-only stream with no
+    // usable audio rendition. In that case, immediately use the browser MP4
+    // backup instead of leaving the user with silent playback.
+    if (player && hlsUrl && source === hlsUrl && src && player.audioTracks.length === 0) {
+      setFallbackUsed(true);
+      setSource(src);
+      setResumeApplied(false);
+      return;
+    }
+
+    applyResume();
+  }, [applyResume, hlsUrl, source, src]);
+
   const applyResume = useCallback(() => {
     const player = playerRef.current;
     if (!player || resumeApplied || !initialTime || initialTime <= 0.5) return;
@@ -152,6 +168,7 @@ export function VideoPlayer({
     <div className="premium-player-v2">
       <MediaPlayer
         ref={playerRef}
+        key={source}
         className="premium-player-v2__media"
         title={episodeTitle ? `${title} — ${episodeTitle}` : title}
         src={{ src: source, type: hlsUrl && !fallbackUsed && source === hlsUrl ? "application/x-mpegurl" : sourceType || "video/mp4" }}
@@ -159,7 +176,7 @@ export function VideoPlayer({
         crossOrigin="anonymous"
         playsInline
         onProviderChange={configureProvider}
-        onCanPlay={applyResume}
+        onCanPlay={handleCanPlay}
         onLoadedMetadata={applyResume}
         onTimeUpdate={() => emitProgress(false)}
         onPause={() => emitProgress(true)}
