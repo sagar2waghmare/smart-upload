@@ -1,10 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isFavorite, toggleFavorite } from "../lib/favorites";
 import { IHeart } from "./icons";
 
 export function FavButton({ id, labelStyle = "mini" }: { id: string; labelStyle?: "mini" | "chip" }) {
-  const [on, setOn] = useState(() => isFavorite(id));
+  // Read localStorage after hydration so the server and first client
+  // render produce identical markup.
+  const [on, setOn] = useState(false);
+
+  useEffect(() => {
+    setOn(isFavorite(id));
+  }, [id]);
 
   const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
