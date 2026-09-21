@@ -11,6 +11,7 @@ type Props = {
   priority?: boolean;
   unoptimized?: boolean;
   objectPosition?: string;
+  objectFit?: "cover" | "contain";
 };
 
 export function SmartImage({
@@ -21,6 +22,7 @@ export function SmartImage({
   priority,
   unoptimized,
   objectPosition = "center",
+  objectFit = "cover",
 }: Props) {
   const [ok, setOk] = useState(Boolean(src));
 
@@ -35,7 +37,7 @@ export function SmartImage({
           priority={priority}
           unoptimized={unoptimized}
           onError={() => setOk(false)}
-          style={{ objectFit: "cover", objectPosition }}
+          style={{ objectFit, objectPosition }}
         />
       ) : (
         <div
