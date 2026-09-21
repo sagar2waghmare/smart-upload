@@ -142,6 +142,23 @@ export function VideoPlayer({
 
   useEffect(() => {
     const video = videoRef.current;
+    if (!video) return;
+
+    const tracks = Array.from(video.textTracks);
+    for (const track of tracks) {
+      if (track.kind === "subtitles" || track.kind === "captions") {
+        track.mode = "disabled";
+      }
+    }
+
+    if (ccOn) {
+      const track = tracks.find((candidate) => candidate.kind === "subtitles" || candidate.kind === "captions");
+      if (track) track.mode = "showing";
+    }
+  }, [ccOn, subtitleUrl, activeSource]);
+
+  useEffect(() => {
+    const video = videoRef.current;
     const audio = audioRef.current;
     if (!video) return;
 
@@ -528,6 +545,12 @@ export function VideoPlayer({
         case "M":
           toggleMute();
           break;
+        case "c":
+        case "C":
+          if (subtitleUrl) {
+            setCcOn((value) => !value);
+          }
+          break;
         case "f":
         case "F":
           toggleFullscreen();
@@ -887,7 +910,6 @@ export function VideoPlayer({
               title="Subtitles"
             >
               <ISubtitles />
-              <span className="pc-btn-label">CC</span>
             </button>
             {menu === "subtitles" ? (
               <div className="pc-pop pc-pop-subtitles">
@@ -908,7 +930,8 @@ export function VideoPlayer({
             ) : null}
           </div>
 
-          <div className="pc-menu-anchor">
+          {qualityVariants.length > 0 ? (
+            <div className="pc-menu-anchor">
             <button
               type="button"
               className={
@@ -952,7 +975,8 @@ export function VideoPlayer({
                 ) : null}
               </div>
             ) : null}
-          </div>
+            </div>
+          ) : null}
 
           <div className="pc-menu-anchor">
             <button
