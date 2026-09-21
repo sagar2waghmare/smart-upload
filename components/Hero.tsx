@@ -45,8 +45,11 @@ export function Hero({ items }: { items: MediaItem[] }) {
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: true, moved: false, horizontal: false };
-    // The entire hero is a swipe surface: poster, title, metadata and action
-    // buttons. We wait for the direction before taking control of the gesture.
+    // Capture immediately so a swipe that starts on the poster, text, button,
+    // or empty/background part of the hero stays attached to the hero.
+    // We release it as soon as the gesture is identified as vertical so the
+    // browser owns normal page scrolling.
+    try { heroRef.current?.setPointerCapture(e.pointerId); } catch {}
     heroRef.current?.classList.add("is-pressing");
   }, []);
   const onPointerMove = useCallback((e: React.PointerEvent) => {
@@ -58,10 +61,10 @@ export function Hero({ items }: { items: MediaItem[] }) {
       dragRef.current.horizontal = Math.abs(dx) > Math.abs(dy);
       if (!dragRef.current.horizontal) {
         dragRef.current.dragging = false;
-        trackRef.current?.classList.remove("is-pressing");
+        try { heroRef.current?.releasePointerCapture(e.pointerId); } catch {}
+        heroRef.current?.classList.remove("is-pressing");
         return;
       }
-      try { heroRef.current?.setPointerCapture(e.pointerId); } catch {}
       heroRef.current?.classList.add("is-dragging");
     }
     if (Math.abs(dx) > 8) dragRef.current.moved = true;
