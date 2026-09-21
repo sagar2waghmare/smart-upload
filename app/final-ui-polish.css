@@ -2228,3 +2228,35 @@ main, .page, .main-content {
     flex-basis: 7px !important;
   }
 }
+
+
+/* HERO GESTURE FINAL — use one consistent touch contract on every child.
+   The browser may otherwise let buttons/links claim a different gesture from
+   the empty hero background. */
+.hero-filmes,
+.hero-filmes * {
+  touch-action: pan-y !important;
+}
+
+.hero-filmes .hero-ambient,
+.hero-filmes .hero-vignette,
+.hero-filmes .hero-track {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.hero-filmes .hero-track {
+  pointer-events: none !important;
+}
+
+/* The active poster remains directly interactive even though its track is a
+   visual layer; the parent section receives the gesture through bubbling. */
+.hero-filmes .hero-poster {
+  pointer-events: auto !important;
+}
+
+.hero-filmes .hero-editorial,
+.hero-filmes .hero-nav,
+.hero-filmes .hero-dots {
+  pointer-events: auto !important;
+}
