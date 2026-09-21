@@ -2077,3 +2077,98 @@ button, a {
     touch-action: pan-y !important;
   }
 }
+
+
+/* ============================================================
+   SMART UPLOAD — MOBILE GESTURE / SCROLL SYSTEM V7
+   Keep vertical page scrolling native; reserve horizontal intent
+   for carousels and the featured hero.
+   ============================================================ */
+html, body {
+  overscroll-behavior-y: auto !important;
+  overscroll-behavior-x: none !important;
+}
+
+body {
+  touch-action: pan-y !important;
+  overflow-y: visible !important;
+}
+
+main, .page, .main-content {
+  touch-action: pan-y !important;
+  overscroll-behavior-y: auto !important;
+}
+
+.hero-filmes {
+  touch-action: pan-y !important;
+  overscroll-behavior: contain !important;
+}
+
+.hero-track {
+  position: absolute !important;
+  inset: 0 !important;
+  touch-action: pan-y !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.hero-track.is-pressing .hero-poster.ativo {
+  transition: none !important;
+}
+
+.hero-track.is-dragging .hero-poster.ativo {
+  transform: translateY(-50%) translateX(var(--drag-x, 0px)) scale(.985) !important;
+  transition: none !important;
+}
+
+.lista-conteudos {
+  touch-action: pan-x pan-y !important;
+  overscroll-behavior-x: contain !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Do not create nested scroll traps on the normal page. */
+.page,
+.page > main,
+.page-main,
+.main-content {
+  overflow-y: visible !important;
+}
+
+@media (max-width: 680px) {
+  .hero-filmes {
+    touch-action: pan-y !important;
+  }
+
+  .hero-track {
+    /* Horizontal gestures are interpreted by Hero; vertical gestures remain native. */
+    touch-action: pan-y !important;
+  }
+
+  .lista-conteudos {
+    scrollbar-width: none !important;
+  }
+
+  .lista-conteudos::-webkit-scrollbar {
+    display: none !important;
+  }
+}
+
+/* Premium touch feedback without blocking scrolling. */
+@media (hover: none), (pointer: coarse) {
+  .btn,
+  .hero-nav-btn,
+  .hero-dot,
+  .card-fav,
+  .details-back {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .card-conteudo,
+  .hero-poster {
+    -webkit-tap-highlight-color: transparent !important;
+  }
+}
