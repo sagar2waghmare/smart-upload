@@ -18,6 +18,10 @@ let tokenPromise: Promise<string> | null = null;
 const mediaChecks = new Map<string, { valid: boolean; expiresAt: number }>();
 const mediaMetadata = new Map<string, CachedMedia>();
 
+function isPlayableMediaMime(mimeType?: string): boolean {
+  return Boolean(mimeType && (mimeType.startsWith("video/") || mimeType.startsWith("audio/")));
+}
+
 function serviceAccount(): ServiceAccount | null {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
   if (raw) {
@@ -212,7 +216,7 @@ export async function drivePlaybackFetch(fileId: string, headers: Record<string,
   if (!id) throw new Error("Invalid media id");
   let token = await accessToken();
   const item = await metadata(id, token);
-  if (item.trashed || !item.mimeType?.startsWith("video/")) throw new Error("Media is not a playable video");
+  if (item.trashed || !isPlayableMediaMime(item.mimeType)) throw new Error("Media is not a playable media stream");
   if (!(await isInsideMedia(id, token))) throw new Error("Media is outside the Smart Upload library");
   const url = `${DRIVE_API_URL}/${encodeURIComponent(id)}?alt=media`;
   let res = await fetch(url, { headers: { ...headers, Authorization: `Bearer ${token}` }, cache: "no-store" });
