@@ -596,6 +596,18 @@ export function VideoPlayer({
   const hideCursor = !controls && playing;
   const showCenter = !buffering && !error && (status === "paused" || status === "ended" || !started);
 
+  const hasEpisodes = item.kind !== "movie" && Boolean(episode && onEpisode);
+  const flatEpisodes = item.seasons?.flatMap((season) => season.episodes) ?? [];
+  const episodeIndex = episode ? flatEpisodes.findIndex((candidate) => candidate.id === episode.id) : -1;
+  const prevEp =
+    hasEpisodes && episodeIndex > 0
+      ? flatEpisodes[episodeIndex - 1]
+      : null;
+  const nextEp =
+    hasEpisodes && episodeIndex >= 0 && episodeIndex < flatEpisodes.length - 1
+      ? flatEpisodes[episodeIndex + 1]
+      : null;
+
   return (
     <div
       ref={wrapRef}

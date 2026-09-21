@@ -334,7 +334,9 @@ export async function readPreparedHlsPlaylist(
 
   const token = await accessToken();
   const tree = await getHlsTree(id, token);
-  const entry = tree?.entries.get(safePath);
+  if (!tree) return null;
+
+  const entry = tree.entries.get(safePath);
   if (!entry) return null;
 
   const res = await fetch(
