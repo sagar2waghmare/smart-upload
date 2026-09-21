@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMediaById } from "../../../../lib/library-service";
+import { getLibrary, getMediaById } from "../../../../lib/library-service";
 import { resolvePlaybackUrl } from "../../../../lib/playback";
 import { findPreparedAudioTracks, findPreparedBrowserMedia, getDriveMediaMimeType, validateDriveMedia } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
@@ -12,19 +12,21 @@ export async function GET(_req: Request, { params }: Params) {
   if (!user) return unauthorized();
   const { id } = await params;
 
-  // Google Drive is now the production playback source. Validate the file
-  // directly instead of rebuilding the full TMDB-enriched library on every play.
+  // Resolve metadata from the library first. This preserves movie/series/anime
+  // classification and grouped episode metadata for Drive-backed playback.
+  const libraryItem = await getMediaById(id);
   if (await validateDriveMedia(id)) {
-    const preparedId = await findPreparedBrowserMedia(id);
-    // Sidecar AAC tracks are independent of the browser MP4 copy, so discover
+    if (libraryItem) {
+      const preparedId = await findPreparedBrowserMedia(id);
+      // Sidecar AAC tracks are independent of the browser MP4 copy, so discover
     // them even when playback falls back to the original source.
-    const audioTracks = await findPreparedAudioTracks(id);
-    const sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(id);
-    const browserId = preparedId ?? id;
-    const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(browserId) : null;
-    const shareUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(id) : null;
-    return NextResponse.json({
-      item: { id, kind: "movie", title: id, poster: null, backdrop: null, source: "google-drive" },
+      const audioTracks = await findPreparedAudioTracks(id);
+      const sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(id);
+      const browserId = preparedId ?? id;
+      const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(browserId) : null;
+      const shareUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(id) : null;
+      return NextResponse.json({
+        item: libraryItem,
       demo: false,
       canPlay: true,
       defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
@@ -40,10 +42,11 @@ export async function GET(_req: Request, { params }: Params) {
             : `/api/stream/${encodeURIComponent(track.id)}`,
         }))
         .filter((track) => Boolean(track.url)),
-    });
+      });
+    }
   }
 
-  const item = await getMediaById(id);
+  const item = libraryItem;
   if (!item) return NextResponse.json({ error: "not-found", message: "Media not found" }, { status: 404 });
   if (item.mediaUrl) {
     const resolved = resolvePlaybackUrl(item.mediaUrl);
