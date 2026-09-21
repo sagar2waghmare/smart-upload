@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import "@vidstack/react/player/styles/default/theme.css";
+import "@vidstack/react/player/styles/default/layouts/video.css";
 import "./globals.css";
 import "./abyss-theme.css";
 import "./cinematic-polish.css";
