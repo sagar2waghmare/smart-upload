@@ -567,7 +567,6 @@ export function VideoPlayer({
   }, [current, seek, seekFeedbackShow, started]);
 
   const shareStream = useCallback(async () => {
-    setShareStatus(null);
     try {
       const url = shareUrl ?? src;
       if (navigator.share) {
