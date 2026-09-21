@@ -20,10 +20,23 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const gate = authIntended() && !(await requireSession());
+  const firebaseConfig =
+    process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN &&
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+      ? {
+          apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+          storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || undefined,
+          messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || undefined,
+          appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || undefined,
+        }
+      : null;
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
+        <AuthProvider firebaseConfig={firebaseConfig}>
           <DetailsProvider>
             {gate ? null : <Header />}
             {children}
