@@ -735,3 +735,15 @@ Ask the user which one to start, or continue in the order above if they say "res
 - Changes are isolated on branch `fix/responsive-poster-cards`; production `main` has not been modified.
 - Vercel created a preview deployment for commit `710d015f032d26abdc76e585c856b9625e494b06`; at the time of this update its state is BUILDING.
 - Local lint/build could not be run because this connected GitHub workspace exposes repository operations, not a local checkout/runtime. Vercel preview build is being used for build verification.
+
+
+---
+## 2026-09-21 — Web playback/audio compatibility fix
+
+- User confirmed that some Google Drive movies play video in the browser but have silent audio. Investigation confirmed the web player cannot decode every source audio codec; Chrome/Chromium does not provide broad default support for codecs such as AC-3/E-AC-3 and DTS, so a browser-safe AAC rendition is required for reliable cross-browser playback.
+- app/api/play/[id]/route.ts now resolves grouped series/anime entries to a real episode Drive ID before looking for prepared browser media and AAC sidecars, and returns playbackId so the client can keep the selected episode's playback manifest aligned.
+- app/play/[id]/page.tsx now uses a per-episode playback manifest and passes preparedBrowserCopy into VideoPlayer, preventing the page from accidentally using another episode's prepared/audio state.
+- scripts/prepare-media.mjs had a literal escaped \\n embedded in executable source between defaultAudioIndex and selectedAudioStreams; this was corrected. Sidecar AAC generation was also changed to run for all source audio tracks even when --audio-index is used, so selecting a default embedded language no longer suppresses the other prepared languages.
+- Current latest GitHub main commit for this work is cb01ef06c38c2386913d4a146adac2a0e6744afa for media preparation; the episode manifest fixes precede it in the same main history.
+- Vercel CI currently reports build-rate-limit on the connected project, so GitHub/Vercel has not produced a new verified production deployment for these commits. The last READY deployment remains tied to the earlier known-good player baseline. Do not claim these changes are live until a READY deployment is observed.
+- Remaining architecture gap: the repository contains an FFmpeg HLS worker, but it is not yet wired as an automatic on-demand transcoder for incompatible browser audio. Adding HLS playback in Chrome would require an HLS client such as hls.js; project policy requires explicit approval before introducing a new runtime package. Until that is approved and a transcode service is connected, browser-incompatible source audio still requires a prepared browser-safe rendition.
