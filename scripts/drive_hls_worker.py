@@ -47,20 +47,65 @@ def ffprobe_tracks(src: Path):
 def process(src: Path, out: Path):
     out.mkdir(parents=True,exist_ok=True); tracks=ffprobe_tracks(src)
     variants=[(1920,1080,5500000),(1280,720,3200000),(854,480,1500000)]; maps=[]
+    audio_tracks=[x for x in tracks if x.get("codec_type")=="audio"]
+
+    # Video renditions are video-only. Audio is generated once per source
+    # language as browser-safe AAC HLS renditions and attached to every video
+    # variant through the master playlist's AUDIO group.
     for i,(w,h,br) in enumerate(variants):
         vdir=out/f"v{i}"; vdir.mkdir(exist_ok=True)
-        cmd=["ffmpeg","-y","-i",str(src),"-map","0:v:0","-map","0:a:0?","-vf",f"scale=w={w}:h={h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2","-c:v","libx264","-preset","veryfast","-crf","21","-b:v",str(br),"-maxrate",str(int(br*1.12)),"-bufsize",str(br*2),"-g","48","-keyint_min","48","-sc_threshold","0","-c:a","aac","-b:a","192k","-ac","2","-f","hls","-hls_time","6","-hls_playlist_type","vod","-hls_flags","independent_segments","-hls_segment_filename",str(vdir/"seg_%05d.ts"),str(vdir/"index.m3u8")]
+        cmd=["ffmpeg","-y","-i",str(src),"-map","0:v:0",
+             "-vf",f"scale=w={w}:h={h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
+             "-c:v","libx264","-preset","veryfast","-crf","21","-b:v",str(br),
+             "-maxrate",str(int(br*1.12)),"-bufsize",str(br*2),"-g","48",
+             "-keyint_min","48","-sc_threshold","0","-an","-f","hls",
+             "-hls_time","6","-hls_playlist_type","vod","-hls_flags","independent_segments",
+             "-hls_segment_filename",str(vdir/"seg_%05d.ts"),str(vdir/"index.m3u8")]
         subprocess.run(cmd,check=True); maps.append((i,w,h,br))
+
+    audio_maps=[]
+    label_map={"eng":"English","en":"English","hin":"Hindi","hi":"Hindi","tam":"Tamil","ta":"Tamil",
+               "tel":"Telugu","te":"Telugu","mal":"Malayalam","ml":"Malayalam","kan":"Kannada","kn":"Kannada",
+               "ben":"Bengali","bn":"Bengali","mar":"Marathi","mr":"Marathi","pan":"Punjabi","pa":"Punjabi",
+               "guj":"Gujarati","gu":"Gujarati","und":"Unknown"}
+    for ai,a in enumerate(audio_tracks):
+        adir=out/f"a{ai}"; adir.mkdir(exist_ok=True)
+        tags=a.get("tags") or {}; lang=str(tags.get("language") or "und").lower()
+        title=str(tags.get("title") or label_map.get(lang) or lang.upper())
+        cmd=["ffmpeg","-y","-i",str(src),"-map",f"0:{a['index']}","-vn","-c:a","aac",
+             "-b:a","192k","-ac","2","-ar","48000","-f","hls","-hls_time","6",
+             "-hls_playlist_type","vod","-hls_flags","independent_segments",
+             "-hls_segment_filename",str(adir/"seg_%05d.ts"),str(adir/"index.m3u8")]
+        r=subprocess.run(cmd,capture_output=True,text=True)
+        if r.returncode==0:
+            audio_maps.append((ai,lang,title))
+        else:
+            print(f"Warning: audio track {ai} could not be converted to AAC:")
+            print(r.stderr[-1200:])
+
     subs=[]
     for si,s in enumerate([x for x in tracks if x.get("codec_type")=="subtitle"]):
         tags=s.get("tags") or {}; lang=tags.get("language") or "und"; title=tags.get("title") or lang
         dst=out/f"sub_{si}_{re.sub(r'[^A-Za-z0-9_-]','_',lang)}.vtt"
         r=subprocess.run(["ffmpeg","-y","-i",str(src),"-map",f"0:{s['index']}","-c:s","webvtt",str(dst)],capture_output=True,text=True)
         if r.returncode==0: subs.append((dst.name,lang,title))
+
     master=["#EXTM3U","#EXT-X-VERSION:3"]
-    for name,lang,title in subs: master.append(f'#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="{title}",LANGUAGE="{lang}",DEFAULT=NO,AUTOSELECT=YES,URI="{name}"')
+    if audio_maps:
+        for n,(ai,lang,title) in enumerate(audio_maps):
+            default="YES" if n==0 else "NO"
+            auto="YES" if n==0 else "YES"
+            master.append(
+                f'#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="{title}",LANGUAGE="{lang}",'
+                f'DEFAULT={default},AUTOSELECT={auto},URI="a{ai}/index.m3u8"'
+            )
+    for name,lang,title in subs:
+        master.append(f'#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="{title}",LANGUAGE="{lang}",DEFAULT=NO,AUTOSELECT=YES,URI="{name}"')
     for i,w,h,br in maps:
-        extra=',SUBTITLES="subs"' if subs else ''; master += [f'#EXT-X-STREAM-INF:BANDWIDTH={br+192000},RESOLUTION={w}x{h}{extra}',f'v{i}/index.m3u8']
+        attrs=[f"BANDWIDTH={br + (192000 if audio_maps else 0)}",f"RESOLUTION={w}x{h}"]
+        if audio_maps: attrs.append('AUDIO="audio"')
+        if subs: attrs.append('SUBTITLES="subs"')
+        master += [f'#EXT-X-STREAM-INF:{",".join(attrs)}',f'v{i}/index.m3u8']
     (out/"master.m3u8").write_text("\n".join(master)+"\n",encoding="utf-8")
     return tracks
 
