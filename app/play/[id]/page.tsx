@@ -25,6 +25,7 @@ type ApiResult = {
   sourceType?: string;
   prepared?: boolean;
   playbackId?: string;
+  hlsUrl?: string;
   audioTracks?: AudioVariant[];
 };
 
@@ -173,6 +174,7 @@ export default function PlayPage() {
           <VideoPlayer
             key={src}
             src={src}
+            hlsUrl={activePlayback?.hlsUrl}
             sourceType={activePlayback?.sourceType ?? data.sourceType}
             shareUrl={activePlayback?.shareUrl ?? data.shareUrl}
             poster={item.poster}
