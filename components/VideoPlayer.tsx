@@ -894,11 +894,13 @@ export function VideoPlayer({
             />
           </div>
 
-          <AudioLanguageControl
-            tracks={audioTracks}
-            activeIndex={selectedAudioIndex}
-            onSelect={selectAudio}
-          />
+          {audioTracks.length > 0 ? (
+            <AudioLanguageControl
+              tracks={audioTracks}
+              activeIndex={selectedAudioIndex}
+              onSelect={selectAudio}
+            />
+          ) : null}
 
           {subtitleUrl ? (
             <div className="pc-menu-anchor">
