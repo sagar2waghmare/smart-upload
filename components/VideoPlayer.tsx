@@ -363,6 +363,15 @@ export function VideoPlayer({
             setSelectedLevel(-1);
             setHlsReady(true);
             setBuffering(false);
+            video.muted = false;
+            if (tracks.length > 0 && localHls && localHls.audioTrack < 0) {
+              const defaultIndex = tracks.findIndex(
+                (track) => Boolean((track as HlsAudioTrack & { default?: boolean }).default),
+              );
+              const targetIndex = defaultIndex >= 0 ? defaultIndex : 0;
+              localHls.audioTrack = targetIndex;
+              setSelectedAudioIndex(targetIndex);
+            }
           });
 
           localHls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
@@ -373,6 +382,18 @@ export function VideoPlayer({
               name: track.name,
               lang: track.lang,
             })));
+
+            // Explicitly select the manifest's default audio track. This avoids
+            // relying on browser/HLS auto-selection for video-only variants with
+            // an EXT-X-MEDIA AAC audio group.
+            const defaultIndex = tracks.findIndex(
+              (track) => Boolean((track as HlsAudioTrack & { default?: boolean }).default),
+            );
+            const targetIndex = defaultIndex >= 0 ? defaultIndex : (tracks.length ? 0 : -1);
+            if (targetIndex >= 0 && localHls && localHls.audioTrack !== targetIndex) {
+              localHls.audioTrack = targetIndex;
+              setSelectedAudioIndex(targetIndex);
+            }
           });
 
           localHls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {

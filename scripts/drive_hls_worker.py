@@ -56,8 +56,8 @@ def process(src: Path, out: Path):
         vdir=out/f"v{i}"; vdir.mkdir(exist_ok=True)
         cmd=["ffmpeg","-y","-i",str(src),"-map","0:v:0",
              "-vf",f"scale=w={w}:h={h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
-             "-c:v","libx264","-preset","veryfast","-crf","21","-b:v",str(br),
-             "-maxrate",str(int(br*1.12)),"-bufsize",str(br*2),"-g","48",
+             "-c:v","libx264","-preset","veryfast","-crf","21","-profile:v","high","-level:v","4.2","-pix_fmt","yuv420p",
+             "-b:v",str(br),"-maxrate",str(int(br*1.12)),"-bufsize",str(br*2),"-g","48",
              "-keyint_min","48","-sc_threshold","0","-an","-f","hls",
              "-hls_time","6","-hls_playlist_type","vod","-hls_flags","independent_segments",
              "-hls_segment_filename",str(vdir/"seg_%05d.ts"),str(vdir/"index.m3u8")]
@@ -103,6 +103,7 @@ def process(src: Path, out: Path):
         master.append(f'#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="{title}",LANGUAGE="{lang}",DEFAULT=NO,AUTOSELECT=YES,URI="{name}"')
     for i,w,h,br in maps:
         attrs=[f"BANDWIDTH={br + (192000 if audio_maps else 0)}",f"RESOLUTION={w}x{h}"]
+        if audio_maps: attrs.append('CODECS="avc1.64002A,mp4a.40.2"')
         if audio_maps: attrs.append('AUDIO="audio"')
         if subs: attrs.append('SUBTITLES="subs"')
         master += [f'#EXT-X-STREAM-INF:{",".join(attrs)}',f'v{i}/index.m3u8']

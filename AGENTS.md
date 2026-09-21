@@ -750,6 +750,13 @@ Ask the user which one to start, or continue in the order above if they say "res
 
  
 ---
+## 2026-09-21 — HLS audio selection compatibility fix
+
+- The HLS worker now emits explicit browser-friendly H.264 profile/level settings and a CODECS="avc1.64002A,mp4a.40.2" attribute on video variants when AAC audio tracks are present. This makes the video/audio capability explicit in the HLS master playlist instead of leaving codec discovery to the client.
+- components/VideoPlayer.tsx now explicitly selects the manifest-declared default HLS audio track on AUDIO_TRACKS_UPDATED/manifest setup and forces the HLS video element unmuted. This targets manifests using video-only variants plus EXT-X-MEDIA AAC audio.
+- Existing SMART-HLS packages must be regenerated with scripts/drive_hls_worker.py for this worker change to affect already-processed movies.
+- Build verification remains dependent on Vercel because the connected workspace does not provide a local checkout with dependencies.
+
 ## 2026-09-21 — HLS-capable player rebuild
 
 - User explicitly requested replacing the previous player because some Google Drive movies show video with silent audio in Chrome.
