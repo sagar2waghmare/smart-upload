@@ -40,13 +40,11 @@ export function DetailsProvider({ children }: { children: React.ReactNode }) {
   }, [pushOverlayState]);
 
   const closeDetails = useCallback(() => {
-    if (typeof window !== "undefined" && window.history.state?.smartUploadOverlay === "details") {
-      window.history.back();
-      return;
-    }
+    const shouldGoBack = typeof window !== "undefined" && window.history.state?.smartUploadOverlay === "details";
     setItem(null);
     setEpisode(null);
     setPlayerOpen(false);
+    if (shouldGoBack) window.history.back();
   }, []);
 
   const openPlayer = useCallback((ep?: Episode) => {
@@ -57,22 +55,14 @@ export function DetailsProvider({ children }: { children: React.ReactNode }) {
   }, [item, playerOpen, pushOverlayState]);
 
   const closePlayer = useCallback(() => {
-    if (typeof window !== "undefined" && window.history.state?.smartUploadOverlay === "player") {
-      window.history.back();
-      return;
-    }
+    const shouldGoBack = typeof window !== "undefined" && window.history.state?.smartUploadOverlay === "player";
     setPlayerOpen(false);
+    if (shouldGoBack) window.history.back();
   }, []);
 
-  // Lock page scroll while any overlay is present.
-  useEffect(() => {
-    if (!item) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [item]);
+  // The overlays are fixed, independently scrollable surfaces. Do not lock
+  // document.body here: mobile browsers can lose the scroll gesture when a
+  // fixed overlay is combined with body overflow locking.
 
   // Escape and browser Back close transient overlays instead of leaving the page.
   useEffect(() => {
