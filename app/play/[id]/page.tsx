@@ -87,7 +87,6 @@ export default function PlayPage() {
       .catch((err) => {
         if (alive) {
           console.warn("[play-page] Episode playback manifest unavailable", err);
-          setPlayback(null);
         }
       });
 
