@@ -624,7 +624,7 @@ export function VideoPlayer({
             void audioRef.current.play().catch(() => {
               setAudioFallback(true);
               setExternalAudioActive(false);
-              videoRef.current.muted = false;
+              if (videoRef.current) videoRef.current.muted = false;
             });
           }
         }}
