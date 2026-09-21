@@ -336,3 +336,289 @@ main { padding-bottom: clamp(3rem, 6vw, 5rem); }
     transition: none !important;
   }
 }
+
+
+/* ===== Stream player compact controls v2 =====
+ * Inspired by the restrained, responsive control surfaces used by modern
+ * open-source HTML5 players. Keep the player itself custom and dependency-free.
+ */
+.player-gradient {
+  height: 6.25rem !important;
+  background: linear-gradient(0deg, rgba(0,0,0,.88), rgba(0,0,0,.38) 42%, transparent) !important;
+}
+
+.player-controls {
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  padding: 0 clamp(10px, 1.8vw, 22px) clamp(10px, 1.2vw, 16px) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.player-controls .pc-seek {
+  display: block !important;
+  width: 100% !important;
+  height: 18px !important;
+  margin: 0 0 2px !important;
+}
+
+.player-controls .pc-seek::-webkit-slider-runnable-track {
+  height: 4px !important;
+}
+
+.player-controls .pc-seek::-moz-range-track,
+.player-controls .pc-seek::-moz-range-progress {
+  height: 4px !important;
+}
+
+.player-controls .pc-seek::-webkit-slider-thumb {
+  width: 12px !important;
+  height: 12px !important;
+  margin-top: -4px !important;
+}
+
+.player-controls .pc-seek::-moz-range-thumb {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.player-controls .pc-row {
+  min-height: 38px !important;
+  gap: 3px !important;
+  overflow: visible !important;
+}
+
+.player-controls .pc-btn,
+.player-controls .pc-menu-btn,
+.player-controls .audio-language-trigger {
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--ui-text) !important;
+  transform: none !important;
+}
+
+.player-controls .pc-btn:hover,
+.player-controls .pc-menu-btn:hover,
+.player-controls .audio-language-trigger:hover {
+  background: var(--ui-surface-2) !important;
+  border: 0 !important;
+  transform: none !important;
+}
+
+.player-controls .pc-main-play,
+.player-controls .pc-btn:first-child {
+  width: 38px !important;
+  min-width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  background: var(--ui-text) !important;
+  color: var(--ui-surface-0) !important;
+  border-radius: 50% !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,.28) !important;
+}
+
+.player-controls .pc-main-play:hover,
+.player-controls .pc-btn:first-child:hover {
+  background: var(--ui-text) !important;
+  color: var(--ui-surface-0) !important;
+  transform: scale(1.035) !important;
+}
+
+.player-controls .pc-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.player-controls .pc-main-play svg,
+.player-controls .pc-btn:first-child svg {
+  width: 19px !important;
+  height: 19px !important;
+}
+
+.player-controls .pc-time {
+  padding-inline: 5px !important;
+  margin: 0 !important;
+  color: var(--ui-muted) !important;
+  font-size: .68rem !important;
+}
+
+.player-controls .pc-volume {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  flex: 0 0 auto !important;
+}
+
+.player-controls .pc-volume .volume {
+  width: 70px !important;
+  max-width: 70px !important;
+  height: 18px !important;
+}
+
+.player-controls .pc-btn-label {
+  display: none !important;
+}
+
+.player-controls .pc-quality-mark {
+  font-size: .56rem !important;
+  font-weight: 800 !important;
+  letter-spacing: .04em !important;
+}
+
+.audio-language-control {
+  position: relative !important;
+  right: auto !important;
+  bottom: auto !important;
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  z-index: 25 !important;
+}
+
+.audio-language-trigger {
+  min-width: 42px !important;
+  width: auto !important;
+  padding-inline: 7px !important;
+  gap: 3px !important;
+}
+
+.audio-language-icon {
+  font-size: .55rem !important;
+  font-weight: 800 !important;
+  letter-spacing: .03em !important;
+}
+
+.audio-language-trigger::after {
+  content: none !important;
+}
+
+.player-controls .pc-pop,
+.audio-language-menu {
+  width: min(230px, calc(100vw - 24px)) !important;
+  max-height: min(320px, 52vh) !important;
+  padding: 5px !important;
+  border-radius: 12px !important;
+  background: rgba(18,18,22,.97) !important;
+  border: 1px solid var(--ui-border) !important;
+  box-shadow: 0 18px 50px rgba(0,0,0,.58) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+
+.player-controls .pc-option,
+.audio-language-menu .pc-option {
+  min-height: 36px !important;
+  padding: 8px 9px !important;
+  border-radius: 8px !important;
+  font-size: .72rem !important;
+}
+
+@media (max-width: 700px) {
+  .player-gradient {
+    height: 5rem !important;
+    background: linear-gradient(0deg, rgba(0,0,0,.9), rgba(0,0,0,.42) 48%, transparent) !important;
+  }
+
+  .player-controls {
+    padding: 0 8px 8px !important;
+  }
+
+  .player-controls .pc-row {
+    gap: 1px !important;
+    min-height: 36px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+
+  .player-controls .pc-row::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .player-controls .pc-btn,
+  .player-controls .pc-menu-btn,
+  .player-controls .audio-language-trigger {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+  }
+
+  .player-controls .pc-main-play,
+  .player-controls .pc-btn:first-child {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .player-controls .pc-time,
+  .player-controls .pc-volume .volume {
+    display: none !important;
+  }
+
+  .player-controls .pc-btn.wide {
+    display: none !important;
+  }
+
+  .audio-language-trigger {
+    min-width: 42px !important;
+  }
+
+  .player-controls .pc-pop,
+  .audio-language-menu {
+    position: fixed !important;
+    right: 8px !important;
+    bottom: 56px !important;
+    width: min(270px, calc(100vw - 16px)) !important;
+    max-height: min(320px, 50vh) !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .player-controls {
+    padding-inline: 5px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .player-controls .pc-row {
+    gap: 0 !important;
+  }
+
+  .player-controls .pc-btn,
+  .player-controls .pc-menu-btn,
+  .player-controls .audio-language-trigger {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+  .player-controls .pc-main-play,
+  .player-controls .pc-btn:first-child {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+  }
+
+  .player-controls .pc-btn svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .audio-language-trigger {
+    min-width: 40px !important;
+  }
+}
