@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AudioVariant, Episode, MediaItem } from "../lib/types";
 import {
   IAlert,
@@ -19,12 +19,12 @@ import {
   IVolumeMute,
 } from "./icons";
 import { SmartImage } from "./SmartImage";
-import { AudioLanguageControl } from "./AudioLanguageControl";
 
-type Menu = "settings" | "subtitles" | "quality" | null;
+type Menu = "settings" | "audio" | "subtitles" | "quality" | null;
 
 type Props = {
   src: string;
+  hlsUrl?: string;
   sourceType?: string;
   shareUrl?: string;
   poster?: string | null;
@@ -44,6 +44,17 @@ type Props = {
   preparedBrowserCopy?: boolean;
 };
 
+type HlsAudioTrack = {
+  id: number;
+  name?: string;
+  lang?: string;
+};
+
+type HlsLevel = {
+  height?: number;
+  bitrate?: number;
+};
+
 const fmt = (t: number) => {
   if (!Number.isFinite(t) || t < 0) return "0:00";
   const h = Math.floor(t / 3600);
@@ -54,8 +65,15 @@ const fmt = (t: number) => {
     : m + ":" + s.toString().padStart(2, "0");
 };
 
+const niceAudioLabel = (track: HlsAudioTrack, index: number) => {
+  const raw = (track.name || track.lang || "").trim();
+  if (raw) return raw;
+  return "Audio " + (index + 1);
+};
+
 export function VideoPlayer({
   src,
+  hlsUrl,
   sourceType,
   shareUrl,
   poster,
@@ -77,14 +95,14 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const seekFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchTapRef = useRef<{ time: number; side: "left" | "right" } | null>(null);
+  const hlsRef = useRef<import("hls.js").default | null>(null);
+  const initialedRef = useRef(false);
+  const playedRef = useRef(false);
   const currentRef = useRef(0);
   const durationRef = useRef(0);
   const lastEmitRef = useRef(0);
-  const initialedRef = useRef(false);
-  const playedRef = useRef(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cbRef = useRef({ onProgress, onEnded });
 
   const [started, setStarted] = useState(false);
@@ -100,351 +118,109 @@ export function VideoPlayer({
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ccOn, setCcOn] = useState(false);
-  const [activeSource, setActiveSource] = useState(src);
-  const [selectedQuality, setSelectedQuality] = useState("Auto");
+  const [hlsReady, setHlsReady] = useState(false);
+  const [hlsFailed, setHlsFailed] = useState(false);
+  const [hlsAudioTracks, setHlsAudioTracks] = useState<HlsAudioTrack[]>([]);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState(0);
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
-  const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
+  const [hlsLevels, setHlsLevels] = useState<HlsLevel[]>([]);
+  const [selectedLevel, setSelectedLevel] = useState(-1);
   const [audioFallback, setAudioFallback] = useState(false);
   const [externalAudioActive, setExternalAudioActive] = useState(false);
-  const [useExternalAudio, setUseExternalAudio] = useState(false);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [seekFeedback, setSeekFeedback] = useState<"back" | "forward" | null>(null);
 
-  const qualityVariants = [
-    ...(item.qualityVariants ?? []),
-    ...(episode?.qualityVariants ?? []),
-  ].filter(
-    (variant, index, list) =>
-      list.findIndex((v) => v.label === variant.label && v.url === variant.url) === index
+  const usingHls = Boolean(hlsUrl && !hlsFailed);
+  const qualityVariants = useMemo(
+    () =>
+      [
+        ...(item.qualityVariants ?? []),
+        ...(episode?.qualityVariants ?? []),
+      ].filter(
+        (variant, index, list) =>
+          list.findIndex((v) => v.label === variant.label && v.url === variant.url) === index,
+      ),
+    [item.qualityVariants, episode?.qualityVariants],
   );
 
-  const hasExternalAudio = audioTracks.length > 0;
-  const externalAudioEnabled = hasExternalAudio && !audioFallback && (!preparedBrowserCopy || useExternalAudio);
+  const externalAudioEnabled =
+    !usingHls &&
+    audioTracks.length > 0 &&
+    !audioFallback &&
+    (!preparedBrowserCopy || selectedAudioIndex > 0);
+
   const externalAudioPlaying = externalAudioEnabled && externalAudioActive;
   const playing = status === "playing";
+  const audioOptions = usingHls
+    ? hlsAudioTracks.map((track, index) => ({
+        label: niceAudioLabel(track, index),
+        language: track.lang,
+      }))
+    : audioTracks;
 
   useEffect(() => {
     cbRef.current = { onProgress, onEnded };
   }, [onProgress, onEnded]);
 
-  useEffect(() => {
-    setActiveSource(src);
-    setSelectedQuality("Auto");
-    setSelectedAudioIndex(0);
-    setCcOn(false);
-    setAudioFallback(false);
-    setExternalAudioActive(false);
-    setUseExternalAudio(false);
-    setShareStatus(null);
-    setError(null);
-    setStarted(false);
-    setStatus("idle");
-    initialedRef.current = false;
-  }, [src]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const tracks = Array.from(video.textTracks);
-    for (const track of tracks) {
-      if (track.kind === "subtitles" || track.kind === "captions") {
-        track.mode = "disabled";
-      }
-    }
-
-    if (ccOn) {
-      const track = tracks.find((candidate) => candidate.kind === "subtitles" || candidate.kind === "captions");
-      if (track) track.mode = "showing";
-    }
-  }, [ccOn, subtitleUrl, activeSource]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    const audio = audioRef.current;
-    if (!video) return;
-
-    video.muted = externalAudioPlaying;
-    if (!audio || !externalAudioEnabled) return;
-
-    const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
-    if (!track) return;
-
-    audio.src = track.url;
-    audio.load();
-    try {
-      audio.currentTime = video.currentTime || 0;
-    } catch {}
-
-    if (!video.paused && started) {
-      void audio.play().catch(() => undefined);
-    }
-  }, [audioTracks, selectedAudioIndex, externalAudioEnabled, externalAudioPlaying, started]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    const audio = audioRef.current;
-    if (video) video.muted = externalAudioPlaying;
-    if (audio) {
-      audio.volume = muted ? 0 : volume;
-      audio.muted = muted;
-    }
-  }, [externalAudioPlaying, muted, volume]);
+  const emitProgress = useCallback((force = false) => {
+    if (!playedRef.current) return;
+    const now = Date.now();
+    if (!force && now - lastEmitRef.current < 4000) return;
+    lastEmitRef.current = now;
+    cbRef.current.onProgress?.({
+      position: currentRef.current,
+      duration: durationRef.current,
+    });
+  }, []);
 
   const poke = useCallback(() => {
     setControls(true);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    const video = videoRef.current;
-    if (video && !video.paused) {
-      hideTimer.current = setTimeout(() => setControls(false), 3200);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (videoRef.current && !videoRef.current.paused) {
+      hideTimerRef.current = setTimeout(() => setControls(false), 3200);
     }
   }, []);
-
-  const wake = useCallback(() => {
-    poke();
-    setMenu(null);
-  }, [poke]);
-
-  const togglePlay = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (video.paused) {
-      void video.play().catch(() => setError("Playback was blocked. Tap Play again."));
-    } else {
-      video.pause();
-    }
-  }, []);
-
-  const syncAudioToVideo = useCallback(() => {
-    const video = videoRef.current;
-    const audio = audioRef.current;
-    if (!externalAudioPlaying || !video || !audio) return;
-    try {
-      audio.currentTime = Math.max(0, video.currentTime || 0);
-    } catch {}
-  }, [externalAudioPlaying]);
 
   const seek = useCallback(
     (time: number) => {
       const video = videoRef.current;
       if (!video) return;
-      const max = Number.isFinite(duration) && duration > 0 ? duration : 1e9;
+      const max = duration > 0 ? duration : Number.MAX_SAFE_INTEGER;
       const next = Math.max(0, Math.min(max, time));
-      try {
-        video.currentTime = next;
-        currentRef.current = next;
-        setCurrent(next);
-        if (audioRef.current && externalAudioPlaying) audioRef.current.currentTime = next;
-      } catch {}
+      video.currentTime = next;
+      currentRef.current = next;
+      setCurrent(next);
+      if (externalAudioPlaying && audioRef.current) {
+        audioRef.current.currentTime = next;
+      }
+      emitProgress(true);
     },
-    [duration, externalAudioPlaying]
+    [duration, emitProgress, externalAudioPlaying],
   );
 
-  const emitProgress = useCallback((force = false) => {
-    if (!playedRef.current) return;
-    const now = Date.now();
-    if (!force && now - lastEmitRef.current < 4000) return;
-
-    const pos = currentRef.current;
-    lastEmitRef.current = now;
-    if (Number.isFinite(pos) && pos >= 0) {
-      cbRef.current.onProgress?.({
-        position: pos,
-        duration: durationRef.current,
-      });
+  const changeVolume = useCallback((value: number) => {
+    const next = Math.max(0, Math.min(1, value));
+    setVolume(next);
+    setMuted(next === 0);
+    if (videoRef.current) {
+      videoRef.current.volume = next;
+      if (!externalAudioPlaying) videoRef.current.muted = next === 0;
     }
-  }, []);
-
-  const applyInitial = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || initialedRef.current || !initialTime || initialTime <= 0.5) return;
-
-    const d = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
-    const target = d > 0 ? Math.min(initialTime, Math.max(0, d - 0.25)) : initialTime;
-
-    initialedRef.current = true;
-    setBuffering(true);
-
-    try {
-      if (typeof video.fastSeek === "function") video.fastSeek(target);
-      else video.currentTime = target;
-      currentRef.current = video.currentTime;
-      setCurrent(video.currentTime);
-      if (audioRef.current && externalAudioPlaying) audioRef.current.currentTime = video.currentTime;
-    } catch {
-      initialedRef.current = false;
-      setBuffering(false);
+    if (audioRef.current) {
+      audioRef.current.volume = next;
+      audioRef.current.muted = next === 0;
     }
-  }, [initialTime, externalAudioPlaying]);
-
-  const changeVolume = useCallback(
-    (value: number) => {
-      const next = Math.max(0, Math.min(1, value));
-      const video = videoRef.current;
-      const audio = audioRef.current;
-
-      setVolume(next);
-      setMuted(next === 0);
-
-      if (video) {
-        video.volume = next;
-        video.muted = externalAudioPlaying ? true : next === 0;
-      }
-      if (audio) {
-        audio.volume = next;
-        audio.muted = next === 0;
-      }
-    },
-    [externalAudioPlaying]
-  );
+  }, [externalAudioPlaying]);
 
   const toggleMute = useCallback(() => {
-    const video = videoRef.current;
-    const audio = audioRef.current;
-    if (!video) return;
-
-    const nextMuted = externalAudioPlaying ? !(audio?.muted ?? muted) : !video.muted;
-    setMuted(nextMuted);
-
-    if (externalAudioPlaying) {
-      if (audio) audio.muted = nextMuted;
-      video.muted = true;
-    } else {
-      video.muted = nextMuted;
+    const next = !muted;
+    setMuted(next);
+    if (externalAudioPlaying && audioRef.current) {
+      audioRef.current.muted = next;
+      if (videoRef.current) videoRef.current.muted = true;
+    } else if (videoRef.current) {
+      videoRef.current.muted = next;
     }
   }, [externalAudioPlaying, muted]);
-
-  const switchQuality = useCallback(
-    (label: string, url: string) => {
-      const video = videoRef.current;
-      if (!video || url === activeSource) {
-        setSelectedQuality(label);
-        setMenu(null);
-        return;
-      }
-
-      const position = video.currentTime;
-      const wasPlaying = !video.paused;
-
-      setBuffering(true);
-      setError(null);
-      setSelectedQuality(label);
-      setActiveSource(url);
-      setMenu(null);
-
-      window.setTimeout(() => {
-        const next = videoRef.current;
-        if (!next) return;
-
-        const resume = () => {
-          try {
-            if (Number.isFinite(position)) next.currentTime = position;
-          } catch {}
-          if (wasPlaying) void next.play().catch(() => undefined);
-        };
-
-        if (next.readyState >= 1) resume();
-        else next.addEventListener("loadedmetadata", resume, { once: true });
-      }, 0);
-    },
-    [activeSource]
-  );
-
-  const showSeekFeedback = useCallback((direction: "back" | "forward") => {
-    setSeekFeedback(direction);
-    if (seekFeedbackTimer.current) clearTimeout(seekFeedbackTimer.current);
-    seekFeedbackTimer.current = setTimeout(() => setSeekFeedback(null), 700);
-  }, []);
-
-  const performDoubleTapSeek = useCallback(
-    (clientX: number, rect: DOMRect) => {
-      const side = clientX - rect.left < rect.width / 2 ? "left" : "right";
-      const delta = side === "left" ? -10 : 10;
-      seek((videoRef.current?.currentTime ?? current) + delta);
-      showSeekFeedback(delta < 0 ? "back" : "forward");
-    },
-    [current, seek, showSeekFeedback]
-  );
-
-  const handleTouchEnd = useCallback(
-    (event: React.TouchEvent<HTMLDivElement>) => {
-      if (!started) return;
-      const target = event.target as HTMLElement;
-      if (target.closest("button, input, a, .pc-pop, .player-close")) return;
-
-      const touch = event.changedTouches[0];
-      if (!touch) return;
-
-      const rect = event.currentTarget.getBoundingClientRect();
-      const side: "left" | "right" =
-        touch.clientX - rect.left < rect.width / 2 ? "left" : "right";
-      const now = Date.now();
-      const previous = touchTapRef.current;
-      const doubleTap =
-        Boolean(previous) &&
-        now - (previous?.time ?? 0) <= 320 &&
-        previous?.side === side;
-
-      touchTapRef.current = { time: now, side };
-
-      if (!doubleTap) return;
-      event.preventDefault();
-      touchTapRef.current = null;
-      performDoubleTapSeek(touch.clientX, rect);
-    },
-    [performDoubleTapSeek, started]
-  );
-
-  const handleDoubleClick = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!started) return;
-      const target = event.target as HTMLElement;
-      if (target.closest("button, input, a, .pc-pop, .player-close")) return;
-      performDoubleTapSeek(event.clientX, event.currentTarget.getBoundingClientRect());
-    },
-    [performDoubleTapSeek, started]
-  );
-
-  const selectAudio = useCallback(
-    (index: number) => {
-      if (!audioTracks[index]) return;
-      const video = videoRef.current;
-      const audio = audioRef.current;
-      const position = video?.currentTime ?? current;
-
-      setSelectedAudioIndex(index);
-      const shouldUseExternal = !preparedBrowserCopy || index !== 0;
-      setUseExternalAudio(shouldUseExternal);
-
-      if (!shouldUseExternal) {
-        setAudioFallback(false);
-        setExternalAudioActive(false);
-        audio?.pause();
-        if (video) video.muted = false;
-        return;
-      }
-
-      if (audio) {
-        setAudioFallback(false);
-        setExternalAudioActive(false);
-        audio.src = audioTracks[index].url;
-        audio.volume = muted ? 0 : volume;
-        audio.muted = muted;
-        audio.load();
-        try {
-          audio.currentTime = position;
-        } catch {}
-        if (video && !video.paused) {
-          void audio.play().catch(() => {
-            setAudioFallback(true);
-            setExternalAudioActive(false);
-            video.muted = false;
-          });
-        }
-      }
-    },
-    [audioTracks, current, muted, volume, preparedBrowserCopy]
-  );
 
   const startPlayback = useCallback(() => {
     const video = videoRef.current;
@@ -454,10 +230,7 @@ export function VideoPlayer({
     setError(null);
     setBuffering(true);
 
-    // Start both elements from the same user gesture. Browsers can reject a
-    // second, later play() call as autoplay even when the video was started by
-    // a tap, so do not wait for video.play() to resolve first.
-    if (audioRef.current && externalAudioEnabled) {
+    if (externalAudioEnabled && audioRef.current) {
       audioRef.current.currentTime = video.currentTime || 0;
       audioRef.current.volume = muted ? 0 : volume;
       audioRef.current.muted = muted;
@@ -468,51 +241,234 @@ export function VideoPlayer({
       });
     }
 
-    void video
-      .play()
-      .catch(() => {
-        setBuffering(false);
-        setStarted(false);
-        setError("Playback was blocked. Tap Play again.");
-      });
+    void video.play().catch(() => {
+      setStarted(false);
+      setBuffering(false);
+      setError("Playback was blocked. Tap Play again.");
+    });
   }, [externalAudioEnabled, muted, volume]);
+
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) void video.play().catch(() => startPlayback());
+    else video.pause();
+  }, [startPlayback]);
 
   const toggleFullscreen = useCallback(() => {
     const element = wrapRef.current;
     if (!element) return;
-
     if (document.fullscreenElement) void document.exitFullscreen();
     else void element.requestFullscreen().catch(() => undefined);
   }, []);
 
-  const shareStream = useCallback(async () => {
-    setShareStatus(null);
+  const selectHlsAudio = useCallback((index: number) => {
+    const hls = hlsRef.current;
+    if (!hls || !hlsAudioTracks[index]) return;
+    hls.audioTrack = index;
+    setSelectedAudioIndex(index);
+    setMenu(null);
+  }, [hlsAudioTracks]);
+
+  const selectDirectAudio = useCallback((index: number) => {
+    if (!audioTracks[index]) return;
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    const position = video?.currentTime ?? currentRef.current;
+    setSelectedAudioIndex(index);
+
+    const shouldUseExternal = !preparedBrowserCopy || index > 0;
+    if (!shouldUseExternal) {
+      setAudioFallback(false);
+      setExternalAudioActive(false);
+      audio?.pause();
+      if (video) video.muted = false;
+      setMenu(null);
+      return;
+    }
+
+    if (!audio) return;
+    setAudioFallback(false);
+    setExternalAudioActive(false);
+    audio.src = audioTracks[index].url;
+    audio.volume = muted ? 0 : volume;
+    audio.muted = muted;
+    audio.load();
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title,
-          text: "Smart Upload stream",
-          url: shareUrl ?? activeSource,
-        });
-        setShareStatus("Shared");
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(shareUrl ?? activeSource);
-        setShareStatus("Stream URL copied");
-      }
+      audio.currentTime = position;
     } catch {}
-  }, [activeSource, shareUrl, title]);
+
+    if (video && !video.paused) {
+      void audio.play().catch(() => {
+        setAudioFallback(true);
+        setExternalAudioActive(false);
+        video.muted = false;
+      });
+    }
+    setMenu(null);
+  }, [audioTracks, muted, preparedBrowserCopy, volume]);
 
   useEffect(() => {
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    return () => {
-      audioRef.current?.pause();
-      if (seekFeedbackTimer.current) clearTimeout(seekFeedbackTimer.current);
+    if (usingHls) {
+      setHlsReady(false);
+      setHlsFailed(false);
+      setHlsAudioTracks([]);
+      setHlsLevels([]);
+      setSelectedLevel(-1);
+    }
+  }, [hlsUrl, usingHls]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let disposed = false;
+    let localHls: import("hls.js").default | null = null;
+
+    const startHls = async () => {
+      if (!hlsUrl) return;
+      setBuffering(true);
+
+      try {
+        const { default: Hls } = await import("hls.js");
+        if (disposed) return;
+
+        if (Hls.isSupported()) {
+          localHls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            capLevelToPlayerSize: true,
+            backBufferLength: 90,
+            maxBufferLength: 30,
+          });
+          hlsRef.current = localHls;
+
+          localHls.on(Hls.Events.MEDIA_ATTACHED, () => {
+            if (!disposed) localHls?.loadSource(hlsUrl);
+          });
+
+          localHls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+            if (disposed) return;
+            const tracks = (localHls?.audioTracks ?? []) as HlsAudioTrack[];
+            const levels = (localHls?.levels ?? []) as HlsLevel[];
+            setHlsAudioTracks(tracks.map((track, index) => ({
+              id: track.id ?? index,
+              name: track.name,
+              lang: track.lang,
+            })));
+            setHlsLevels(levels.map((level) => ({
+              height: level.height,
+              bitrate: level.bitrate,
+            })));
+            setSelectedAudioIndex(localHls?.audioTrack ?? (tracks.length ? 0 : 0));
+            setSelectedLevel(-1);
+            setHlsReady(true);
+            setBuffering(false);
+          });
+
+          localHls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
+            if (!disposed && Number.isInteger(data.id)) setSelectedAudioIndex(data.id);
+          });
+
+          localHls.on(Hls.Events.ERROR, (_event, data) => {
+            if (disposed || !data.fatal) return;
+
+            if (data.type === "networkError") {
+              localHls?.startLoad();
+              return;
+            }
+
+            if (data.type === "mediaError") {
+              localHls?.recoverMediaError();
+              return;
+            }
+
+            setHlsFailed(true);
+            setHlsReady(false);
+            localHls?.destroy();
+            hlsRef.current = null;
+            video.removeAttribute("src");
+            video.src = src;
+            video.load();
+            setError(null);
+          });
+
+          localHls.attachMedia(video);
+          return;
+        }
+
+        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = hlsUrl;
+          video.load();
+          setHlsReady(true);
+          return;
+        }
+
+        setHlsFailed(true);
+      } catch {
+        setHlsFailed(true);
+        setHlsReady(false);
+      }
     };
-  }, []);
+
+    if (hlsUrl) {
+      void startHls();
+    } else {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      setHlsReady(false);
+      video.src = src;
+      video.load();
+    }
+
+    return () => {
+      disposed = true;
+      localHls?.destroy();
+      if (hlsRef.current === localHls) hlsRef.current = null;
+    };
+  }, [hlsUrl, src]);
 
   useEffect(() => {
-    return () => emitProgress(true);
-  }, [emitProgress]);
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+
+    if (!usingHls && audio && externalAudioEnabled) {
+      const track = audioTracks[selectedAudioIndex] ?? audioTracks[0];
+      if (track && audio.src !== new URL(track.url, window.location.href).href) {
+        audio.src = track.url;
+        audio.load();
+      }
+      video.muted = externalAudioPlaying;
+      if (audio) {
+        audio.volume = muted ? 0 : volume;
+        audio.muted = muted;
+      }
+      if (!video.paused && started) void audio.play().catch(() => undefined);
+    } else if (!externalAudioPlaying) {
+      video.muted = false;
+    }
+  }, [
+    audioTracks,
+    externalAudioEnabled,
+    externalAudioPlaying,
+    muted,
+    selectedAudioIndex,
+    started,
+    volume,
+    usingHls,
+  ]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const tracks = Array.from(video.textTracks);
+    for (const track of tracks) track.mode = "disabled";
+    if (ccOn) {
+      const track = tracks.find((candidate) => candidate.kind === "subtitles" || candidate.kind === "captions");
+      if (track) track.mode = "showing";
+    }
+  }, [ccOn, subtitleUrl, hlsReady]);
 
   useEffect(() => {
     const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
@@ -524,14 +480,8 @@ export function VideoPlayer({
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
 
-      if (menu) {
-        if (event.key === "Escape") setMenu(null);
-        return;
-      }
-
-      if (event.key === "Escape") {
-        if (document.fullscreenElement) void document.exitFullscreen();
-        else onClose?.();
+      if (event.key === "Escape" && menu) {
+        setMenu(null);
         return;
       }
 
@@ -545,12 +495,6 @@ export function VideoPlayer({
         case "m":
         case "M":
           toggleMute();
-          break;
-        case "c":
-        case "C":
-          if (subtitleUrl) {
-            setCcOn((value) => !value);
-          }
           break;
         case "f":
         case "F":
@@ -577,53 +521,91 @@ export function VideoPlayer({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [
-    menu,
-    current,
-    volume,
-    togglePlay,
-    toggleMute,
-    toggleFullscreen,
-    seek,
-    changeVolume,
-    onClose,
-  ]);
+  }, [changeVolume, current, menu, seek, toggleFullscreen, toggleMute, togglePlay, volume]);
+
+  const applyInitial = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || initialedRef.current || !initialTime || initialTime <= 0.5) return;
+    if (!Number.isFinite(video.duration) || video.duration <= 0) return;
+
+    const target = Math.min(initialTime, Math.max(0, video.duration - 0.25));
+    initialedRef.current = true;
+    try {
+      video.currentTime = target;
+      currentRef.current = video.currentTime;
+      setCurrent(video.currentTime);
+      if (externalAudioPlaying && audioRef.current) audioRef.current.currentTime = video.currentTime;
+    } catch {
+      initialedRef.current = false;
+    }
+  }, [externalAudioPlaying, initialTime]);
+
+  const seekFeedbackShow = useCallback((direction: "back" | "forward") => {
+    setSeekFeedback(direction);
+    if (seekTimerRef.current) clearTimeout(seekTimerRef.current);
+    seekTimerRef.current = setTimeout(() => setSeekFeedback(null), 700);
+  }, []);
+
+  const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!started) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, input, a, .pc-pop, .player-close")) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const left = event.clientX - rect.left < rect.width / 2;
+    const delta = left ? -10 : 10;
+    seek((videoRef.current?.currentTime ?? current) + delta);
+    seekFeedbackShow(left ? "back" : "forward");
+  }, [current, seek, seekFeedbackShow, started]);
+
+  const shareStream = useCallback(async () => {
+    setShareStatus(null);
+    try {
+      const url = shareUrl ?? src;
+      if (navigator.share) {
+        await navigator.share({ title, text: "Smart Upload stream", url });
+        setShareStatus("Shared");
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        setShareStatus("Stream URL copied");
+      }
+    } catch {}
+  }, [shareUrl, src, title]);
+
+  const selectQuality = useCallback((index: number) => {
+    const hls = hlsRef.current;
+    if (usingHls && hlsReady && hls && hlsLevels[index]) {
+      hls.currentLevel = index;
+      setSelectedLevel(index);
+      setMenu(null);
+      return;
+    }
+  }, [hlsLevels, hlsReady, usingHls]);
+
+  const hasAnyAudio = usingHls ? hlsAudioTracks.length > 0 : audioOptions.length > 0;
+  const selectedAudioLabel =
+    audioOptions[selectedAudioIndex]?.label ??
+    (usingHls ? "Audio" : "EN");
 
   const pct = duration > 0 ? (current / duration) * 100 : 0;
   const hideCursor = !controls && playing;
   const showCenter = !buffering && !error && (status === "paused" || status === "ended" || !started);
 
-  const hasEpisodes = item.kind !== "movie" && Boolean(episode && onEpisode);
-  const flatEpisodes = item.seasons?.flatMap((s) => s.episodes) ?? [];
-  const episodeIndex = episode ? flatEpisodes.findIndex((e) => e.id === episode.id) : -1;
-  const prevEp = hasEpisodes && episodeIndex > 0 ? flatEpisodes[episodeIndex - 1] : null;
-  const nextEp =
-    hasEpisodes && episodeIndex >= 0 && episodeIndex < flatEpisodes.length - 1
-      ? flatEpisodes[episodeIndex + 1]
-      : null;
-
   return (
     <div
       ref={wrapRef}
       className={"player-wrap " + (hideCursor ? "hidden-cursor" : "")}
-      onMouseMove={wake}
-      onPointerMove={wake}
-      onTouchStart={wake}
-      onTouchEnd={handleTouchEnd}
+      onMouseMove={poke}
+      onPointerMove={poke}
       onDoubleClick={handleDoubleClick}
     >
-      {audioTracks.length > 0 ? (
+      {!usingHls && audioTracks.length > 0 ? (
         <audio
           ref={audioRef}
           preload="auto"
           aria-hidden="true"
-          onCanPlay={() => {
-            setAudioFallback(false);
-          }}
           onPlaying={() => {
             setAudioFallback(false);
             setExternalAudioActive(true);
-            syncAudioToVideo();
           }}
           onError={() => {
             setAudioFallback(true);
@@ -637,36 +619,31 @@ export function VideoPlayer({
         ref={videoRef}
         className="player-video"
         poster={poster ?? backdrop ?? undefined}
-        preload={initialTime && initialTime > 0.5 ? "auto" : "metadata"}
+        preload="auto"
         playsInline
         onLoadStart={() => setBuffering(true)}
         onPlay={() => {
           setStatus("playing");
+          setStarted(true);
           setBuffering(false);
           poke();
-          if (audioRef.current && externalAudioEnabled) {
-            void audioRef.current.play().catch(() => {
-              setAudioFallback(true);
-              setExternalAudioActive(false);
-              if (videoRef.current) videoRef.current.muted = false;
-            });
+          if (externalAudioEnabled && audioRef.current) {
+            void audioRef.current.play().catch(() => undefined);
           }
         }}
         onPause={() => {
           setStatus("paused");
           setControls(true);
-          setExternalAudioActive(false);
           emitProgress(true);
+          setExternalAudioActive(false);
           audioRef.current?.pause();
         }}
         onWaiting={() => setBuffering(true)}
         onPlaying={() => setBuffering(false)}
-        onSeeking={() => {
-          if (externalAudioPlaying) syncAudioToVideo();
-          if (initialTime && initialTime > 0.5 && !initialedRef.current) setBuffering(true);
+        onCanPlay={() => {
+          setBuffering(false);
+          applyInitial();
         }}
-        onCanPlay={() => setBuffering(false)}
-        onLoadedData={() => applyInitial()}
         onLoadedMetadata={(event) => {
           durationRef.current = event.currentTarget.duration || durationRef.current;
           setDuration(event.currentTarget.duration || 0);
@@ -678,21 +655,14 @@ export function VideoPlayer({
           durationRef.current = event.currentTarget.duration || durationRef.current;
           if (time > 0.5) playedRef.current = true;
           setCurrent(time);
-
-          if (
-            externalAudioPlaying &&
-            audioRef.current &&
-            Math.abs(audioRef.current.currentTime - time) > 0.35
-          ) {
-            try {
-              audioRef.current.currentTime = time;
-            } catch {}
+          if (externalAudioPlaying && audioRef.current) {
+            const drift = Math.abs(audioRef.current.currentTime - time);
+            if (drift > 0.35) audioRef.current.currentTime = time;
           }
-
           emitProgress();
         }}
         onSeeked={() => {
-          if (externalAudioPlaying) syncAudioToVideo();
+          if (externalAudioPlaying && audioRef.current) audioRef.current.currentTime = currentRef.current;
           setBuffering(false);
           emitProgress(true);
         }}
@@ -710,35 +680,22 @@ export function VideoPlayer({
           cbRef.current.onEnded?.();
         }}
         onError={() => {
-          setError(
-            "This media could not be decoded. Use a browser-safe H.264/AAC copy for unsupported MKV audio/video codecs."
-          );
+          if (usingHls && !hlsFailed) return;
           setBuffering(false);
+          setError("This media could not be decoded. A browser-safe HLS or H.264/AAC stream is required for this file.");
         }}
       >
-        <source src={activeSource} type={activeSource === src ? sourceType : undefined} />
+        {!usingHls ? (
+          <source src={src} type={sourceType} />
+        ) : null}
         {subtitleUrl ? (
-          <track
-            kind="subtitles"
-            src={subtitleUrl}
-            srcLang="en"
-            label="English"
-          />
+          <track kind="subtitles" src={subtitleUrl} srcLang="en" label="English" />
         ) : null}
       </video>
 
       <div className={"player-poster " + (started ? "hidden" : "")}>
-        <SmartImage
-          src={poster ?? backdrop}
-          alt=""
-          className="player-poster-img"
-          priority
-          sizes="100vw"
-        />
-        <div
-          className="player-poster-shade"
-          aria-hidden="true"
-        />
+        <SmartImage src={poster ?? backdrop} alt="" className="player-poster-img" priority sizes="100vw" />
+        <div className="player-poster-shade" aria-hidden="true" />
       </div>
 
       {showCenter ? (
@@ -749,7 +706,7 @@ export function VideoPlayer({
             onClick={status === "ended" ? () => {
               seek(0);
               startPlayback();
-            } : started ? togglePlay : startPlayback}
+            } : startPlayback}
             aria-label={status === "ended" ? "Replay" : "Play"}
           >
             {status === "ended" ? <IReplay /> : <IPlay />}
@@ -759,20 +716,11 @@ export function VideoPlayer({
 
       {demo ? <span className="pill pill-warn player-demo-badge">Demo preview stream</span> : null}
 
-      <div
-        className={"player-spinner " + (buffering && started ? "" : "hidden")}
-        role="status"
-        aria-label="Buffering"
-      >
+      <div className={"player-spinner " + (buffering && started ? "" : "hidden")} role="status" aria-label="Buffering">
         <div className="player-loading-orbit" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <i />
+          <span /><span /><span /><span /><span /><i />
         </div>
-        <span className="player-loading-label">Loading</span>
+        <span className="player-loading-label">{hlsReady ? "Loading stream" : "Loading"}</span>
       </div>
 
       {error ? (
@@ -786,8 +734,10 @@ export function VideoPlayer({
               className="btn btn-primary"
               onClick={() => {
                 setError(null);
-                setStarted(false);
                 setStatus("idle");
+                setStarted(false);
+                setHlsFailed(false);
+                videoRef.current?.load();
               }}
             >
               <IReplay /> Try again
@@ -803,28 +753,15 @@ export function VideoPlayer({
         </div>
         <span className="player-live-dot" aria-hidden="true" />
         {onClose ? (
-          <button
-            type="button"
-            className="player-close"
-            onClick={onClose}
-            aria-label="Exit player"
-            title="Exit player"
-          >
-            ×
-          </button>
+          <button type="button" className="player-close" onClick={onClose} aria-label="Exit player">×</button>
         ) : null}
       </div>
 
       <div className={"player-gradient " + (controls ? "" : "hidden")} />
 
       {seekFeedback ? (
-        <div
-          className={"seek-feedback seek-feedback-" + seekFeedback}
-          aria-live="polite"
-        >
-          <span className="seek-feedback-icon">
-            {seekFeedback === "back" ? <ISkipBack /> : <ISkipFwd />}
-          </span>
+        <div className={"seek-feedback seek-feedback-" + seekFeedback} aria-live="polite">
+          <span className="seek-feedback-icon">{seekFeedback === "back" ? <ISkipBack /> : <ISkipFwd />}</span>
           <span>10 seconds</span>
         </div>
       ) : null}
@@ -840,34 +777,25 @@ export function VideoPlayer({
           onChange={(event) => seek(Number(event.target.value))}
           style={{ "--fill": pct + "%" } as React.CSSProperties}
           aria-label="Seek"
-          aria-valuetext={fmt(current)}
         />
 
         <div className="pc-row">
-          <button
-            type="button"
-            className="pc-btn pc-main-play"
-            onClick={togglePlay}
-            aria-label={playing ? "Pause" : "Play"}
-            title={playing ? "Pause" : "Play"}
-          >
+          <button type="button" className="pc-btn pc-main-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
             {playing ? <IPause /> : <IPlay />}
           </button>
 
-          <span className="pc-time">
-            {fmt(current)} / {fmt(duration)}
-          </span>
-
+          <span className="pc-time">{fmt(current)} / {fmt(duration)}</span>
           <div className="pc-spacer" />
 
           {prevEp ? (
-            <button
-              type="button"
-              className="pc-btn wide"
-              onClick={() => onEpisode?.(prevEp)}
-              aria-label={"Previous episode " + prevEp.episode}
-            >
-              Ep {prevEp.episode}
+            <button type="button" className="pc-btn wide" onClick={() => onEpisode?.(prevEp)} aria-label={"Previous episode " + prevEp.episode}>
+              <ISkipBack /> Ep {prevEp.episode}
+            </button>
+          ) : null}
+
+          {nextEp ? (
+            <button type="button" className="pc-btn wide" onClick={() => onEpisode?.(nextEp)} aria-label={"Next episode " + nextEp.episode}>
+              Ep {nextEp.episode} <ISkipFwd />
             </button>
           ) : null}
 
@@ -875,8 +803,8 @@ export function VideoPlayer({
             <button
               type="button"
               className="pc-btn"
-              aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
               onClick={toggleMute}
+              aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
               title={muted || volume === 0 ? "Unmute" : "Mute"}
             >
               {muted || volume === 0 ? <IVolumeMute /> : volume < 0.5 ? <IVolumeLow /> : <IVolumeHigh />}
@@ -894,152 +822,130 @@ export function VideoPlayer({
             />
           </div>
 
-          {audioTracks.length > 0 ? (
-            <AudioLanguageControl
-              tracks={audioTracks}
-              activeIndex={selectedAudioIndex}
-              onSelect={selectAudio}
-            />
+          {hasAnyAudio ? (
+            <div className="pc-menu-anchor audio-language-control">
+              <button
+                type="button"
+                className={"pc-btn pc-menu-btn audio-language-trigger " + (menu === "audio" ? "accent" : "")}
+                onClick={() => setMenu(menu === "audio" ? null : "audio")}
+                aria-expanded={menu === "audio"}
+                aria-haspopup="menu"
+                aria-label={"Audio language: " + selectedAudioLabel}
+                title={selectedAudioLabel}
+              >
+                <span className="audio-language-glyph" aria-hidden="true">A</span>
+                <span className="audio-language-label">
+                  {(audioOptions[selectedAudioIndex]?.language || selectedAudioLabel).slice(0, 2).toUpperCase()}
+                </span>
+              </button>
+
+              {menu === "audio" ? (
+                <div className="pc-pop audio-language-menu" role="menu">
+                  <div className="pc-pop-title">AUDIO {audioOptions.length > 1 ? audioOptions.length + " TRACKS" : "TRACK"}</div>
+                  {audioOptions.map((track, index) => (
+                    <button
+                      key={track.label + "-" + index}
+                      type="button"
+                      className={"pc-option " + (index === selectedAudioIndex ? "active" : "")}
+                      onClick={() => usingHls ? selectHlsAudio(index) : selectDirectAudio(index)}
+                      role="menuitemradio"
+                      aria-checked={index === selectedAudioIndex}
+                    >
+                      <span>{track.label}</span>
+                      {index === selectedAudioIndex ? <ICheck className="check" /> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           {subtitleUrl ? (
             <div className="pc-menu-anchor">
-            <button
-              type="button"
-              className={"pc-btn pc-menu-btn pc-label-btn " + (ccOn ? "accent" : "")}
-              aria-label="Subtitles"
-              aria-expanded={menu === "subtitles"}
-              onClick={() => setMenu(menu === "subtitles" ? null : "subtitles")}
-              title="Subtitles"
-            >
-              <ISubtitles />
-            </button>
-            {menu === "subtitles" ? (
-              <div className="pc-pop pc-pop-subtitles">
-                <div className="pc-pop-title">SUBTITLES</div>
-                {subtitleUrl ? (
-                  <button
-                    type="button"
-                    className={"pc-option " + (ccOn ? "active" : "")}
-                    onClick={() => setCcOn((value) => !value)}
-                  >
+              <button type="button" className={"pc-btn pc-menu-btn " + (ccOn ? "accent" : "")} onClick={() => setMenu(menu === "subtitles" ? null : "subtitles")} aria-expanded={menu === "subtitles"} title="Subtitles">
+                <ISubtitles />
+              </button>
+              {menu === "subtitles" ? (
+                <div className="pc-pop">
+                  <div className="pc-pop-title">SUBTITLES</div>
+                  <button type="button" className={"pc-option " + (ccOn ? "active" : "")} onClick={() => { setCcOn((value) => !value); setMenu(null); }}>
                     <span>English</span>
                     {ccOn ? <ICheck className="check" /> : null}
                   </button>
-                ) : (
-                  <div className="pc-empty">No subtitles in this stream</div>
-                )}
-              </div>
-            ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
-          {qualityVariants.length > 0 ? (
+          {usingHls && hlsLevels.length > 0 ? (
             <div className="pc-menu-anchor">
-            <button
-              type="button"
-              className={
-                "pc-btn pc-menu-btn pc-label-btn " +
-                (selectedQuality === "Auto" ? "accent" : "")
-              }
-              aria-label="Quality"
-              aria-expanded={menu === "quality"}
-              onClick={() => setMenu(menu === "quality" ? null : "quality")}
-              title="Video quality"
-            >
-              <span className="pc-quality-mark">
-                {selectedQuality === "Auto" ? "AUTO" : selectedQuality}
-              </span>
-            </button>
-            {menu === "quality" ? (
-              <div className="pc-pop pc-pop-quality">
-                <div className="pc-pop-title">VIDEO QUALITY</div>
-                <button
-                  type="button"
-                  className={"pc-option " + (selectedQuality === "Auto" ? "active" : "")}
-                  onClick={() => switchQuality("Auto", src)}
-                >
-                  <span>Auto</span>
-                  {selectedQuality === "Auto" ? <ICheck className="check" /> : null}
-                </button>
-                {qualityVariants.map((variant) => (
-                  <button
-                    type="button"
-                    key={variant.label + "-" + variant.url}
-                    className={"pc-option " + (selectedQuality === variant.label ? "active" : "")}
-                    onClick={() => switchQuality(variant.label, variant.url)}
-                  >
-                    <span>{variant.label}</span>
-                    {variant.height ? <span className="pc-quality-note">{variant.height}p</span> : null}
-                    {selectedQuality === variant.label ? <ICheck className="check" /> : null}
+              <button type="button" className={"pc-btn pc-menu-btn pc-label-btn " + (selectedLevel === -1 ? "accent" : "")} onClick={() => setMenu(menu === "quality" ? null : "quality")} aria-expanded={menu === "quality"} title="Video quality">
+                <span className="pc-quality-mark">{selectedLevel === -1 ? "AUTO" : (hlsLevels[selectedLevel]?.height ? hlsLevels[selectedLevel].height + "P" : "QUALITY")}</span>
+              </button>
+              {menu === "quality" ? (
+                <div className="pc-pop pc-pop-quality">
+                  <div className="pc-pop-title">VIDEO QUALITY</div>
+                  <button type="button" className={"pc-option " + (selectedLevel === -1 ? "active" : "")} onClick={() => { if (hlsRef.current) hlsRef.current.currentLevel = -1; setSelectedLevel(-1); setMenu(null); }}>
+                    <span>Auto</span>
+                    {selectedLevel === -1 ? <ICheck className="check" /> : null}
                   </button>
-                ))}
-                {!qualityVariants.length ? (
-                  <div className="pc-empty">No alternate quality streams are configured.</div>
-                ) : null}
-              </div>
-            ) : null}
+                  {hlsLevels.map((level, index) => (
+                    <button key={"hls-" + index} type="button" className={"pc-option " + (selectedLevel === index ? "active" : "")} onClick={() => selectQuality(index)}>
+                      <span>{level.height ? level.height + "p" : "Level " + (index + 1)}</span>
+                      {selectedLevel === index ? <ICheck className="check" /> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
+
+          {!usingHls && qualityVariants.length > 0 ? (
+            <div className="pc-menu-anchor">
+              <button type="button" className="pc-btn pc-menu-btn pc-label-btn" onClick={() => setMenu(menu === "quality" ? null : "quality")} aria-expanded={menu === "quality"} title="Video quality">
+                <span className="pc-quality-mark">QUALITY</span>
+              </button>
+              {menu === "quality" ? (
+                <div className="pc-pop pc-pop-quality">
+                  <div className="pc-pop-title">VIDEO QUALITY</div>
+                  <button type="button" className="pc-option" onClick={() => setMenu(null)}>
+                    <span>Auto</span><ICheck className="check" />
+                  </button>
+                  {qualityVariants.map((variant) => (
+                    <button key={variant.label + "-" + variant.url} type="button" className="pc-option" onClick={() => { setMenu(null); window.location.href = variant.url; }}>
+                      <span>{variant.label}</span>
+                      {variant.height ? <span className="pc-quality-note">{variant.height}p</span> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <button type="button" className="pc-btn" onClick={shareStream} aria-label="Share stream" title="Share stream">
+            <IExpand />
+          </button>
 
           <div className="pc-menu-anchor">
-            <button
-              type="button"
-              className="pc-btn pc-menu-btn"
-              aria-label="Playback settings"
-              aria-expanded={menu === "settings"}
-              onClick={() => setMenu(menu === "settings" ? null : "settings")}
-              title="Playback settings"
-            >
+            <button type="button" className={"pc-btn pc-menu-btn " + (menu === "settings" ? "accent" : "")} onClick={() => setMenu(menu === "settings" ? null : "settings")} aria-expanded={menu === "settings"} title="Playback settings">
               <ISettings />
             </button>
             {menu === "settings" ? (
-              <div className="pc-pop pc-pop-settings">
-                <div className="pc-pop-title">PLAYBACK SPEED</div>
-                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
-                  <button
-                    type="button"
-                    key={speed}
-                    className={"pc-option " + (rate === speed ? "active" : "")}
-                    onClick={() => {
-                      if (videoRef.current) videoRef.current.playbackRate = speed;
-                      setRate(speed);
-                      setMenu(null);
-                    }}
-                  >
-                    <span>{speed === 1 ? "Normal" : speed + "x"}</span>
-                    {rate === speed ? <ICheck className="check" /> : null}
+              <div className="pc-pop pc-pop-quality">
+                <div className="pc-pop-title">PLAYBACK</div>
+                {[0.75, 1, 1.25, 1.5, 2].map((value) => (
+                  <button key={value} type="button" className={"pc-option " + (rate === value ? "active" : "")} onClick={() => { if (videoRef.current) videoRef.current.playbackRate = value; setRate(value); setMenu(null); }}>
+                    <span>{value}x</span>
+                    {rate === value ? <ICheck className="check" /> : null}
                   </button>
                 ))}
-                <div className="pc-pop-title pc-pop-section-gap">EXTERNAL PLAYER</div>
-                <button type="button" className="pc-option" onClick={() => void shareStream()}>
-                  <span>Share / copy stream URL</span>
-                </button>
-                {shareStatus ? <div className="pc-empty">{shareStatus}</div> : null}
               </div>
             ) : null}
           </div>
 
-          <button
-            type="button"
-            className="pc-btn"
-            onClick={toggleFullscreen}
-            aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-          >
+          <button type="button" className="pc-btn" onClick={toggleFullscreen} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"} title={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
             {fullscreen ? <ICompress /> : <IExpand />}
           </button>
-
-          {nextEp ? (
-            <button
-              type="button"
-              className="pc-btn wide"
-              onClick={() => onEpisode?.(nextEp)}
-              aria-label={"Next episode " + nextEp.episode}
-            >
-              Ep {nextEp.episode}
-            </button>
-          ) : null}
         </div>
       </div>
     </div>
