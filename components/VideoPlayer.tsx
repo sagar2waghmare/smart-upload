@@ -167,16 +167,20 @@ export function VideoPlayer({
         title={episodeTitle ? `${title} — ${episodeTitle}` : title}
         src={{
           src: source,
+          // Vidstack's PlayerSrc type only accepts media MIME types it can
+          // classify as browser-playable video (plus HLS). Drive MIME values
+          // such as audio/mpeg or audio/mp4 are not valid PlayerSrc values.
+          // This player is for movie/episode video, so normalize all non-HLS
+          // sources to a browser-safe video type instead of passing arbitrary
+          // Drive metadata through the strict Vidstack type.
           type:
             hlsUrl && !fallbackUsed && source === hlsUrl
               ? "application/x-mpegurl"
-              : (sourceType === "audio/mpeg" ||
-                  sourceType === "audio/mp4" ||
-                  sourceType === "video/mp4" ||
-                  sourceType === "video/webm" ||
-                  sourceType === "video/ogg"
-                  ? sourceType
-                  : "video/mp4"),
+              : sourceType === "video/webm"
+                ? "video/webm"
+                : sourceType === "video/ogg"
+                  ? "video/ogg"
+                  : "video/mp4",
         }}
         load="eager"
         crossOrigin="anonymous"
