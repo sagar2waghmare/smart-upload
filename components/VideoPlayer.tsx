@@ -142,19 +142,23 @@ export function VideoPlayer({
   );
 
   const externalAudioEnabled =
-    !usingHls &&
     audioTracks.length > 0 &&
     !audioFallback &&
-    (!preparedBrowserCopy || selectedAudioIndex > 0);
+    (!preparedBrowserCopy || selectedAudioIndex > 0 || usingHls);
 
   const externalAudioPlaying = externalAudioEnabled && externalAudioActive;
   const playing = status === "playing";
-  const audioOptions = usingHls
-    ? hlsAudioTracks.map((track, index) => ({
-        label: niceAudioLabel(track, index),
-        language: track.lang,
-      }))
-    : audioTracks;
+  const directAudioOptions = audioTracks.map((track) => ({
+    label: track.label,
+    language: track.language,
+  }));
+  const hlsAudioOptions = hlsAudioTracks.map((track) => ({
+    label: track.name || track.lang || "Audio",
+    language: track.lang,
+  }));
+  const audioOptions = directAudioOptions.length > 0
+    ? directAudioOptions
+    : hlsAudioOptions;
 
   useEffect(() => {
     cbRef.current = { onProgress, onEnded };
@@ -229,6 +233,9 @@ export function VideoPlayer({
     setError(null);
     setBuffering(true);
 
+    // Mute any embedded HLS/direct audio before starting the prepared AAC sidecar.
+    video.muted = externalAudioEnabled ? true : muted;
+
     if (externalAudioEnabled && audioRef.current) {
       audioRef.current.currentTime = video.currentTime || 0;
       audioRef.current.volume = muted ? 0 : volume;
@@ -236,7 +243,7 @@ export function VideoPlayer({
       void audioRef.current.play().catch(() => {
         setAudioFallback(true);
         setExternalAudioActive(false);
-        video.muted = false;
+        video.muted = muted;
       });
     }
 
@@ -637,7 +644,7 @@ export function VideoPlayer({
       onPointerMove={poke}
       onDoubleClick={handleDoubleClick}
     >
-      {!usingHls && audioTracks.length > 0 ? (
+      {audioTracks.length > 0 ? (
         <audio
           ref={audioRef}
           preload="auto"
@@ -886,7 +893,7 @@ export function VideoPlayer({
                       key={track.label + "-" + index}
                       type="button"
                       className={"pc-option " + (index === selectedAudioIndex ? "active" : "")}
-                      onClick={() => usingHls ? selectHlsAudio(index) : selectDirectAudio(index)}
+                      onClick={() => directAudioOptions.length > 0 ? selectDirectAudio(index) : selectHlsAudio(index)}
                       role="menuitemradio"
                       aria-checked={index === selectedAudioIndex}
                     >

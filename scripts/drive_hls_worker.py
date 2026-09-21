@@ -44,6 +44,31 @@ def ffprobe_tracks(src: Path):
     p=subprocess.run(["ffprobe","-v","error","-show_entries","stream=index,codec_type:stream_tags=language,title","-of","json",str(src)],capture_output=True,text=True,check=True)
     return json.loads(p.stdout).get("streams",[])
 
+def prepare_browser_audio_sidecars(src: Path, tracks, temp_root: Path):
+    """Create browser-safe M4A copies for every source audio track.
+
+    These sidecars are used by the web player even when HLS is active, making
+    audio independent from browser/HLS alternate-audio selection.
+    """
+    sidecars=[]
+    audio_tracks=[x for x in tracks if x.get("codec_type")=="audio"]
+    for i,a in enumerate(audio_tracks):
+        tags=a.get("tags") or {}
+        language=str(tags.get("language") or "und").lower().replace(".", "") or "und"
+        ext=src.suffix
+        base=src.name[:-len(ext)] if ext else src.name
+        dst=temp_root/f"{base}.browser.audio.{i}.{language}.m4a"
+        cmd=["ffmpeg","-y","-i",str(src),"-map",f"0:{a['index']}","-vn","-c:a","aac",
+             "-profile:a","aac_low","-b:a","160k","-ac","2","-ar","48000",
+             "-movflags","+faststart",str(dst)]
+        r=subprocess.run(cmd,capture_output=True,text=True)
+        if r.returncode==0:
+            sidecars.append(dst)
+        else:
+            print(f"Warning: audio sidecar {i} could not be converted to AAC:")
+            print(r.stderr[-1200:])
+    return sidecars
+
 def process(src: Path, out: Path):
     out.mkdir(parents=True,exist_ok=True); tracks=ffprobe_tracks(src)
     variants=[(1920,1080,5500000),(1280,720,3200000),(854,480,1500000)]; maps=[]
@@ -73,7 +98,7 @@ def process(src: Path, out: Path):
         tags=a.get("tags") or {}; lang=str(tags.get("language") or "und").lower()
         title=str(tags.get("title") or label_map.get(lang) or lang.upper())
         cmd=["ffmpeg","-y","-i",str(src),"-map",f"0:{a['index']}","-vn","-c:a","aac",
-             "-b:a","192k","-ac","2","-ar","48000","-f","hls","-hls_time","6",
+             "-profile:a","aac_low","-b:a","192k","-ac","2","-ar","48000","-f","hls","-hls_time","6",
              "-hls_playlist_type","vod","-hls_flags","independent_segments",
              "-hls_segment_filename",str(adir/"seg_%05d.ts"),str(adir/"index.m3u8")]
         r=subprocess.run(cmd,capture_output=True,text=True)
@@ -120,7 +145,10 @@ def upload_tree(drive, parent: str, root: Path):
     for f in root.rglob("*"):
         if not f.is_file(): continue
         rel=str(f.parent.relative_to(root)).replace(os.sep,"/"); rel="" if rel=="." else rel
-        mime="application/vnd.apple.mpegurl" if f.suffix==".m3u8" else ("text/vtt" if f.suffix==".vtt" else "video/mp2t")
+        mime=("application/vnd.apple.mpegurl" if f.suffix==".m3u8" else
+              "text/vtt" if f.suffix==".vtt" else
+              "audio/mp4" if f.suffix==".m4a" else
+              "video/mp2t")
         upload_file(drive,folder_ids[rel],f,mime)
 
 def main():
@@ -133,6 +161,11 @@ def main():
         hls_folder=ensure_folder(drive,root,item["id"])
         with tempfile.TemporaryDirectory(prefix="smart-hls-") as td:
             td=Path(td); src=td/item["name"]; out=td/"hls"; print(f"Processing {item['name']} ({item['id']})")
-            download(drive,item["id"],src); process(src,out); upload_tree(drive,hls_folder,out); print(f"Finished {item['id']}")
+            download(drive,item["id"],src)
+            tracks=process(src,out)
+            upload_tree(drive,hls_folder,out)
+            for sidecar in prepare_browser_audio_sidecars(src,tracks,td):
+                upload_file(drive,args.media_folder,sidecar,"audio/mp4")
+            print(f"Finished {item['id']}")
 
 if __name__=="__main__": main()

@@ -750,6 +750,13 @@ Ask the user which one to start, or continue in the order above if they say "res
 
  
 ---
+## 2026-09-21 — AAC sidecar fallback for HLS
+
+- VideoPlayer can now use prepared AAC M4A sidecars even when HLS supplies the video. The sidecar is started in the same user gesture and the video element is muted first so embedded/HLS audio does not overlap it.
+- drive_hls_worker.py now also creates one browser-safe AAC-LC M4A sidecar per source audio track and uploads the .browser.audio.*.m4a files beside the original. Existing /api/play discovery already recognizes this naming pattern.
+- Existing HLS packages must be regenerated for a movie before the new worker-created sidecars exist. Test one problematic movie first.
+- Build verification remains dependent on Vercel because the connected workspace does not provide a local checkout with dependencies.
+
 ## 2026-09-21 — HLS audio selection compatibility fix
 
 - The HLS worker now emits explicit browser-friendly H.264 profile/level settings and a CODECS="avc1.64002A,mp4a.40.2" attribute on video variants when AAC audio tracks are present. This makes the video/audio capability explicit in the HLS master playlist instead of leaving codec discovery to the client.
