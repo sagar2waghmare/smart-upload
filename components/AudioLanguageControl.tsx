@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { AudioVariant } from "../lib/types";
+import { IVolumeHigh } from "./icons";
 
 export function AudioLanguageControl({
   tracks,
@@ -27,6 +28,7 @@ export function AudioLanguageControl({
         aria-label="Audio language"
         title={active ? `Audio: ${active.label}` : "No alternate audio tracks"}
       >
+        <IVolumeHigh className="audio-language-icon-svg" />
         <span className="audio-language-icon" aria-hidden="true">
           {active?.language ? active.language.slice(0, 3).toUpperCase() : "AUDIO"}
         </span>
