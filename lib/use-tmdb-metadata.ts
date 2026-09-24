@@ -22,15 +22,38 @@ type MetaState = {
 const cache = new Map<string, TmdbMetaEnrich | null>();
 
 function metaType(kind?: MediaItem["kind"]): "movie" | "series" {
-  if (kind === "movie") return "movie";
-  return "series";
+  return kind === "movie" ? "movie" : "series";
 }
 
-async function fetchMeta(title: string, year: string | number | undefined, kind?: MediaItem["kind"]): Promise<TmdbMetaEnrich | null> {
+function itemMeta(item: MediaItem | null): TmdbMetaEnrich | null {
+  if (!item || !item.tmdbId) return null;
+
+  const meta: TmdbMetaEnrich = {
+    title: item.title,
+    year: typeof item.year === "number" ? item.year : Number(item.year) || undefined,
+    overview: item.overview,
+    runtime: item.runtime,
+    rating: item.rating,
+    genres: item.genres,
+    poster: item.poster,
+    backdrop: item.backdrop,
+  };
+
+  return meta.overview || meta.poster || meta.backdrop || meta.rating !== undefined ? meta : null;
+}
+
+async function fetchMeta(
+  title: string,
+  year: string | number | undefined,
+  kind?: MediaItem["kind"],
+): Promise<TmdbMetaEnrich | null> {
   try {
     const params = new URLSearchParams({ query: title, type: metaType(kind) });
     if (year) params.set("year", String(year));
-    const res = await fetch(`/api/metadata?${params.toString()}`, { cache: "no-store" });
+    const res = await fetch(`/api/metadata?${params.toString()}`, {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
     const json = (await res.json()) as { matched?: boolean; meta?: TmdbMetaEnrich };
     if (!res.ok || json.matched !== true || !json.meta) return null;
     return json.meta;
@@ -39,12 +62,20 @@ async function fetchMeta(title: string, year: string | number | undefined, kind?
   }
 }
 
-function initialFromKey(key: string): MetaState {
+function initialFromKey(key: string, item: MediaItem | null): MetaState {
   if (!key) return { matched: false, loading: false, meta: null };
+
   if (cache.has(key)) {
     const m = cache.get(key) ?? null;
     return { matched: Boolean(m), loading: false, meta: m };
   }
+
+  const embedded = itemMeta(item);
+  if (embedded) {
+    cache.set(key, embedded);
+    return { matched: true, loading: false, meta: embedded };
+  }
+
   return { matched: false, loading: true, meta: null };
 }
 
@@ -53,30 +84,32 @@ export function useTmdbMeta(item: MediaItem | null): MetaState {
   const year = item?.year;
   const kind = item?.kind;
   const key = item ? `${metaType(kind)}|${title}|${year ?? ""}` : "";
-  const [state, setState] = useState<MetaState>(() => initialFromKey(key));
+  const embedded = itemMeta(item);
+  const [state, setState] = useState<MetaState>(() => initialFromKey(key, item));
   const [lastKey, setLastKey] = useState(key);
 
   if (key !== lastKey) {
     setLastKey(key);
-    setState(initialFromKey(key));
+    setState(initialFromKey(key, item));
   }
 
   useEffect(() => {
-    if (!item) return;
-    if (cache.has(key)) return;
+    if (!item || !key || cache.has(key)) return;
+
     let alive = true;
     const run = async () => {
-      const m = await fetchMeta(title, year, kind);
+      const m = embedded ?? (await fetchMeta(title, year, kind));
       if (alive) {
         cache.set(key, m);
         setState({ matched: Boolean(m), loading: false, meta: m });
       }
     };
+
     void run();
     return () => {
       alive = false;
     };
-  }, [item, key, title, year, kind]);
+  }, [item, key, title, year, kind, embedded]);
 
   return useMemo(() => state, [state]);
 }
