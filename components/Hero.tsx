@@ -44,11 +44,12 @@ export function Hero({ items }: { items: MediaItem[] }) {
   }, []);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    const target = e.target as Element | null;
+    const interactive = target?.closest('button, a, input, select, textarea, [role="button"]');
+    const poster = target?.closest(".hero-poster");
+    if (interactive && !poster) return;
+
     dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: true, moved: false, horizontal: false };
-    // Capture immediately so a swipe that starts on the poster, text, button,
-    // or empty/background part of the hero stays attached to the hero.
-    // We release it as soon as the gesture is identified as vertical so the
-    // browser owns normal page scrolling.
     try { heroRef.current?.setPointerCapture(e.pointerId); } catch {}
     heroRef.current?.classList.add("is-pressing");
   }, []);
@@ -65,7 +66,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
         heroRef.current?.classList.remove("is-pressing");
         return;
       }
-      heroRef.current?.classList.add("is-dragging");
+      trackRef.current?.classList.add("is-dragging");
     }
     if (Math.abs(dx) > 8) dragRef.current.moved = true;
     trackRef.current.style.setProperty("--drag-x", `${Math.max(-140, Math.min(140, dx))}px`);
@@ -74,9 +75,9 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.dragging) return;
     dragRef.current.dragging = false;
-    try { trackRef.current?.releasePointerCapture(e.pointerId); } catch {}
     try { heroRef.current?.releasePointerCapture(e.pointerId); } catch {}
-    heroRef.current?.classList.remove("is-pressing", "is-dragging");
+    heroRef.current?.classList.remove("is-pressing");
+    trackRef.current?.classList.remove("is-dragging");
     trackRef.current?.style.setProperty("--drag-x", "0px");
     const dx = e.clientX - dragRef.current.startX;
     if (dragRef.current.horizontal && Math.abs(dx) > 45) {
