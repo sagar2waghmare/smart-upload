@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   if (!firebaseAdminConfigured())
     return NextResponse.json(
       { error: "not-configured", message: "Sign-in is not configured." },
-      { status: 503 }
+      { status: 503, headers: NO_STORE }
     );
 
   let body: { idToken?: unknown };
@@ -49,13 +49,13 @@ export async function POST(req: Request) {
   if (!idToken)
     return NextResponse.json(
       { error: "invalid-request", message: "Missing idToken." },
-      { status: 400 }
+      { status: 400, headers: NO_STORE }
     );
 
   const user = await verifyIdToken(idToken);
   if (!user) {
     console.error("[auth/session] verifyIdToken returned null");
-    return NextResponse.json({ error: "unauthorized", message: "Could not verify sign-in." }, { status: 401 });
+    return NextResponse.json({ error: "unauthorized", message: "Could not verify sign-in." }, { status: 401, headers: NO_STORE });
   }
   if (!user.email) {
     console.error("[auth/session] verified token missing email claim");
@@ -65,16 +65,16 @@ export async function POST(req: Request) {
   if (!isAllowedEmail(user.email))
     return NextResponse.json(
       { error: "forbidden", message: "This account is not on the allowed list for Smart Upload." },
-      { status: 403 }
+      { status: 403, headers: NO_STORE }
     );
 
   const session = await createSessionCookie(idToken, SESSION_MAX_AGE_SECONDS * 1000);
   if (!session)
-    return NextResponse.json({ error: "unauthorized", message: "Could not create session." }, { status: 401 });
+    return NextResponse.json({ error: "unauthorized", message: "Could not create session." }, { status: 401, headers: NO_STORE });
 
   const store = await cookies();
   store.set(SESSION_COOKIE, session, SESSION_OPTIONS);
-  return NextResponse.json({ ok: true, email: user.email });
+  return NextResponse.json({ ok: true, email: user.email }, { headers: NO_STORE });
 }
 
 export async function DELETE() {
@@ -90,5 +90,5 @@ export async function DELETE() {
     }
   }
   store.delete(SESSION_COOKIE);
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: NO_STORE });
 }
