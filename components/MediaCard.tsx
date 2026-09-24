@@ -7,7 +7,7 @@ import { useDetails } from "./DetailsProvider";
 import { formatPosition, progressPercent, useWatchProgress, watchMode } from "../lib/watch-progress";
 import { mergePatch, useLibraryEnrichment } from "./LibraryEnrichmentProvider";
 
-export function MediaCard({ item }: { item: MediaItem }) {
+export function MediaCard({ item, priority = false }: { item: MediaItem; priority?: boolean }) {
   const { openDetails } = useDetails();
   const { getPatch, observe } = useLibraryEnrichment();
   const displayItem = mergePatch(item, getPatch(item.id));
@@ -35,7 +35,7 @@ export function MediaCard({ item }: { item: MediaItem }) {
       className="card-conteudo"
     >
       <button className="poster" onClick={() => openDetails(displayItem)} aria-label={`Open details for ${displayItem.title}`}>
-        <SmartImage src={displayItem.poster} alt={`${displayItem.title} poster`} objectFit="contain" />
+        <SmartImage src={displayItem.poster} alt={`${displayItem.title} poster`} objectFit="contain" priority={priority} />
       </button>
       <FavButton id={item.id} />
       <div className="info-conteudo">
