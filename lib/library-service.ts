@@ -1,7 +1,7 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
 import { identifyFilename } from "./identify";
 import { parseFilename } from "./media/detect";
-import { getCachedDriveLibrary, setCachedDriveLibrary, getCachedMetadata, metadataCacheKey } from "./library-cache";
+import { getCachedDriveLibrary, setCachedDriveLibrary, getCachedMetadata, metadataCacheKey, setCachedMetadata } from "./library-cache";
 import type { Episode, LibraryEnrichmentPatch, LibraryEnrichmentTarget, LibraryResponse, MediaItem, Season } from "./types";
 
 type RawItem = {
@@ -209,7 +209,7 @@ export async function enrichLibraryBatch(targets: LibraryEnrichmentTarget[]): Pr
         poster: tmdb?.matched ? tmdb.poster : undefined,
         backdrop: tmdb?.matched ? tmdb.backdrop : undefined,
       };
-      await (await import("./library-cache")).setCachedMetadata(key, patch);
+      await setCachedMetadata(key, patch);
       patches.push(patch);
     } catch {
       const patch: LibraryEnrichmentPatch = { id: target.id };
