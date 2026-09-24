@@ -50,7 +50,7 @@ export default async function BrowsePage({ params }: { params: Promise<{ kind: s
           </div>
         ) : (
           <div className="card-grid" style={{ paddingTop: "1.5rem" }}>
-            {list.map((m) => <MediaCard key={m.id} item={m} />)}
+            {list.map((m, index) => <MediaCard key={m.id} item={m} priority={index < 6} />)}
           </div>
         )}
       </main>
