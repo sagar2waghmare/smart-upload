@@ -2,7 +2,7 @@
 
 /* HERO ACTIONS HOTFIX: keep the editorial controls above every visual layer. */
 .hero-editorial {
-  position: relative !important;
+  position: absolute !important;
   z-index: 80 !important;
   pointer-events: auto !important;
 }
