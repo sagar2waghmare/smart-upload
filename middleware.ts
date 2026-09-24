@@ -6,14 +6,20 @@ export function middleware(req: NextRequest) {
   const authConfigured = Boolean(
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
   );
-  if (!authConfigured) return NextResponse.next();
+  const response = NextResponse.next();
+  response.headers.set("x-content-type-options", "nosniff");
+  response.headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  response.headers.set("x-frame-options", "SAMEORIGIN");
+  response.headers.set("permissions-policy", "camera=(), microphone=(), geolocation=()");
 
-  if (req.cookies.has(SESSION_COOKIE)) return NextResponse.next();
+  if (!authConfigured) return response;
+
+  if (req.cookies.has(SESSION_COOKIE)) return response;
 
   const { pathname } = req.nextUrl;
   // The home page renders the full-screen sign-in gate itself when the visitor
   // is unauthenticated, so "/" (and "/?signin=1") pass through to the page.
-  if (pathname === "/") return NextResponse.next();
+  if (pathname === "/") return response;
 
   const url = req.nextUrl.clone();
   url.pathname = "/";
