@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "smart-upload",
+  "main": "vinext/server/fetch-handler",
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS"
+  },
+  "secrets": {
+    "required": [
+      "TMDB_API_KEY",
+      "ALLOWED_EMAILS",
+      "FIREBASE_SERVICE_ACCOUNT_JSON"
+    ]
+  }
+}
