@@ -4,34 +4,35 @@ import { FavButton } from "./FavButton";
 import { SmartImage } from "./SmartImage";
 import { useDetails } from "./DetailsProvider";
 import { formatPosition, progressPercent, useWatchProgress, watchMode } from "../lib/watch-progress";
+import { mergePatch, useLibraryEnrichment } from "./LibraryEnrichmentProvider";
 
 export function MediaCard({ item }: { item: MediaItem }) {
   const { openDetails } = useDetails();
+  const { getPatch } = useLibraryEnrichment();
+  const displayItem = mergePatch(item, getPatch(item.id));
   const progress = useWatchProgress()[item.id] ?? null;
   const pct = progress ? progressPercent(progress) : 0;
   const mode = watchMode(progress);
   const showBar = Boolean(progress && progress.duration > 0 && pct > 0.5 && pct < 97);
 
   const kindLabel =
-    item.kind === "series"
-      ? `TV Series`
-      : item.kind === "anime"
+    displayItem.kind === "series"
+      ? "TV Series"
+      : displayItem.kind === "anime"
         ? "Anime"
         : "Filme";
-  const meta = item.year ? `${item.year} · ${kindLabel}` : kindLabel;
-
-  const open = () => openDetails(item);
+  const meta = displayItem.year ? `${displayItem.year} · ${kindLabel}` : kindLabel;
 
   return (
     <article className="card-conteudo">
-      <button className="poster" onClick={open} aria-label={`Open details for ${item.title}`}>
-        <SmartImage src={item.poster} alt={`${item.title} poster`} objectFit="contain" />
+      <button className="poster" onClick={() => openDetails(displayItem)} aria-label={`Open details for ${displayItem.title}`}>
+        <SmartImage src={displayItem.poster} alt={`${displayItem.title} poster`} objectFit="contain" />
       </button>
       <FavButton id={item.id} />
       <div className="info-conteudo">
-        <h3>{item.title}</h3>
+        <h3>{displayItem.title}</h3>
         <span>{meta}</span>
-        {item.rating && <strong>{item.rating.toFixed(1)} ★</strong>}
+        {displayItem.rating && <strong>{displayItem.rating.toFixed(1)} ★</strong>}
         {showBar && progress && (
           <div className="media-card-progress">
             {mode === "resume" && (
