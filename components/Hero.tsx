@@ -58,7 +58,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
     if (interactive && !poster) return;
 
     dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: true, moved: false, horizontal: false };
-    try { heroRef.current?.setPointerCapture(e.pointerId); } catch {}
+    // Do not capture the pointer on touch-down. Android browsers need the
+    // browser to retain native vertical scrolling until horizontal intent is clear.
     heroRef.current?.classList.add("is-pressing");
   }, []);
   const onPointerMove = useCallback((e: React.PointerEvent) => {
@@ -74,6 +75,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
         heroRef.current?.classList.remove("is-pressing");
         return;
       }
+      try { heroRef.current?.setPointerCapture(e.pointerId); } catch {}
       trackRef.current?.classList.add("is-dragging");
     }
     if (Math.abs(dx) > 8) dragRef.current.moved = true;
@@ -83,7 +85,11 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.dragging) return;
     dragRef.current.dragging = false;
-    try { heroRef.current?.releasePointerCapture(e.pointerId); } catch {}
+    try {
+      if (heroRef.current?.hasPointerCapture(e.pointerId)) {
+        heroRef.current.releasePointerCapture(e.pointerId);
+      }
+    } catch {}
     heroRef.current?.classList.remove("is-pressing");
     trackRef.current?.classList.remove("is-dragging");
     trackRef.current?.style.setProperty("--drag-x", "0px");
