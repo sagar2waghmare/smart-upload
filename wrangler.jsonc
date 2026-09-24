@@ -3,7 +3,9 @@
   "name": "smart-upload",
   "main": "vinext/server/fetch-handler",
   "compatibility_date": "2026-09-21",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "assets": {
     "directory": "dist/client",
     "binding": "ASSETS"
@@ -14,5 +16,10 @@
       "ALLOWED_EMAILS",
       "FIREBASE_SERVICE_ACCOUNT_JSON"
     ]
-  }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "LIBRARY_CACHE"
+    }
+  ]
 }
