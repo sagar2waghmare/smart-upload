@@ -1,4 +1,5 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
+import { getIndexedDriveLibrary } from "./drive-library-index";
 import { identifyFilename } from "./identify";
 import { tmdbConfigured } from "./metadata/tmdb";
 import { parseFilename } from "./media/detect";
@@ -199,6 +200,12 @@ function groupSeries(items: MediaItem[]): MediaItem[] {
 async function getRawLibrary(): Promise<RawItem[]> {
   const now = Date.now();
   if (rawMemoryCache && rawMemoryCache.expiresAt > now) return rawMemoryCache.items;
+
+  const indexed = await getIndexedDriveLibrary();
+  if (indexed !== null) {
+    rawMemoryCache = { items: indexed, expiresAt: now + RAW_MEMORY_TTL_MS };
+    return indexed;
+  }
 
   const cached = await getCachedDriveLibrary<RawItem[]>();
   if (cached !== null) {
