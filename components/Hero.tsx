@@ -145,19 +145,31 @@ export function Hero({ items }: { items: MediaItem[] }) {
           const distancia = Math.abs(posicao);
           const ativo = posicao === 0;
           return (
-            <button
+            <div
               key={item.id}
-              type="button"
               className={`hero-poster ${ativo ? "ativo" : ""}`}
               style={{ "--posicao": posicao, "--distancia": distancia } as React.CSSProperties}
+              role="button"
               aria-label={`Open ${item.title} details`}
               aria-hidden={!ativo}
               tabIndex={ativo ? 0 : -1}
-              onClick={(e) => { if (dragRef.current.moved) { e.preventDefault(); dragRef.current.moved = false; return; } openDetails(item); }}
+              onClick={(e) => {
+                if (dragRef.current.moved) {
+                  e.preventDefault();
+                  dragRef.current.moved = false;
+                  return;
+                }
+                openDetails(item);
+              }}
+              onKeyDown={(e) => {
+                if (!ativo || (e.key !== "Enter" && e.key !== " ")) return;
+                e.preventDefault();
+                openDetails(item);
+              }}
             >
               <SmartImage src={item.poster} alt={`${item.title} poster`} sizes="(max-width: 600px) 180px, 235px" priority={ativo} />
               <span className="hero-poster-sheen" aria-hidden="true" />
-            </button>
+            </div>
           );
         })}
       </div>
