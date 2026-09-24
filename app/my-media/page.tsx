@@ -35,7 +35,7 @@ export default async function MyMediaPage() {
           </div>
           {continueItems.length ? (
             <div className="card-grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
-              {continueItems.map((m) => <MediaCard key={m.id} item={m} />)}
+              {continueItems.map((m, index) => <MediaCard key={m.id} item={m} priority={index < 3} />)}
             </div>
           ) : (
             <p className="empty-note">Nothing in progress yet. Start a title to see it here.</p>
