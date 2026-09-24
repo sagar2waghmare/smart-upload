@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDriveThumbnail } from "../../../../lib/google-drive";
+import { getDriveThumbnail, validateDriveMedia } from "../../../../lib/google-drive";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,9 @@ export async function GET(
   if (!id?.trim()) return NextResponse.json({ error: "not-found" }, { status: 404 });
 
   try {
+    if (!(await validateDriveMedia(id.trim()))) {
+      return NextResponse.json({ error: "thumbnail-unavailable" }, { status: 404 });
+    }
     const upstream = await getDriveThumbnail(id.trim());
     if (!upstream.ok || !upstream.body) {
       return NextResponse.json({ error: "thumbnail-unavailable" }, { status: 404 });
