@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDriveThumbnail, validateDriveMedia } from "../../../../lib/google-drive";
+import { getDriveThumbnail } from "../../../../lib/google-drive";
+import { validateDriveMedia } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
