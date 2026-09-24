@@ -1,0 +1,199 @@
+/* Search experience enhancements. Keeps the existing streaming UI language while making search faster to scan and easier to use on touch devices. */
+
+.search-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-top: .9rem;
+  flex-wrap: wrap;
+}
+
+.search-filter-group {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.search-filter-chip {
+  min-height: 34px;
+  padding: .45em .8em;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 999px;
+  background: rgba(255,255,255,.045);
+  color: var(--texto-claro);
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast), transform var(--t-fast);
+}
+
+.search-filter-chip:hover {
+  color: var(--texto-destaque);
+  border-color: rgba(124,58,237,.35);
+  background: rgba(124,58,237,.11);
+}
+
+.search-filter-chip:active {
+  transform: scale(.97);
+}
+
+.search-filter-chip.active {
+  color: #fff;
+  border-color: rgba(255,107,53,.55);
+  background: rgba(255,107,53,.14);
+  box-shadow: 0 5px 18px rgba(255,91,34,.08);
+}
+
+.search-sort-row {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin-left: auto;
+}
+
+.search-select-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: var(--texto-claro);
+  font-size: .7rem;
+  white-space: nowrap;
+}
+
+.search-select-label select {
+  min-height: 34px;
+  max-width: 170px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  background: var(--fundo-card);
+  color: var(--texto-destaque);
+  padding: 0 .65rem;
+  font: inherit;
+  font-size: .72rem;
+  cursor: pointer;
+}
+
+.search-select-label select:focus-visible {
+  outline: 2px solid var(--roxo);
+  outline-offset: 2px;
+}
+
+.search-result-count {
+  color: var(--texto-destaque);
+  font-weight: 650;
+}
+
+.search-keyboard-hint {
+  margin-left: auto;
+  opacity: .82;
+}
+
+.search-result-card {
+  border-radius: 14px;
+  min-width: 0;
+  transition: transform var(--t-fast), box-shadow var(--t-fast), outline-color var(--t-fast);
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+}
+
+.search-result-card.keyboard-active {
+  outline-color: rgba(255,107,53,.7);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 38px rgba(0,0,0,.28);
+}
+
+@media (max-width: 680px) {
+  .search-inner {
+    padding-top: calc(var(--bar) + .75rem);
+  }
+
+  .search-toolbar {
+    align-items: stretch;
+  }
+
+  .search-filter-group {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: .15rem;
+    scrollbar-width: none;
+    touch-action: pan-x;
+  }
+
+  .search-filter-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .search-filter-chip {
+    flex: none;
+    min-height: 38px;
+    padding-inline: .85rem;
+  }
+
+  .search-sort-row {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .search-select-label {
+    flex: 1;
+  }
+
+  .search-select-label select {
+    flex: 1;
+    width: 100%;
+    max-width: none;
+    min-height: 38px;
+  }
+
+  .search-hint {
+    flex-wrap: wrap;
+  }
+
+  .search-keyboard-hint {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .search-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .8rem;
+    margin-top: 1rem;
+  }
+
+  .search-results .info-conteudo {
+    padding: 11px;
+  }
+
+  .search-results .info-conteudo h3 {
+    font-size: .82rem;
+  }
+
+  .search-results .info-conteudo span {
+    font-size: .72rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .search-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .65rem;
+  }
+
+  .search-sort-row {
+    gap: .4rem;
+  }
+
+  .search-select-label {
+    display: block;
+  }
+
+  .search-select-label > span {
+    display: block;
+    margin-bottom: .25rem;
+  }
+}
