@@ -36,7 +36,7 @@
   /* Desktop hero editorial copy sits slightly above the visual midpoint so
      the title, metadata, synopsis, and actions read as one centered cinematic block. */
   .hero-editorial {
-    top: calc(50% - 44px) !important;
+    top: calc(50% - 18px) !important;
     transform: translateY(-50%) !important;
   }
 
