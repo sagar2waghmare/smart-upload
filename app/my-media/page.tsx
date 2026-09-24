@@ -13,13 +13,13 @@ export const metadata: Metadata = { title: "My Media" };
 
 export default async function MyMediaPage() {
   if (authIntended() && !(await requireSession())) redirect("/?signin=1");
-  const { items, mode, enrichmentTargets } = await getLibrary();
+  const { items, mode } = await getLibrary();
   const continueItems = items.filter((m) => m.progress !== undefined);
   const rest = items.filter((m) => m.progress === undefined);
   const sourceLabel = mode === "google-drive" ? "synced from Google Drive" : "local demo data";
 
   return (
-    <LibraryEnrichmentProvider targets={enrichmentTargets}>
+    <LibraryEnrichmentProvider>
       <main className="page">
         <Link href="/" className="back-link"><IArrowLeft /> Home</Link>
         <div className="page-head">
