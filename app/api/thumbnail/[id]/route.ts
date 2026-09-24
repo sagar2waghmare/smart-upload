@@ -5,7 +5,7 @@ import { requireSession, unauthorized } from "../../../../lib/auth";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await requireSession();
@@ -18,7 +18,14 @@ export async function GET(
   }
 
   try {
-    const upstream = await getValidatedDriveThumbnail(safeId);
+    // User-scoped cache key prevents an authorized user's cached thumbnail
+    // from becoming an authorization bypass for another account.
+    const baseUrl = new URL(req.url);
+    baseUrl.search = "";
+    const cacheKey = new URL(baseUrl.toString());
+    cacheKey.pathname = `/__thumbnail-cache/${encodeURIComponent(user.uid)}/${encodeURIComponent(safeId)}`;
+
+    const upstream = await getValidatedDriveThumbnail(safeId, cacheKey.toString());
     if (!upstream?.ok || !upstream.body) {
       return NextResponse.json({ error: "thumbnail-unavailable" }, { status: 404 });
     }
