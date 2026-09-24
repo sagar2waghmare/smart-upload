@@ -5,6 +5,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 let cachedApp: App | null = null;
+const sessionVerificationCache = new Map<string, { user: SessionUser; expiresAt: number }>();
+const SESSION_CACHE_TTL_MS = 15_000;
+const SESSION_CACHE_MAX = 256;
 
 export interface SessionUser {
   uid: string;
@@ -152,12 +155,30 @@ function getAdminApp(): App | null {
   return cachedApp;
 }
 
+async function sessionFingerprint(cookie: string): Promise<string> {
+  const data = new TextEncoder().encode(cookie);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function verifySessionCookie(cookie: string): Promise<SessionUser | null> {
+  if (!cookie) return null;
+  const fingerprint = await sessionFingerprint(cookie);
+  const cached = sessionVerificationCache.get(fingerprint);
+  if (cached && cached.expiresAt > Date.now()) return cached.user;
+  sessionVerificationCache.delete(fingerprint);
+
   const app = getAdminApp();
   if (!app) return null;
   try {
     const decoded = await getAuth(app).verifySessionCookie(cookie, true);
-    return { uid: decoded.uid, email: decoded.email ?? null };
+    const user = { uid: decoded.uid, email: decoded.email ?? null };
+    if (sessionVerificationCache.size >= SESSION_CACHE_MAX) {
+      const oldest = sessionVerificationCache.keys().next().value;
+      if (oldest) sessionVerificationCache.delete(oldest);
+    }
+    sessionVerificationCache.set(fingerprint, { user, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
+    return user;
   } catch {
     return null;
   }
@@ -204,6 +225,9 @@ export async function createSessionCookie(
 }
 
 export async function revokeRefreshTokens(uid: string): Promise<boolean> {
+  for (const [key, value] of sessionVerificationCache) {
+    if (value.user.uid === uid) sessionVerificationCache.delete(key);
+  }
   const app = getAdminApp();
   if (!app) return false;
   try {
