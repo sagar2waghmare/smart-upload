@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { getMediaById } from "../../../../lib/library-service";
 import { resolvePlaybackUrl } from "../../../../lib/playback";
-import { findPreparedAudioTracks, findPreparedBrowserMedia, findPreparedHlsManifest, getDriveMediaMimeType, validateDriveMedia } from "../../../../lib/google-drive-playback";
+import {
+  findPreparedAudioTracks,
+  findPreparedBrowserMedia,
+  findPreparedHlsManifest,
+  getDriveMediaMimeType,
+  validateDriveMedia,
+} from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 import { cloudflarePlaybackConfigured, createCloudflarePlaybackUrl } from "../../../../lib/cloudflare-playback";
 
@@ -12,41 +18,73 @@ export async function GET(_req: Request, { params }: Params) {
   if (!user) return unauthorized();
   const { id } = await params;
 
-  // Resolve metadata from the library first. This preserves movie/series/anime
-  // classification and grouped episode metadata for Drive-backed playback.
   const libraryItem = await getMediaById(id);
 
-  // A series/anime library card is a grouped metadata entry, not a Drive file.
-  // Resolve its first available episode so the initial player still gets the
-  // same prepared-browser copy and AAC sidecars as a direct episode URL.
   let playbackId = id;
-  let driveMedia = await validateDriveMedia(id);
-  if (!driveMedia && libraryItem?.seasons?.length) {
+  if (libraryItem?.seasons?.length) {
     const firstEpisode = libraryItem.seasons
       .flatMap((season) => season.episodes)
       .find((ep) => ep.id);
-    if (firstEpisode?.id) {
+
+    if (firstEpisode?.id && firstEpisode.id !== id) {
       playbackId = firstEpisode.id;
-      driveMedia = await validateDriveMedia(playbackId);
     }
   }
 
-  if (driveMedia && libraryItem) {
-    const preparedId = await findPreparedBrowserMedia(playbackId);
-    const hlsManifestId = await findPreparedHlsManifest(playbackId);
-    // Sidecar AAC tracks are independent of the browser MP4 copy, so discover
-    // them even when playback falls back to the original source.
-    const audioTracks = await findPreparedAudioTracks(playbackId);
-    const sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(playbackId);
+  if (libraryItem) {
+    let driveMedia = false;
+    try {
+      driveMedia = await validateDriveMedia(playbackId);
+    } catch (err) {
+      console.warn(
+        "[play] Drive validation unavailable; using indexed playback fallback",
+        err instanceof Error ? err.message : "unknown error",
+      );
+    }
+
+    let preparedId: string | null = null;
+    let hlsManifestId: string | null = null;
+    let audioTracks: Array<{ label: string; language?: string; id: string }> = [];
+    let sourceType: string | null = null;
+
+    if (driveMedia) {
+      try {
+        [preparedId, hlsManifestId, audioTracks] = await Promise.all([
+          findPreparedBrowserMedia(playbackId),
+          findPreparedHlsManifest(playbackId),
+          findPreparedAudioTracks(playbackId),
+        ]);
+        sourceType = preparedId
+          ? "video/mp4"
+          : await getDriveMediaMimeType(playbackId);
+      } catch (err) {
+        console.warn(
+          "[play] Prepared media discovery unavailable; using source fallback",
+          err instanceof Error ? err.message : "unknown error",
+        );
+        preparedId = null;
+        hlsManifestId = null;
+        audioTracks = [];
+        sourceType = null;
+      }
+    }
+
     const browserId = preparedId ?? playbackId;
-    const fastUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(browserId) : null;
-    const shareUrl = cloudflarePlaybackConfigured() ? createCloudflarePlaybackUrl(playbackId) : null;
+    const fastUrl = cloudflarePlaybackConfigured()
+      ? createCloudflarePlaybackUrl(browserId)
+      : null;
+    const shareUrl = cloudflarePlaybackConfigured()
+      ? createCloudflarePlaybackUrl(playbackId)
+      : null;
+
     return NextResponse.json({
       item: libraryItem,
       demo: false,
       canPlay: true,
       playbackId,
-      hlsUrl: hlsManifestId ? `/api/hls/${encodeURIComponent(playbackId)}/master.m3u8` : undefined,
+      hlsUrl: hlsManifestId
+        ? `/api/hls/${encodeURIComponent(playbackId)}/master.m3u8`
+        : undefined,
       defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
       shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(playbackId)}`,
       prepared: Boolean(preparedId),
@@ -63,12 +101,18 @@ export async function GET(_req: Request, { params }: Params) {
     });
   }
 
-  const item = libraryItem;
-  if (!item) return NextResponse.json({ error: "not-found", message: "Media not found" }, { status: 404 });
-  if (item.mediaUrl) {
-    const resolved = resolvePlaybackUrl(item.mediaUrl);
-    return NextResponse.json({ item, demo: resolved.demo, canPlay: resolved.canPlay, defaultUrl: resolved.url });
+  if (!libraryItem) {
+    return NextResponse.json(
+      { error: "not-found", message: "Media not found" },
+      { status: 404 },
+    );
   }
-  const resolved = resolvePlaybackUrl(item.mediaUrl);
-  return NextResponse.json({ item, demo: resolved.demo, canPlay: resolved.canPlay, defaultUrl: resolved.url });
+
+  const resolved = resolvePlaybackUrl(libraryItem.mediaUrl);
+  return NextResponse.json({
+    item: libraryItem,
+    demo: resolved.demo,
+    canPlay: resolved.canPlay,
+    defaultUrl: resolved.url,
+  });
 }
