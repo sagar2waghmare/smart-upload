@@ -302,14 +302,14 @@ export async function enrichLibraryBatch(
   const keyByTarget = safeTargets.map(metadataKeyForRaw);
   const keys = [...new Set(keyByTarget)];
   const cached = await getCachedMetadata<CachedMetadata>(keys);
-  const computed = new Map<string, Promise<CachedMetadata>>();
+  const computed = new Map<string, Promise<CachedMetadata | null>>();
   let changed = false;
 
-  const compute = (target: LibraryEnrichmentTarget, key: string): Promise<CachedMetadata> => {
+  const compute = (target: LibraryEnrichmentTarget, key: string): Promise<CachedMetadata | null> => {
     const existingPromise = computed.get(key);
     if (existingPromise) return existingPromise;
 
-    const promise = (async (): Promise<CachedMetadata> => {
+    const promise = (async (): Promise<CachedMetadata | null> => {
       const existing = cached.get(key);
       if (existing) return existing;
 
@@ -338,10 +338,12 @@ export async function enrichLibraryBatch(
           return { status: "not-found" };
         }
 
-        return { status: "not-found" };
+        // Unknown TMDB responses are treated as transient rather than
+        // persisted. This prevents outages from becoming long-lived misses.
+        return null;
       } catch {
         // Do not persist temporary TMDB/network failures for days.
-        return { status: "not-found" };
+        return null;
       }
     })();
 
@@ -365,6 +367,8 @@ export async function enrichLibraryBatch(
   for (const [key, result] of computedEntries) {
     if (cached.has(key)) continue;
 
+    if (!result) continue;
+
     if (result.status === "matched") {
       await setCachedMetadata(key, result);
       changed = true;
@@ -386,7 +390,7 @@ export async function enrichLibraryBatch(
     }
 
     const result = await computed.get(key)!;
-    patches.push(toClientPatch(target.id, result));
+    patches.push(result ? toClientPatch(target.id, result) : { id: target.id });
   }
 
   return patches;
