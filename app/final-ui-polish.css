@@ -452,7 +452,7 @@
     top: 29% !important;
     width: min(168px, 43vw) !important;
     height: min(246px, 63vw) !important;
-    transform: translate(-50%, -50%) !important;
+    transform: translate(calc(-50% + var(--drag-x, 0px)), -50%) !important;
     z-index: 12 !important;
     border: 0 !important;
     padding: 0 !important;
