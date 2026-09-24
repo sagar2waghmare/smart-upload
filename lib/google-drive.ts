@@ -27,6 +27,7 @@ export interface DriveLibraryItem {
 
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
+let cachedMediaRootId: { id: string; expiresAt: number } | null = null;
 
 function readServiceAccountValue(): { ok: true; value: string } | { ok: false } {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -153,6 +154,29 @@ interface DriveListResponse {
   files?: DriveFile[];
 }
 
+export interface DriveIndexFile {
+  id: string;
+  name?: string;
+  mimeType?: string;
+  size?: string;
+  modifiedTime?: string;
+  thumbnailLink?: string;
+  parents?: string[];
+  trashed?: boolean;
+}
+
+export interface DriveChange {
+  fileId: string;
+  removed?: boolean;
+  file?: DriveIndexFile;
+}
+
+export interface DriveChangesPage {
+  nextPageToken?: string;
+  newStartPageToken?: string;
+  changes?: DriveChange[];
+}
+
 async function driveList(params: URLSearchParams, token: string): Promise<DriveListResponse> {
   const res = await fetch(`${DRIVE_API_URL}?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -187,10 +211,16 @@ async function driveFileMetadata(fileId: string, token: string): Promise<{ id: s
 async function findMediaFolderId(token: string): Promise<string> {
   const configured = process.env.SMART_UPLOAD_DRIVE_MEDIA_ID?.trim();
   if (configured) return configured;
+  if (cachedMediaRootId && cachedMediaRootId.expiresAt > Date.now()) {
+    return cachedMediaRootId.id;
+  }
 
   try {
     const root = await driveFileMetadata(DEFAULT_MEDIA_FOLDER_ID, token);
-    if (root.mimeType === DRIVE_FOLDER_MIME) return root.id;
+    if (root.mimeType === DRIVE_FOLDER_MIME) {
+      cachedMediaRootId = { id: root.id, expiresAt: Date.now() + 60 * 60 * 1000 };
+      return root.id;
+    }
   } catch {
     // Fall through to folder-name discovery for deployments using a different Drive root.
   }
@@ -206,7 +236,74 @@ async function findMediaFolderId(token: string): Promise<string> {
   const data = await driveList(search, token);
   const folder = data.files?.find((file) => file.id && file.mimeType === DRIVE_FOLDER_MIME);
   if (!folder?.id) throw new Error("Google Drive MEDIA folder not found");
+  cachedMediaRootId = { id: folder.id, expiresAt: Date.now() + 60 * 60 * 1000 };
   return folder.id;
+}
+
+export async function getDriveMediaRootId(): Promise<string> {
+  return findMediaFolderId(await getAccessToken());
+}
+
+export async function getDriveStartPageToken(): Promise<string> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    "https://www.googleapis.com/drive/v3/changes/startPageToken",
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (res.status === 401) {
+    cachedToken = null;
+    tokenExpiresAt = 0;
+    return getDriveStartPageToken();
+  }
+  if (!res.ok) {
+    throw new Error(`Google Drive start page token unavailable (${res.status})`);
+  }
+  const data = (await res.json()) as { startPageToken?: string };
+  if (!data.startPageToken) throw new Error("Google Drive start page token missing");
+  return data.startPageToken;
+}
+
+export async function listDriveChanges(pageToken: string): Promise<DriveChangesPage> {
+  const token = await getAccessToken();
+  const params = new URLSearchParams({
+    pageToken,
+    spaces: "drive",
+    includeRemoved: "true",
+    includeItemsFromAllDrives: "true",
+    restrictToMyDrive: "true",
+    pageSize: "1000",
+    fields: "nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,modifiedTime,thumbnailLink,parents,trashed))",
+  });
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/changes?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (res.status === 401) {
+    cachedToken = null;
+    tokenExpiresAt = 0;
+    return listDriveChanges(pageToken);
+  }
+  if (!res.ok) {
+    throw new Error(`Google Drive changes unavailable (${res.status})`);
+  }
+  return (await res.json()) as DriveChangesPage;
+}
+
+export async function getDriveFileMetadata(fileId: string): Promise<DriveIndexFile> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size,modifiedTime,thumbnailLink,parents,trashed`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (res.status === 401) {
+    cachedToken = null;
+    tokenExpiresAt = 0;
+    return getDriveFileMetadata(fileId);
+  }
+  if (!res.ok) {
+    throw new Error(`Google Drive file metadata unavailable (${res.status})`);
+  }
+  return (await res.json()) as DriveIndexFile;
 }
 
 export async function getDriveThumbnail(fileId: string): Promise<Response> {
