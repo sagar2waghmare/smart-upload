@@ -369,11 +369,18 @@ export async function getValidatedDriveThumbnail(fileId: string): Promise<Respon
   const id = fileId.trim();
   if (!id) return null;
 
-  let token = await accessToken();
+  const token = await accessToken();
   const item = await metadata(id, token);
   if (item.trashed || !item.mimeType?.startsWith("video/")) return null;
   if (!(await isInsideMedia(id, token))) return null;
   if (!item.thumbnailLink) return null;
+
+  const cache = caches.default;
+  const cacheKey = new Request(`https://smart-upload-thumbnail.invalid/${encodeURIComponent(id)}`);
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    return new Response(cached.body, cached);
+  }
 
   let res = await fetch(item.thumbnailLink, {
     headers: { Authorization: `Bearer ${token}` },
@@ -382,14 +389,21 @@ export async function getValidatedDriveThumbnail(fileId: string): Promise<Respon
 
   if (res.status === 401) {
     cachedAccess = null;
-    token = await accessToken();
+    const refreshedToken = await accessToken();
     res = await fetch(item.thumbnailLink, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${refreshedToken}` },
       cache: "no-store",
     });
   }
 
-  return res.ok ? res : null;
+  if (!res.ok || !res.body) return null;
+
+  const response = new Response(res.body, res);
+  response.headers.set("cache-control", "s-maxage=86400, stale-while-revalidate=604800");
+  response.headers.set("x-content-type-options", "nosniff");
+
+  await cache.put(cacheKey, response.clone());
+  return response;
 }
 
 export async function validateDriveMedia(fileId: string): Promise<boolean> {
