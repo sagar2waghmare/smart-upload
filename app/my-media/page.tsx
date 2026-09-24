@@ -6,6 +6,7 @@ import { authIntended, requireSession } from "../../lib/auth";
 import { libraries } from "../../lib/mock-data";
 import { MediaCard } from "../../components/MediaCard";
 import { LibraryEnrichmentProvider } from "../../components/LibraryEnrichmentProvider";
+import { LibraryTile } from "../../components/LibraryTile";
 import { IArrowLeft, ILibrary, IPlay } from "../../components/icons";
 
 export const metadata: Metadata = { title: "My Media" };
