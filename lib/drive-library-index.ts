@@ -255,9 +255,10 @@ async function applyChanges(
     }
 
     if (change.removed) {
-      statements.push(
-        store.prepare("DELETE FROM drive_library WHERE id = ?").bind(change.fileId),
-      );
+      // Drive tombstones contain only the item ID, so we cannot distinguish a
+      // deleted/inaccessible video from a deleted/moved folder. Rebuild the
+      // snapshot conservatively to avoid leaving stale descendants in D1.
+      folderStructureChanged = true;
       continue;
     }
 
@@ -363,7 +364,7 @@ async function syncIndexInternal(store: D1Like): Promise<boolean> {
     });
   }
 
-  let state = await getSyncState(store);
+  const state = await getSyncState(store);
   if (!state) return true;
 
   if (state.rootId !== rootId) {
@@ -402,19 +403,12 @@ async function syncIndexInternal(store: D1Like): Promise<boolean> {
   }
 
   const changed = latestCursor !== state.cursor;
-  if (latestCursor !== state.cursor) {
-    await setSyncState(store, {
-      cursor: latestCursor,
-      rootId,
-      lastSyncAt: Date.now(),
-    });
-  } else {
-    await setSyncState(store, {
-      ...state,
-      rootId,
-      lastSyncAt: Date.now(),
-    });
-  }
+  await setSyncState(store, {
+    ...state,
+    cursor: latestCursor,
+    rootId,
+    lastSyncAt: Date.now(),
+  });
 
   return changed;
 }
