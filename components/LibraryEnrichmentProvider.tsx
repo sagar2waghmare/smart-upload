@@ -87,6 +87,7 @@ export function LibraryEnrichmentProvider({
       return;
     }
 
+    node.dataset.enrichmentId = safeId;
     nodesRef.current.set(safeId, node);
     observerRef.current?.observe(node);
   }, []);
@@ -136,8 +137,6 @@ export function LibraryEnrichmentProvider({
     setQueue((previous) => previous.slice(ids.length));
     setActive((count) => count + 1);
 
-    const controller = new AbortController();
-
     void (async () => {
       try {
         const res = await fetch("/api/library/enrich", {
@@ -145,7 +144,6 @@ export function LibraryEnrichmentProvider({
           headers: { "content-type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({ ids }),
-          signal: controller.signal,
         });
 
         if (!res.ok) return;
@@ -166,8 +164,6 @@ export function LibraryEnrichmentProvider({
         if (!cancelledRef.current) setActive((count) => Math.max(0, count - 1));
       }
     })();
-
-    return () => controller.abort();
   }, [active, queue]);
 
   const value = useMemo(
