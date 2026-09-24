@@ -7,12 +7,22 @@ import { MediaCard } from "./MediaCard";
 import { IPlay } from "./icons";
 import { progressPercent, useWatchProgress, type WatchProgress } from "../lib/watch-progress";
 
-export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { title?: string; seeAll?: string }) {
+export function ContinueWatchingRail({
+  title = "Continue Watching",
+  seeAll,
+  initialItems,
+}: {
+  title?: string;
+  seeAll?: string;
+  initialItems?: MediaItem[];
+}) {
   const progress = useWatchProgress();
-  const [items, setItems] = useState<MediaItem[] | null>(null);
+  const [items, setItems] = useState<MediaItem[] | null>(initialItems ?? null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (initialItems) return;
+
     let alive = true;
     loadLibrary()
       .then((ls) => {
@@ -21,10 +31,11 @@ export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { 
       .catch(() => {
         if (alive) setItems([]);
       });
+
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initialItems]);
 
   const active = (items ?? [])
     .map((m) => ({ m, p: progress[m.id] }))
@@ -76,8 +87,8 @@ export function ContinueWatchingRail({ title = "Continue Watching", seeAll }: { 
         )}
       </div>
       <div className="lista-conteudos" ref={scrollRef}>
-        {active.map((m) => (
-          <MediaCard key={m.id} item={m} />
+        {active.map((m, index) => (
+          <MediaCard key={m.id} item={m} priority={index < 3} />
         ))}
       </div>
     </section>
