@@ -17,14 +17,14 @@ export default async function Home({
     return <LoginScreen />;
   }
   const showSignInPrompt = signin === "1";
-  const { items, enrichmentTargets } = await getLibrary();
+  const { items } = await getLibrary();
   const heroItems = items.slice(0, 5);
   const movies = items.filter((item) => item.kind === "movie");
   const tvShows = items.filter((item) => item.kind === "series");
   const anime = items.filter((item) => item.kind === "anime");
 
   return (
-    <LibraryEnrichmentProvider targets={enrichmentTargets}>
+    <LibraryEnrichmentProvider>
       <main className="home-main">
         <Hero items={heroItems} />
         <div className="page home-content">
