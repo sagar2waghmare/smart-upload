@@ -1,5 +1,6 @@
-import { cert, getApps, initializeApp, type App, type ServiceAccount } from "firebase-admin/app";
+import { getApps, initializeApp, type App, type Credential, type ServiceAccount } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { importPKCS8, SignJWT } from "jose";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -9,6 +10,24 @@ export interface SessionUser {
   uid: string;
   email: string | null;
 }
+
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const ADMIN_SCOPES = [
+  "https://www.googleapis.com/auth/cloud-platform",
+  "https://www.googleapis.com/auth/firebase.database",
+  "https://www.googleapis.com/auth/firebase.messaging",
+  "https://www.googleapis.com/auth/identitytoolkit",
+  "https://www.googleapis.com/auth/userinfo.email",
+];
+
+type RawServiceAccount = ServiceAccount & {
+  project_id?: string;
+  client_email?: string;
+  private_key?: string;
+};
+
+let cachedAccessToken: { access_token: string; expires_in: number; expires_at: number } | null = null;
+let accessTokenPromise: Promise<{ access_token: string; expires_in: number }> | null = null;
 
 function readServiceAccountValue(): { ok: true; value: string } | { ok: false } {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -24,11 +43,11 @@ function readServiceAccountValue(): { ok: true; value: string } | { ok: false } 
   }
 }
 
-function parseServiceAccount(): ServiceAccount | null {
+function parseServiceAccount(): RawServiceAccount | null {
   const result = readServiceAccountValue();
   if (result.ok) {
     try {
-      return JSON.parse(result.value) as ServiceAccount;
+      return JSON.parse(result.value) as RawServiceAccount;
     } catch {
       return null;
     }
@@ -45,6 +64,72 @@ export function firebaseAdminConfigured(): boolean {
   return parseServiceAccount() !== null;
 }
 
+function saSigningFields(sa: RawServiceAccount): { clientEmail: string; privateKey: string } | null {
+  const clientEmail = sa.clientEmail || sa.client_email;
+  const privateKey = sa.privateKey || sa.private_key;
+  if (!clientEmail || !privateKey) return null;
+  return { clientEmail, privateKey };
+}
+
+async function mintAccessToken(): Promise<{ access_token: string; expires_in: number }> {
+  if (cachedAccessToken && Date.now() < cachedAccessToken.expires_at - 60_000) {
+    return {
+      access_token: cachedAccessToken.access_token,
+      expires_in: Math.max(60, Math.floor((cachedAccessToken.expires_at - Date.now()) / 1000)),
+    };
+  }
+  if (accessTokenPromise) return accessTokenPromise;
+  accessTokenPromise = (async () => {
+    const sa = parseServiceAccount();
+    const fields = sa ? saSigningFields(sa) : null;
+    if (!fields) throw new Error("Firebase Admin service account not configured");
+    const now = Math.floor(Date.now() / 1000);
+    const key = await importPKCS8(fields.privateKey, "RS256");
+    const assertion = await new SignJWT({
+      iss: fields.clientEmail,
+      scope: ADMIN_SCOPES.join(" "),
+      aud: TOKEN_URL,
+      iat: now,
+      exp: now + 3600,
+    })
+      .setProtectedHeader({ alg: "RS256", typ: "JWT" })
+      .sign(key);
+    const body = new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    });
+    const res = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    if (!res.ok) {
+      console.error("[firebase-admin] OAuth token exchange failed", res.status);
+      throw new Error("Firebase Admin token exchange failed");
+    }
+    const data = (await res.json()) as { access_token?: string; expires_in?: number };
+    if (!data.access_token || typeof data.expires_in !== "number") {
+      console.error("[firebase-admin] OAuth token response missing fields");
+      throw new Error("Firebase Admin token response invalid");
+    }
+    cachedAccessToken = {
+      access_token: data.access_token,
+      expires_in: data.expires_in,
+      expires_at: Date.now() + data.expires_in * 1000,
+    };
+    return { access_token: data.access_token, expires_in: data.expires_in };
+  })();
+  try {
+    return await accessTokenPromise;
+  } finally {
+    accessTokenPromise = null;
+  }
+}
+
+const adminCredential: Credential = {
+  getAccessToken: () => mintAccessToken(),
+};
+
 const ADMIN_APP_NAME = "smart-upload-admin";
 
 function getAdminApp(): App | null {
@@ -55,8 +140,15 @@ function getAdminApp(): App | null {
     return cachedApp;
   }
   const sa = parseServiceAccount();
-  if (!sa) return null;
-  cachedApp = initializeApp({ credential: cert(sa) }, ADMIN_APP_NAME);
+  if (!sa || !saSigningFields(sa)) return null;
+  const projectId = sa.projectId || sa.project_id;
+  cachedApp = initializeApp(
+    {
+      credential: adminCredential,
+      ...(projectId ? { projectId } : {}),
+    },
+    ADMIN_APP_NAME
+  );
   return cachedApp;
 }
 
@@ -73,11 +165,21 @@ export async function verifySessionCookie(cookie: string): Promise<SessionUser |
 
 export async function verifyIdToken(idToken: string): Promise<SessionUser | null> {
   const app = getAdminApp();
-  if (!app) return null;
+  if (!app) {
+    console.error("[firebase-admin] verifyIdToken skipped: admin app not configured");
+    return null;
+  }
   try {
     const decoded = await getAuth(app).verifyIdToken(idToken);
     return { uid: decoded.uid, email: decoded.email ?? null };
-  } catch {
+  } catch (err) {
+    const e = err as { name?: string; code?: string; message?: string };
+    console.error("[firebase-admin] verifyIdToken failed", {
+      name: e?.name,
+      code: e?.code,
+      message: typeof e?.message === "string" ? e.message.slice(0, 300) : undefined,
+      hasEmail: false,
+    });
     return null;
   }
 }
@@ -90,7 +192,13 @@ export async function createSessionCookie(
   if (!app) return null;
   try {
     return await getAuth(app).createSessionCookie(idToken, { expiresIn: expiresInMs });
-  } catch {
+  } catch (err) {
+    const e = err as { name?: string; code?: string; message?: string };
+    console.error("[firebase-admin] createSessionCookie failed", {
+      name: e?.name,
+      code: e?.code,
+      message: typeof e?.message === "string" ? e.message.slice(0, 300) : undefined,
+    });
     return null;
   }
 }

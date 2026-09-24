@@ -51,8 +51,14 @@ export async function POST(req: Request) {
     );
 
   const user = await verifyIdToken(idToken);
-  if (!user || !user.email)
+  if (!user) {
+    console.error("[auth/session] verifyIdToken returned null");
     return NextResponse.json({ error: "unauthorized", message: "Could not verify sign-in." }, { status: 401 });
+  }
+  if (!user.email) {
+    console.error("[auth/session] verified token missing email claim");
+    return NextResponse.json({ error: "unauthorized", message: "Could not verify sign-in." }, { status: 401 });
+  }
 
   if (!isAllowedEmail(user.email))
     return NextResponse.json(
