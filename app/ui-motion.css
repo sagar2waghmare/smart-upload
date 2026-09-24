@@ -1,6 +1,13 @@
 /* Smart Upload — global motion and performance polish. Visual only. */
-html { scroll-behavior: smooth; }
-html, body { overscroll-behavior-y: none; }
+html {
+  scroll-behavior: auto;
+  touch-action: auto;
+  overscroll-behavior-y: auto;
+}
+body {
+  touch-action: auto;
+  overscroll-behavior-y: auto;
+}
 .lista-conteudos, .menu-scroll, .details-overlay, .search-overlay {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
@@ -14,6 +21,11 @@ html, body { overscroll-behavior-y: none; }
 }
 .hero-ambient {
   transition: opacity .7s ease, filter .7s ease, transform .9s cubic-bezier(.16,1,.3,1) !important;
+}
+.hero-filmes,
+.hero-track,
+.hero-poster {
+  touch-action: pan-y pinch-zoom;
 }
 .hero-track { transform: translateZ(0); }
 .hero-poster { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
