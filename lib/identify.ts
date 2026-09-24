@@ -51,6 +51,10 @@ export async function identifyFilename(raw: string, opts: { year?: number } = {}
           title: result.meta.title,
           poster: result.meta.poster,
           backdrop: result.meta.backdrop,
+          overview: result.meta.overview,
+          runtime: result.tmdbType === "movie" ? result.meta.runtime : undefined,
+          rating: result.meta.rating,
+          genres: result.meta.genres,
         },
       };
     }
