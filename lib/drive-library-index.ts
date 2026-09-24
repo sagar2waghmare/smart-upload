@@ -138,7 +138,7 @@ function insertStatements(store: D1Like, items: DriveLibraryItem[]): D1Statement
 }
 
 async function writeItems(store: D1Like, items: DriveLibraryItem[]): Promise<void> {
-  for (let i = 0; i < items.length; i += 50) {
+  for (let i = 0; i < items.length; i += 500) {
     await store.batch(insertStatements(store, items.slice(i, i + 50)));
   }
 }
@@ -300,7 +300,7 @@ async function applyChanges(
     );
   }
 
-  for (let i = 0; i < statements.length; i += 50) {
+  for (let i = 0; i < statements.length; i += 500) {
     await store.batch(statements.slice(i, i + 50));
   }
 
@@ -427,9 +427,17 @@ export async function syncDriveLibraryIndex(): Promise<boolean> {
   if (syncPromise) return syncPromise;
 
   lastCheckedAt = now;
-  syncPromise = syncIndexInternal(store).finally(() => {
-    syncPromise = null;
-  });
+  syncPromise = syncIndexInternal(store)
+    .catch((error) => {
+      console.error(
+        "[drive-index] incremental sync failed",
+        error instanceof Error ? error.message : "unknown",
+      );
+      return false;
+    })
+    .finally(() => {
+      syncPromise = null;
+    });
 
   return syncPromise;
 }
@@ -438,12 +446,21 @@ export async function getIndexedDriveLibrary(): Promise<IndexedRow[] | null> {
   const store = db();
   if (!store) return null;
 
-  const changed = await syncDriveLibraryIndex();
   const cached = await getCachedDriveLibrary<IndexedRow[]>();
-  if (!changed && cached !== null) return cached;
 
-  await ensureSchema(store);
-  const rows = await readIndexedRows(store);
-  await setCachedDriveLibrary(rows, 300);
-  return rows;
+  try {
+    const changed = await syncDriveLibraryIndex();
+    if (!changed && cached !== null) return cached;
+
+    await ensureSchema(store);
+    const rows = await readIndexedRows(store);
+    await setCachedDriveLibrary(rows, 300);
+    return rows;
+  } catch (error) {
+    console.error(
+      "[drive-index] index read failed",
+      error instanceof Error ? error.message : "unknown",
+    );
+    return cached;
+  }
 }
