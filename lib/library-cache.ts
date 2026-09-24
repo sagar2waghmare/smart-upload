@@ -46,8 +46,11 @@ export async function getCachedMetadata<T>(keys: string[]): Promise<Map<string, 
   const out = new Map<string, T | null>();
   if (!store || !keys.length) return out;
   try {
-    const values = await store.get(keys, "json");
-    for (const key of keys) out.set(key, (values.get(key) as T | null | undefined) ?? null);
+    for (let i = 0; i < keys.length; i += 100) {
+      const chunk = keys.slice(i, i + 100);
+      const values = await store.get(chunk, "json");
+      for (const key of chunk) out.set(key, (values.get(key) as T | null | undefined) ?? null);
+    }
   } catch (error) {
     console.error("[library-cache] Metadata bulk read failed", error instanceof Error ? error.message : "unknown");
   }
