@@ -48,7 +48,7 @@ export default async function MyMediaPage() {
               <h2><ILibrary style={{ color: "var(--laranja)", width: "1.05em", height: "1.05em" }} /> Library</h2>
             </div>
             <div className="card-grid">
-              {rest.map((m) => <MediaCard key={m.id} item={m} />)}
+              {rest.map((m, index) => <MediaCard key={m.id} item={m} priority={index < 6} />)}
             </div>
           </section>
         )}
