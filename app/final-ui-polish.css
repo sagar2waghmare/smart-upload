@@ -382,3 +382,283 @@
     pointer-events: none !important;
   }
 }
+
+
+/* --- Mobile Hero v5: dedicated poster + editorial card composition ---
+   This intentionally replaces the desktop "poster stack + floating copy" layout on
+   narrow screens. The poster owns the upper visual zone; the text owns a stable
+   lower card, so nothing overlaps and native page scrolling stays predictable. */
+@media (max-width: 900px) {
+  .hero-filmes {
+    height: clamp(500px, 132vw, 560px) !important;
+    min-height: 500px !important;
+    max-height: 560px !important;
+    margin: 0 !important;
+    padding: 0 12px 14px !important;
+    overflow: hidden !important;
+    display: block !important;
+    background: #0e0e10 !important;
+    touch-action: pan-y !important;
+  }
+
+  .hero-ambient {
+    position: absolute !important;
+    inset: 0 !important;
+    opacity: .22 !important;
+    filter: blur(34px) saturate(.95) brightness(.7) !important;
+    pointer-events: none !important;
+  }
+
+  .hero-vignette {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 2 !important;
+    pointer-events: none !important;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(8,8,10,.04) 0%,
+        rgba(8,8,10,.12) 35%,
+        rgba(8,8,10,.72) 64%,
+        #0e0e10 100%
+      ) !important;
+  }
+
+  .hero-track {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 8 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+    touch-action: pan-y !important;
+    user-select: none !important;
+  }
+
+  .hero-poster {
+    display: none !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  .hero-poster.ativo {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    left: 50% !important;
+    top: 29% !important;
+    width: min(168px, 43vw) !important;
+    height: min(246px, 63vw) !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 12 !important;
+    border: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    touch-action: pan-y pinch-zoom !important;
+    cursor: pointer !important;
+  }
+
+  .hero-poster.ativo img {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    border-radius: 18px !important;
+    object-fit: cover !important;
+    box-shadow:
+      0 24px 55px rgba(0,0,0,.62),
+      0 0 0 1px rgba(255,255,255,.07) !important;
+    transform: none !important;
+  }
+
+  .hero-poster-sheen {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    border-radius: 18px !important;
+    pointer-events: none !important;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255,255,255,.05),
+        transparent 28%,
+        rgba(0,0,0,.14) 100%
+      ) !important;
+  }
+
+  .hero-editorial {
+    position: absolute !important;
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 12px !important;
+    top: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 14px 14px 13px !important;
+    border-radius: 18px !important;
+    z-index: 24 !important;
+    text-align: left !important;
+    transform: none !important;
+    background: linear-gradient(
+      180deg,
+      rgba(15,15,18,.78) 0%,
+      rgba(12,12,15,.94) 100%
+    ) !important;
+    border: 1px solid rgba(255,255,255,.09) !important;
+    box-shadow:
+      0 20px 44px rgba(0,0,0,.34),
+      inset 0 1px rgba(255,255,255,.05) !important;
+    backdrop-filter: blur(18px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(130%) !important;
+    pointer-events: auto !important;
+  }
+
+  .hero-editorial-kicker {
+    display: flex !important;
+    align-items: center !important;
+    gap: .4rem !important;
+    margin: 0 0 .38rem !important;
+    color: rgba(255,255,255,.62) !important;
+    font-size: .58rem !important;
+    line-height: 1 !important;
+    letter-spacing: .14em !important;
+  }
+
+  .hero-editorial-kicker::before {
+    content: "" !important;
+    display: block !important;
+    width: 16px !important;
+    height: 1px !important;
+    background: rgba(255,255,255,.48) !important;
+  }
+
+  .hero-editorial h1 {
+    margin: 0 !important;
+    max-width: none !important;
+    color: #fff !important;
+    font-size: clamp(1.55rem, 7vw, 2rem) !important;
+    line-height: 1 !important;
+    letter-spacing: -.045em !important;
+    text-wrap: balance !important;
+  }
+
+  .hero-editorial-meta {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: .25rem .55rem !important;
+    margin-top: .46rem !important;
+    color: rgba(255,255,255,.7) !important;
+    font-size: .63rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .hero-editorial-overview {
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    margin: .48rem 0 0 !important;
+    max-width: 56ch !important;
+    overflow: hidden !important;
+    color: rgba(255,255,255,.59) !important;
+    font-size: .66rem !important;
+    line-height: 1.42 !important;
+  }
+
+  .hero-editorial-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: .38rem !important;
+    flex-wrap: wrap !important;
+    margin-top: .68rem !important;
+  }
+
+  .hero-editorial-actions .btn {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 .72rem !important;
+    border-radius: 10px !important;
+    font-size: .65rem !important;
+    gap: .3rem !important;
+  }
+
+  .hero-editorial-actions .btn svg {
+    width: .86em !important;
+    height: .86em !important;
+  }
+
+  .hero-nav {
+    top: 29% !important;
+    z-index: 26 !important;
+    padding-inline: .55rem !important;
+  }
+
+  .hero-nav-btn {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 11px !important;
+    opacity: .88 !important;
+    background: rgba(8,8,10,.58) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+  }
+
+  .hero-dots {
+    right: 14px !important;
+    bottom: 14px !important;
+    z-index: 28 !important;
+    padding: .28rem .42rem !important;
+    gap: .28rem !important;
+    background: rgba(8,8,10,.38) !important;
+    border: 1px solid rgba(255,255,255,.08) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+  }
+
+  .hero-dot {
+    width: 5px !important;
+    height: 5px !important;
+  }
+
+  .hero-dot.on {
+    width: 18px !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .hero-filmes {
+    height: 540px !important;
+    min-height: 540px !important;
+  }
+
+  .hero-poster.ativo {
+    top: 27% !important;
+    width: 158px !important;
+    height: 232px !important;
+  }
+
+  .hero-editorial {
+    bottom: 10px !important;
+    padding: 13px 13px 12px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .hero-filmes {
+    height: 520px !important;
+    min-height: 520px !important;
+  }
+
+  .hero-poster.ativo {
+    top: 26% !important;
+    width: 146px !important;
+    height: 214px !important;
+  }
+
+  .hero-editorial-actions .btn-secondary {
+    display: none !important;
+  }
+}
