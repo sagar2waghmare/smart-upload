@@ -7,6 +7,7 @@ import {
   setCachedDriveLibrary,
   getCachedMetadata,
   metadataCacheKey,
+  legacyMetadataCacheKey,
   setCachedMetadata,
   NEGATIVE_METADATA_EXPIRATION_TTL,
 } from "./library-cache";
@@ -247,13 +248,38 @@ async function loadLibrary(): Promise<LibraryResponse> {
     const rawItems = await getRawLibrary();
     const validRaw = rawItems.filter((raw) => raw.id?.trim() && raw.name?.trim());
     const keys = [...new Set(validRaw.map(metadataKeyForRaw))];
-    const cached = await getCachedMetadata<CachedMetadata>(keys);
+    const legacyKeys = validRaw.map((raw) => legacyMetadataCacheKey(raw.id, raw.modifiedTime));
+    const [cached, legacyCached] = await Promise.all([
+      getCachedMetadata<CachedMetadata>(keys),
+      getCachedMetadata<{ id?: string; title?: string; year?: string | number; kind?: MediaKind; tmdbId?: number; poster?: string; backdrop?: string; overview?: string; runtime?: number; rating?: number; genres?: string[] }>(legacyKeys),
+    ]);
 
     const normalized = validRaw
-      .map((raw) => {
+      .map((raw, index) => {
         const item = baseItem(raw);
         if (!item) return null;
-        return applyCachedMetadata(item, cached.get(metadataKeyForRaw(raw)) ?? null);
+
+        const currentKey = metadataKeyForRaw(raw);
+        const current = cached.get(currentKey);
+        if (current) return applyCachedMetadata(item, current);
+
+        const legacy = legacyCached.get(legacyKeys[index]);
+        if (!legacy?.poster && !legacy?.backdrop && !legacy?.tmdbId) return item;
+
+        const migrated: CachedMetadata = {
+          status: "matched",
+          title: legacy.title,
+          year: legacy.year,
+          kind: legacy.kind,
+          tmdbId: legacy.tmdbId,
+          poster: legacy.poster,
+          backdrop: legacy.backdrop,
+          overview: legacy.overview,
+          runtime: legacy.runtime,
+          rating: legacy.rating,
+          genres: legacy.genres,
+        };
+        return applyCachedMetadata(item, migrated);
       })
       .filter((item): item is MediaItem => Boolean(item));
 
@@ -264,7 +290,7 @@ async function loadLibrary(): Promise<LibraryResponse> {
     ).length;
 
     console.log(
-      `[library] Drive ${validRaw.length} files -> ${grouped.length} entries; metadata ${matchedCount}/${keys.length} cached`,
+      `[library] Drive ${validRaw.length} files -> ${grouped.length} entries; metadata ${matchedCount}/${keys.length} current + legacy fallback`,
     );
 
     const result: LibraryResponse = {
