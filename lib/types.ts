@@ -56,11 +56,35 @@ export interface MediaItem {
   source?: string;
 }
 
+export interface LibraryEnrichmentTarget {
+  id: string;
+  name: string;
+  type: MediaKind;
+  modifiedTime?: string;
+}
+
+export interface LibraryEnrichmentPatch {
+  id: string;
+  title?: string;
+  year?: string | number;
+  kind?: MediaKind;
+  season?: number;
+  episode?: number;
+  tmdbId?: number;
+  poster?: string;
+  backdrop?: string;
+  overview?: string;
+  runtime?: number;
+  rating?: number;
+  genres?: string[];
+}
+
 export interface LibraryResponse {
   mode: "demo" | "google-drive";
   items: MediaItem[];
   count: number;
   error?: string;
+  enrichmentTargets?: LibraryEnrichmentTarget[];
 }
 
 export type UploadStatus =
