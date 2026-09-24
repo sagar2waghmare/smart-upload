@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Episode, MediaItem } from "../lib/types";
 import { useDetails } from "./DetailsProvider";
 import { FavButton } from "./FavButton";
@@ -10,6 +10,17 @@ import { formatPosition, getProgress, progressPercent, useWatchProgress, watchMo
 
 const kindLabel = (k?: MediaItem["kind"]) =>
   k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FILME";
+
+type EpisodeMeta = {
+  season: number;
+  episode: number;
+  title: string;
+  overview?: string;
+  runtime?: number;
+  thumb?: string;
+};
+
+const episodeMetaCache = new Map<string, EpisodeMeta[]>();
 
 export function DetailsOverlay() {
   const { item, openPlayer, closeDetails } = useDetails();
@@ -49,7 +60,71 @@ export function DetailsOverlay() {
 
   const seasons = item.seasons ?? [];
   const currentSeason = seasons[seasonIdx] ?? seasons[0];
-  const list = currentSeason?.episodes ?? [];
+  const [episodeMeta, setEpisodeMeta] = useState<EpisodeMeta[]>([]);
+  const [episodeMetaLoading, setEpisodeMetaLoading] = useState(false);
+
+  useEffect(() => {
+    if (!item?.tmdbId || !currentSeason?.season || item.kind === "movie") {
+      setEpisodeMeta([]);
+      setEpisodeMetaLoading(false);
+      return;
+    }
+
+    const cacheKey = `${item.tmdbId}:${currentSeason.season}`;
+    const cached = episodeMetaCache.get(cacheKey);
+    if (cached) {
+      setEpisodeMeta(cached);
+      setEpisodeMetaLoading(false);
+      return;
+    }
+
+    let alive = true;
+    setEpisodeMetaLoading(true);
+
+    void fetch(
+      `/api/metadata/episodes?tmdbId=${encodeURIComponent(String(item.tmdbId))}&season=${encodeURIComponent(String(currentSeason.season))}`,
+      { credentials: "same-origin" },
+    )
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as { episodes?: EpisodeMeta[] };
+      })
+      .then((data) => {
+        if (!alive) return;
+        const episodes = Array.isArray(data?.episodes) ? data.episodes : [];
+        episodeMetaCache.set(cacheKey, episodes);
+        setEpisodeMeta(episodes);
+      })
+      .catch(() => {
+        if (alive) setEpisodeMeta([]);
+      })
+      .finally(() => {
+        if (alive) setEpisodeMetaLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [item?.id, item?.tmdbId, item?.kind, currentSeason?.season]);
+
+  const list = useMemo(
+    () =>
+      (currentSeason?.episodes ?? []).map((ep) => {
+        const meta = episodeMeta.find(
+          (candidate) => candidate.episode === ep.episode && candidate.season === ep.season,
+        );
+        return meta
+          ? {
+              ...ep,
+              title: meta.title || ep.title,
+              overview: meta.overview ?? ep.overview,
+              runtime: meta.runtime ?? ep.runtime,
+              thumb: meta.thumb ?? ep.thumb,
+            }
+          : ep;
+      }),
+    [currentSeason, episodeMeta],
+  );
   const totalEpisodes = allEpisodes.length;
   const seasonCountLabel = seasons.length === 1 ? "1 Season" : `${seasons.length} Seasons`;
   const episodeCountLabel = totalEpisodes === 1 ? "1 Episode" : `${totalEpisodes} Episodes`;
@@ -143,7 +218,10 @@ export function DetailsOverlay() {
           <div className="season-head">
             <div>
               <h2>{currentSeason?.title ?? "Episodes"}</h2>
-              <span className="season-summary">{seasonCountLabel} · {episodeCountLabel}</span>
+              <span className="season-summary">
+                {seasonCountLabel} · {episodeCountLabel}
+                {episodeMetaLoading ? " · Loading episode details…" : ""}
+              </span>
             </div>
             {seasons.length > 1 && (
               <select className="season-select" aria-label="Season" value={seasonIdx} onChange={(e) => {
