@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 
 let cachedApp: App | null = null;
 const sessionVerificationCache = new Map<string, { user: SessionUser; expiresAt: number }>();
+const sessionVerificationInflight = new Map<string, Promise<SessionUser | null>>();
 const SESSION_CACHE_TTL_MS = 15_000;
 const SESSION_CACHE_MAX = 256;
 
@@ -163,24 +164,41 @@ async function sessionFingerprint(cookie: string): Promise<string> {
 
 export async function verifySessionCookie(cookie: string): Promise<SessionUser | null> {
   if (!cookie) return null;
+
   const fingerprint = await sessionFingerprint(cookie);
   const cached = sessionVerificationCache.get(fingerprint);
   if (cached && cached.expiresAt > Date.now()) return cached.user;
   sessionVerificationCache.delete(fingerprint);
 
-  const app = getAdminApp();
-  if (!app) return null;
-  try {
-    const decoded = await getAuth(app).verifySessionCookie(cookie, true);
-    const user = { uid: decoded.uid, email: decoded.email ?? null };
-    if (sessionVerificationCache.size >= SESSION_CACHE_MAX) {
-      const oldest = sessionVerificationCache.keys().next().value;
-      if (oldest) sessionVerificationCache.delete(oldest);
+  const inflight = sessionVerificationInflight.get(fingerprint);
+  if (inflight) return inflight;
+
+  const verification = (async (): Promise<SessionUser | null> => {
+    const app = getAdminApp();
+    if (!app) return null;
+
+    try {
+      const decoded = await getAuth(app).verifySessionCookie(cookie, true);
+      const user = { uid: decoded.uid, email: decoded.email ?? null };
+      if (sessionVerificationCache.size >= SESSION_CACHE_MAX) {
+        const oldest = sessionVerificationCache.keys().next().value;
+        if (oldest) sessionVerificationCache.delete(oldest);
+      }
+      sessionVerificationCache.set(fingerprint, {
+        user,
+        expiresAt: Date.now() + SESSION_CACHE_TTL_MS,
+      });
+      return user;
+    } catch {
+      return null;
     }
-    sessionVerificationCache.set(fingerprint, { user, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
-    return user;
-  } catch {
-    return null;
+  })();
+
+  sessionVerificationInflight.set(fingerprint, verification);
+  try {
+    return await verification;
+  } finally {
+    sessionVerificationInflight.delete(fingerprint);
   }
 }
 
