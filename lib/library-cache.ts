@@ -43,11 +43,11 @@ export async function getCachedDriveLibrary<T>(): Promise<T | null> {
   }
 }
 
-export async function setCachedDriveLibrary(value: unknown): Promise<void> {
+export async function setCachedDriveLibrary(value: unknown, expirationTtl = DRIVE_CACHE_TTL): Promise<void> {
   const store = kv();
   if (!store) return;
   try {
-    await store.put(DRIVE_CACHE_KEY, JSON.stringify(value), { expirationTtl: DRIVE_CACHE_TTL });
+    await store.put(DRIVE_CACHE_KEY, JSON.stringify(value), { expirationTtl });
   } catch (error) {
     console.error("[library-cache] Drive cache write failed", error instanceof Error ? error.message : "unknown");
   }
