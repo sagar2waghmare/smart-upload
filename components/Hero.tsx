@@ -19,7 +19,7 @@ const kindLabel = (k?: MediaItem["kind"]) => k === "series" ? "TV SERIES" : k ==
 
 export function Hero({ items }: { items: MediaItem[] }) {
   const { openDetails } = useDetails();
-  const { getPatch } = useLibraryEnrichment();
+  const { getPatch, request } = useLibraryEnrichment();
   const count = items.length;
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
@@ -38,6 +38,12 @@ export function Hero({ items }: { items: MediaItem[] }) {
     const id = window.setInterval(advance, AUTO_DURATION);
     return () => window.clearInterval(id);
   }, [count, hidden, advance]);
+
+  useEffect(() => {
+    if (!count) return;
+    const next = count > 1 ? items[(index + 1) % count]?.id : undefined;
+    request([items[index]?.id, next].filter((id): id is string => Boolean(id)));
+  }, [count, index, items, request]);
 
   useEffect(() => {
     const onVis = () => setHidden(document.hidden);
