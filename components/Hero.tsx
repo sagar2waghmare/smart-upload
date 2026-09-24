@@ -80,6 +80,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
     }
     if (Math.abs(dx) > 8) dragRef.current.moved = true;
     trackRef.current.style.setProperty("--drag-x", `${Math.max(-140, Math.min(140, dx))}px`);
+    heroRef.current?.style.setProperty("--hero-drag-x", `${Math.max(-55, Math.min(55, dx))}px`);
   }, []);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
@@ -93,6 +94,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
     heroRef.current?.classList.remove("is-pressing");
     trackRef.current?.classList.remove("is-dragging");
     trackRef.current?.style.setProperty("--drag-x", "0px");
+    heroRef.current?.style.setProperty("--hero-drag-x", "0px");
     const dx = e.clientX - dragRef.current.startX;
     if (dragRef.current.horizontal && Math.abs(dx) > 45) {
       e.preventDefault();
@@ -120,6 +122,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
       <div className="hero-ambient" aria-hidden="true" style={{ backgroundColor: ambientTone }}><SmartImage src={active.backdrop ?? active.poster} alt="" sizes="100vw" priority /></div>
       <div className="hero-vignette" aria-hidden="true" />
 
+      <div className="hero-desktop-content">
       <div className="hero-editorial" key={active.id}>
         <span className="hero-editorial-kicker">{kindLabel(active.kind)}</span>
         <h1>{active.title}</h1>
@@ -172,6 +175,69 @@ export function Hero({ items }: { items: MediaItem[] }) {
             </div>
           );
         })}
+      </div>
+
+      </div>
+
+      <div className="hero-mobile-content">
+        <div className="mobile-hero-art">
+          <div
+            className="mobile-hero-poster"
+            role="button"
+            tabIndex={0}
+            aria-label={`Open ${active.title} details`}
+            onClick={(e) => {
+              if (dragRef.current.moved) {
+                e.preventDefault();
+                dragRef.current.moved = false;
+                return;
+              }
+              openDetails(active);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              e.preventDefault();
+              openDetails(active);
+            }}
+          >
+            <SmartImage src={active.poster} alt={`${active.title} poster`} sizes="180px" priority />
+          </div>
+
+          <div className="mobile-hero-nav">
+            <button type="button" className="mobile-hero-arrow" onClick={() => go(index - 1)} aria-label="Previous featured title"><IArrowLeft /></button>
+            <button type="button" className="mobile-hero-arrow" onClick={() => go(index + 1)} aria-label="Next featured title"><IArrowRight /></button>
+          </div>
+        </div>
+
+        <div className="mobile-hero-copy">
+          <span className="mobile-hero-kicker">{kindLabel(active.kind)}</span>
+          <h1>{active.title}</h1>
+          <div className="mobile-hero-meta">
+            {active.rating ? <span>★ {active.rating.toFixed(1)}</span> : null}
+            {active.year ? <span>{active.year}</span> : null}
+            {active.runtime ? <span>{Math.floor(active.runtime / 60)}h {active.runtime % 60}m</span> : null}
+          </div>
+          {active.overview ? <p>{active.overview}</p> : null}
+          <div className="mobile-hero-actions">
+            <button type="button" className="btn btn-primary" onClick={() => openDetails(active)}><IPlay /> Play</button>
+            <FavButton id={active.id} labelStyle="chip" />
+            <button type="button" className="btn btn-secondary" onClick={() => openDetails(active)}><IInfo /> Details</button>
+          </div>
+        </div>
+
+        <div className="mobile-hero-dots" role="tablist" aria-label="Featured titles">
+          {items.map((item, i) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`mobile-hero-dot ${i === index ? "on" : ""}`}
+              onClick={() => go(i)}
+              aria-label={`Show ${item.title}`}
+              aria-selected={i === index}
+              role="tab"
+            />
+          ))}
+        </div>
       </div>
 
       <div className="hero-nav" aria-label="Featured navigation">
