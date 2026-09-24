@@ -33,12 +33,12 @@
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-html { scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; height: auto; overflow: visible; }
-body { background: var(--fundo-principal); color: var(--texto-claro); font-family: var(--font); min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+html { scrollbar-gutter: stable; -webkit-text-size-adjust: 100%; height: auto; overflow-x: hidden; overflow-y: auto; }
+body { background: var(--fundo-principal); color: var(--texto-claro); font-family: var(--font); min-height: 100vh; overflow-x: hidden; overflow-y: auto; touch-action: pan-y; -webkit-font-smoothing: antialiased; }
 img { display: block; max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
-main { display: block; padding-bottom: 5rem; height: auto; overflow: visible; }
+main { display: block; padding-bottom: 5rem; height: auto; overflow: visible; touch-action: pan-y; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--roxo); outline-offset: 2px; border-radius: 6px; }
 ::selection { background: rgba(124,58,237,.3); color: #fff; }
