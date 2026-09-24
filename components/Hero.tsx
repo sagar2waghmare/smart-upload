@@ -54,7 +54,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     const target = e.target as Element | null;
     const interactive = target?.closest('button, a, input, select, textarea, [role="button"]');
-    const poster = target?.closest(".hero-poster");
+    const poster = target?.closest(".hero-poster, .mobile-hero-poster");
     if (interactive && !poster) return;
 
     dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: true, moved: false, horizontal: false };
