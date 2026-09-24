@@ -28,6 +28,11 @@ export function metadataCacheKey(
   return `metadata:v3:${encodeURIComponent(normalizedKind)}:${encodeURIComponent(normalizedTitle)}:${encodeURIComponent(normalizedYear)}`;
 }
 
+export function legacyMetadataCacheKey(id: string, modifiedTime?: string): string {
+  const version = modifiedTime?.trim() || "unknown";
+  return `metadata:v2:${encodeURIComponent(id)}:${encodeURIComponent(version)}`;
+}
+
 export async function getCachedDriveLibrary<T>(): Promise<T | null> {
   const store = kv();
   if (!store) return null;
