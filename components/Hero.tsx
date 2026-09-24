@@ -5,6 +5,7 @@ import { FavButton } from "./FavButton";
 import { SmartImage } from "./SmartImage";
 import { useDetails } from "./DetailsProvider";
 import { IArrowLeft, IArrowRight, IInfo, IPlay } from "./icons";
+import { mergePatch, useLibraryEnrichment } from "./LibraryEnrichmentProvider";
 
 const AUTO_DURATION = 7000;
 const AMBIENT_TONES = [
@@ -18,6 +19,7 @@ const kindLabel = (k?: MediaItem["kind"]) => k === "series" ? "TV SERIES" : k ==
 
 export function Hero({ items }: { items: MediaItem[] }) {
   const { openDetails } = useDetails();
+  const { getPatch } = useLibraryEnrichment();
   const count = items.length;
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
@@ -98,7 +100,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
   }, [go, index]);
 
   if (!count) return null;
-  const active = items[index];
+  const active = mergePatch(items[index], getPatch(items[index].id));
   const ambientTone = AMBIENT_TONES[index % AMBIENT_TONES.length];
 
   return (
@@ -123,7 +125,8 @@ export function Hero({ items }: { items: MediaItem[] }) {
       </div>
 
       <div ref={trackRef} className="hero-track">
-        {items.map((item, i) => {
+        {items.map((rawItem, i) => {
+          const item = mergePatch(rawItem, getPatch(rawItem.id));
           let posicao = i - index;
           if (posicao > count / 2) posicao -= count;
           if (posicao < -count / 2) posicao += count;
