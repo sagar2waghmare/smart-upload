@@ -10,11 +10,12 @@ const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 
 interface ServiceAccount { client_email: string; private_key: string; }
 type CachedAccess = { token: string; expiresAt: number };
-type MediaCheck = { id: string; name?: string; parents?: string[]; mimeType?: string; trashed?: boolean; size?: string };
+type MediaCheck = { id: string; name?: string; parents?: string[]; mimeType?: string; trashed?: boolean; size?: string; thumbnailLink?: string };
 type CachedMedia = { item: MediaCheck; expiresAt: number };
 
 let cachedAccess: CachedAccess | null = null;
 let tokenPromise: Promise<string> | null = null;
+let cachedMediaRoot: { id: string; expiresAt: number } | null = null;
 const mediaChecks = new Map<string, { valid: boolean; expiresAt: number }>();
 const mediaMetadata = new Map<string, CachedMedia>();
 
@@ -72,7 +73,7 @@ async function accessToken(): Promise<string> {
 async function metadata(fileId: string, token: string): Promise<MediaCheck> {
   const cached = mediaMetadata.get(fileId);
   if (cached && cached.expiresAt > Date.now()) return cached.item;
-  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,name,parents,mimeType,trashed,size`;
+  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,name,parents,mimeType,trashed,size,thumbnailLink`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "force-cache", next: { revalidate: 300 } });
   if (res.status === 401) { cachedAccess = null; throw new Error("Google Drive authentication expired"); }
   if (!res.ok) throw new Error("Google Drive media not found");
@@ -84,10 +85,18 @@ async function metadata(fileId: string, token: string): Promise<MediaCheck> {
 async function mediaRoot(token: string): Promise<string> {
   const configured = process.env.SMART_UPLOAD_DRIVE_MEDIA_ID?.trim();
   if (configured) return configured;
+
+  if (cachedMediaRoot && cachedMediaRoot.expiresAt > Date.now()) {
+    return cachedMediaRoot.id;
+  }
+
   const res = await fetch(`${DRIVE_API_URL}/${DEFAULT_MEDIA_FOLDER_ID}?fields=id,mimeType`, { headers: { Authorization: `Bearer ${token}` }, cache: "force-cache", next: { revalidate: 3600 } });
   if (res.ok) {
     const data = (await res.json()) as { id: string; mimeType?: string };
-    if (data.mimeType === DRIVE_FOLDER_MIME) return data.id;
+    if (data.mimeType === DRIVE_FOLDER_MIME) {
+      cachedMediaRoot = { id: data.id, expiresAt: Date.now() + 60 * 60 * 1000 };
+      return data.id;
+    }
   }
   throw new Error("Google Drive MEDIA folder not found");
 }
@@ -100,7 +109,7 @@ async function isInsideMedia(fileId: string, token: string): Promise<boolean> {
   const visited = new Set<string>();
   for (let depth = 0; depth < 12; depth += 1) {
     if (currentId === root) {
-      mediaChecks.set(fileId, { valid: true, expiresAt: Date.now() + 30 * 60 * 1000 });
+      mediaChecks.set(fileId, { valid: true, expiresAt: Date.now() + 5 * 60 * 1000 });
       return true;
     }
     if (visited.has(currentId)) break;
@@ -354,6 +363,33 @@ export async function getDriveMediaMimeType(fileId: string): Promise<string | nu
   const item = await metadata(id, token);
   if (item.trashed || !item.mimeType?.startsWith("video/") || !(await isInsideMedia(id, token))) return null;
   return item.mimeType;
+}
+
+export async function getValidatedDriveThumbnail(fileId: string): Promise<Response | null> {
+  const id = fileId.trim();
+  if (!id) return null;
+
+  let token = await accessToken();
+  const item = await metadata(id, token);
+  if (item.trashed || !item.mimeType?.startsWith("video/")) return null;
+  if (!(await isInsideMedia(id, token))) return null;
+  if (!item.thumbnailLink) return null;
+
+  let res = await fetch(item.thumbnailLink, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  if (res.status === 401) {
+    cachedAccess = null;
+    token = await accessToken();
+    res = await fetch(item.thumbnailLink, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+  }
+
+  return res.ok ? res : null;
 }
 
 export async function validateDriveMedia(fileId: string): Promise<boolean> {
