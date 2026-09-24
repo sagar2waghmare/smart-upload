@@ -1,5 +1,6 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
 import { identifyFilename } from "./identify";
+import { tmdbConfigured } from "./metadata/tmdb";
 import { parseFilename } from "./media/detect";
 import { getCachedDriveLibrary, setCachedDriveLibrary, getCachedMetadata, metadataCacheKey, setCachedMetadata } from "./library-cache";
 import type { Episode, LibraryEnrichmentPatch, LibraryEnrichmentTarget, LibraryResponse, MediaItem, Season } from "./types";
