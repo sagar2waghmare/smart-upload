@@ -21,5 +21,11 @@
     {
       "binding": "LIBRARY_CACHE"
     }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DRIVE_LIBRARY_DB",
+      "database_name": "smart-upload-library"
+    }
   ]
 }
