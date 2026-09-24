@@ -54,9 +54,7 @@ export async function GET(_req: Request, { params }: Params) {
           findPreparedHlsManifest(playbackId),
           findPreparedAudioTracks(playbackId),
         ]);
-        sourceType = preparedId
-          ? "video/mp4"
-          : await getDriveMediaMimeType(playbackId);
+        sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(playbackId);
       } catch (err) {
         console.warn(
           "[play] Prepared media discovery unavailable; using source fallback",
@@ -69,11 +67,21 @@ export async function GET(_req: Request, { params }: Params) {
       }
     }
 
-    const browserId = preparedId ?? playbackId;
-    const fastUrl = cloudflarePlaybackConfigured()
+    const useCloudflareStream = cloudflarePlaybackConfigured();
+
+    // The streaming Worker has its own Google service-account boundary.
+    // Prepared browser derivatives can exist in Drive yet be inaccessible to
+    // that Worker. Prefer the original library file for cross-worker playback;
+    // HLS remains available when a prepared manifest exists.
+    const browserId = useCloudflareStream ? playbackId : (preparedId ?? playbackId);
+    const playbackSourceType = useCloudflareStream
+      ? await getDriveMediaMimeType(playbackId).catch(() => null)
+      : sourceType;
+
+    const fastUrl = useCloudflareStream
       ? createCloudflarePlaybackUrl(browserId)
       : null;
-    const shareUrl = cloudflarePlaybackConfigured()
+    const shareUrl = useCloudflareStream
       ? createCloudflarePlaybackUrl(playbackId)
       : null;
 
@@ -87,13 +95,13 @@ export async function GET(_req: Request, { params }: Params) {
         : undefined,
       defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
       shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(playbackId)}`,
-      prepared: Boolean(preparedId),
-      sourceType: sourceType ?? undefined,
+      prepared: useCloudflareStream ? false : Boolean(preparedId),
+      sourceType: playbackSourceType ?? undefined,
       audioTracks: audioTracks
         .map((track) => ({
           label: track.label,
           language: track.language,
-          url: cloudflarePlaybackConfigured()
+          url: useCloudflareStream
             ? createCloudflarePlaybackUrl(track.id)
             : `/api/stream/${encodeURIComponent(track.id)}`,
         }))
