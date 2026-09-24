@@ -30,3 +30,25 @@
   z-index: 100 !important;
   pointer-events: auto !important;
 }
+
+
+@media (min-width: 901px) {
+  /* Desktop hero editorial copy sits slightly above the visual midpoint so
+     the title, metadata, synopsis, and actions read as one centered cinematic block. */
+  .hero-editorial {
+    top: calc(50% - 44px) !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .hero-editorial-kicker {
+    margin-bottom: .72rem !important;
+  }
+
+  .hero-editorial h1 {
+    text-shadow: 0 16px 42px rgba(0,0,0,.55) !important;
+  }
+
+  .hero-editorial-overview {
+    max-width: 35ch !important;
+  }
+}
