@@ -130,6 +130,10 @@ export interface IdentifyResult {
     title?: string;
     poster?: string;
     backdrop?: string;
+    overview?: string;
+    runtime?: number;
+    rating?: number;
+    genres?: string[];
   };
   source: string;
 }
