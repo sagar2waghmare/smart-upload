@@ -25,12 +25,12 @@ export default async function BrowsePage({ params }: { params: Promise<{ kind: s
   const { kind } = await params;
   const meta = labels[kind as Kind] ?? labels.movie;
   if (authIntended() && !(await requireSession())) redirect("/?signin=1");
-  const { items, mode, enrichmentTargets } = await getLibrary();
+  const { items, mode } = await getLibrary();
   const list = items.filter((m) => m.kind === kind);
   const sourceLabel = mode === "google-drive" ? "synced from Google Drive" : "in demo library";
 
   return (
-    <LibraryEnrichmentProvider targets={enrichmentTargets}>
+    <LibraryEnrichmentProvider>
       <main className="page">
         <Link href="/" className="back-link">
           <IArrowLeft /> Home
