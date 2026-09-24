@@ -122,8 +122,11 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
   const openActiveResult = useCallback(() => {
     if (activeIndex < 0 || !results[activeIndex]) return;
     const cards = document.querySelectorAll<HTMLElement>(".search-result-card");
-    cards[activeIndex]?.querySelector<HTMLButtonElement>(".poster")?.click();
-  }, [activeIndex, results]);
+    const poster = cards[activeIndex]?.querySelector<HTMLButtonElement>(".poster");
+    if (!poster) return;
+    onClose();
+    window.setTimeout(() => poster.click(), 0);
+  }, [activeIndex, onClose, results]);
 
   useEffect(() => {
     if (!open) return;
@@ -320,6 +323,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
                 key={item.id}
                 className={`search-result-card ${activeIndex === index ? "keyboard-active" : ""}`}
                 onMouseEnter={() => setActiveIndex(index)}
+                onClick={onClose}
               >
                 <MediaCard item={item} priority={index < 4} />
               </div>
