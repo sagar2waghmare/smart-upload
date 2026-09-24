@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { getCachedDriveLibrary, setCachedDriveLibrary } from "./library-cache";
 import {
   getDriveFileMetadata,
   getDriveMediaRootId,
@@ -41,7 +42,7 @@ const SYNC_INTERVAL_MS = 15_000;
 const FOLDER_CACHE_TTL_MS = 10 * 60 * 1000;
 
 let schemaPromise: Promise<void> | null = null;
-let syncPromise: Promise<void> | null = null;
+let syncPromise: Promise<boolean> | null = null;
 let lastCheckedAt = 0;
 const folderMetaCache = new Map<string, { file: DriveIndexFile; expiresAt: number }>();
 
