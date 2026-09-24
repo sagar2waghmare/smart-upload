@@ -683,7 +683,9 @@
     touch-action: pan-y !important;
   }
 
-  .hero-desktop-content {
+  .hero-desktop-content,
+  .hero-filmes > .hero-nav,
+  .hero-filmes > .hero-dots {
     display: none !important;
   }
 
