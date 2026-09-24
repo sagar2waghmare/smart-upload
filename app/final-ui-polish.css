@@ -372,3 +372,13 @@
     display: none !important;
   }
 }
+
+
+@media (max-width: 900px) {
+  /* Keep the gesture target on the poster container itself. This prevents the
+     nested image from becoming a separate touch target on Android Chrome. */
+  .hero-poster > img,
+  .hero-poster .hero-poster-sheen {
+    pointer-events: none !important;
+  }
+}
