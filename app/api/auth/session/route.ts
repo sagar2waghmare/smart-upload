@@ -16,9 +16,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE = { "cache-control": "private, no-store", "x-content-type-options": "nosniff" };
+
 export async function GET() {
   if (!firebaseAdminConfigured())
-    return NextResponse.json({ authenticated: false, configured: false });
+    return NextResponse.json({ authenticated: false, configured: false }, { headers: NO_STORE });
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   const user = token ? await verifySessionCookie(token) : null;
@@ -26,7 +28,7 @@ export async function GET() {
     authenticated: Boolean(user),
     configured: true,
     email: user?.email ?? null,
-  });
+  }, { headers: NO_STORE });
 }
 
 export async function POST(req: Request) {
