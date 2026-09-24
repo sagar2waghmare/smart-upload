@@ -331,6 +331,10 @@ export async function enrichLibraryBatch(
             tmdbId: tmdb.id,
             poster: tmdb.poster,
             backdrop: tmdb.backdrop,
+            overview: tmdb.overview,
+            runtime: tmdb.runtime,
+            rating: tmdb.rating,
+            genres: tmdb.genres,
           };
         }
 
