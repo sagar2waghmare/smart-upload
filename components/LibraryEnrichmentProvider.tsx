@@ -83,6 +83,7 @@ export function LibraryEnrichmentProvider({
     }
 
     if (!node) {
+      if (previous) observerRef.current?.unobserve(previous);
       nodesRef.current.delete(safeId);
       return;
     }
