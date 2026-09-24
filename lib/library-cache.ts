@@ -13,7 +13,7 @@ function kv(): KvLike | null {
 }
 
 const DRIVE_CACHE_KEY = "library:drive:v2";
-const DRIVE_CACHE_TTL = 30 * 60;
+const DRIVE_CACHE_TTL = 60;
 const METADATA_TTL = 60 * 60 * 24 * 30;
 
 export function metadataCacheKey(id: string, modifiedTime?: string): string {
