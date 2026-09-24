@@ -12,7 +12,7 @@ body {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
 }
-.lista-conteudos { scroll-snap-type: x proximity; user-select: none; }
+.lista-conteudos { scroll-snap-type: x proximity; user-select: none; touch-action: pan-x pan-y; overscroll-behavior: auto; }
 .lista-conteudos > * { scroll-snap-align: start; }
 
 /* Keep hero animation work on the compositor for smoother transitions. */
@@ -41,7 +41,7 @@ body {
 .hero-dot:active { transform: scale(.94) !important; }
 
 @media (max-width:650px) {
-  .lista-conteudos { padding-bottom: 12px !important; }
+  .lista-conteudos { padding-bottom: 12px !important; touch-action: pan-x pan-y !important; }
   .hero-ambient { opacity:.20 !important; filter:blur(34px) saturate(1.04) !important; }
 }
 
