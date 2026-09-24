@@ -325,10 +325,11 @@ async function fullRebuild(
   store: D1Like,
   rootId: string,
 ): Promise<IndexedRow[]> {
+  // Capture the cursor before the scan so changes that happen during the
+  // rebuild are still visible on the next incremental sync.
+  const cursor = await getDriveStartPageToken();
   const snapshot = await listDriveLibrary();
   await replaceSnapshot(store, snapshot);
-
-  const cursor = await getDriveStartPageToken();
   await setSyncState(store, {
     cursor,
     rootId,
@@ -343,7 +344,7 @@ async function fullRebuild(
   }));
 }
 
-async function syncIndexInternal(store: D1Like): Promise<void> {
+async function syncIndexInternal(store: D1Like): Promise<boolean> {
   await ensureSchema(store);
 
   const current = await getSyncState(store);
@@ -361,11 +362,11 @@ async function syncIndexInternal(store: D1Like): Promise<void> {
   }
 
   let state = await getSyncState(store);
-  if (!state) return;
+  if (!state) return true;
 
   if (state.rootId !== rootId) {
     await fullRebuild(store, rootId);
-    return;
+    return true;
   }
 
   let pageToken = state.cursor;
@@ -395,9 +396,10 @@ async function syncIndexInternal(store: D1Like): Promise<void> {
 
   if (rebuild) {
     await fullRebuild(store, rootId);
-    return;
+    return true;
   }
 
+  const changed = latestCursor !== state.cursor;
   if (latestCursor !== state.cursor) {
     await setSyncState(store, {
       cursor: latestCursor,
@@ -411,14 +413,16 @@ async function syncIndexInternal(store: D1Like): Promise<void> {
       lastSyncAt: Date.now(),
     });
   }
+
+  return changed;
 }
 
-export async function syncDriveLibraryIndex(): Promise<void> {
+export async function syncDriveLibraryIndex(): Promise<boolean> {
   const store = db();
-  if (!store) return;
+  if (!store) return false;
 
   const now = Date.now();
-  if (now - lastCheckedAt < SYNC_INTERVAL_MS) return;
+  if (now - lastCheckedAt < SYNC_INTERVAL_MS) return false;
   if (syncPromise) return syncPromise;
 
   lastCheckedAt = now;
@@ -432,8 +436,13 @@ export async function syncDriveLibraryIndex(): Promise<void> {
 export async function getIndexedDriveLibrary(): Promise<IndexedRow[] | null> {
   const store = db();
   if (!store) return null;
-  await syncDriveLibraryIndex();
+
+  const changed = await syncDriveLibraryIndex();
+  const cached = await getCachedDriveLibrary<IndexedRow[]>();
+  if (!changed && cached !== null) return cached;
 
   await ensureSchema(store);
-  return readIndexedRows(store);
+  const rows = await readIndexedRows(store);
+  await setCachedDriveLibrary(rows, 300);
+  return rows;
 }
