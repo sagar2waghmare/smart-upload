@@ -29,7 +29,7 @@ export default async function Home({
         <Hero items={heroItems} />
         <div className="page home-content">
           <SignInPrompt prompt={showSignInPrompt} />
-          <ContinueWatchingRail />
+          <ContinueWatchingRail initialItems={items} />
           <Rail title="Movies" items={movies.slice(0, 12)} seeAll="/browse/movie" />
           <Rail title="TV Shows" items={tvShows.slice(0, 12)} seeAll="/browse/series" />
           {anime.length > 0 && (
