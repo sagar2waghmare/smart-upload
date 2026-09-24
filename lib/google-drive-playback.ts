@@ -365,7 +365,10 @@ export async function getDriveMediaMimeType(fileId: string): Promise<string | nu
   return item.mimeType;
 }
 
-export async function getValidatedDriveThumbnail(fileId: string): Promise<Response | null> {
+export async function getValidatedDriveThumbnail(
+  fileId: string,
+  cacheKeyUrl?: string,
+): Promise<Response | null> {
   const id = fileId.trim();
   if (!id) return null;
 
@@ -376,10 +379,17 @@ export async function getValidatedDriveThumbnail(fileId: string): Promise<Respon
   if (!item.thumbnailLink) return null;
 
   const cache = caches.default;
-  const cacheKey = new Request(`https://smart-upload-thumbnail.invalid/${encodeURIComponent(id)}`);
-  const cached = await cache.match(cacheKey);
-  if (cached) {
-    return new Response(cached.body, cached);
+  const cacheKey = cacheKeyUrl ? new Request(cacheKeyUrl) : null;
+
+  // Cache is an optimization only. A cache runtime error must never turn a
+  // valid Google Drive thumbnail into a 502 response.
+  if (cacheKey) {
+    try {
+      const cached = await cache.match(cacheKey);
+      if (cached?.ok) return new Response(cached.body, cached);
+    } catch {
+      // Fall back to Google Drive.
+    }
   }
 
   let res = await fetch(item.thumbnailLink, {
@@ -399,10 +409,19 @@ export async function getValidatedDriveThumbnail(fileId: string): Promise<Respon
   if (!res.ok || !res.body) return null;
 
   const response = new Response(res.body, res);
-  response.headers.set("cache-control", "s-maxage=21600, stale-while-revalidate=86400");
+  response.headers.set("cache-control", "private, max-age=3600, stale-while-revalidate=86400");
   response.headers.set("x-content-type-options", "nosniff");
 
-  await cache.put(cacheKey, response.clone());
+  if (cacheKey) {
+    try {
+      const cacheResponse = new Response(response.body, response);
+      cacheResponse.headers.set("cache-control", "s-maxage=21600");
+      await cache.put(cacheKey, cacheResponse);
+    } catch {
+      // Best effort only. The caller still gets the live Drive thumbnail.
+    }
+  }
+
   return response;
 }
 
