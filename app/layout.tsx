@@ -11,6 +11,7 @@ import "./player-mobile-fixes.css";
 import "./vidstack-player.css";
 import "./final-ui-polish.css";
 import "./search-enhancements.css";
+import "./media-card-enhancements.css";
 import { Header } from "../components/Header";
 import { AuthProvider } from "../components/AuthProvider";
 import { DetailsProvider } from "../components/DetailsProvider";
