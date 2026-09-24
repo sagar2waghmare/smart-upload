@@ -24,7 +24,9 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   url.pathname = "/";
   url.searchParams.set("signin", "1");
-  return NextResponse.redirect(url);
+  const redirect = NextResponse.redirect(url);
+  for (const [key, value] of response.headers) redirect.headers.set(key, value);
+  return redirect;
 }
 
 export const config = {
