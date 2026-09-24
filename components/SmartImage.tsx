@@ -35,7 +35,7 @@ export function SmartImage({
           fill
           sizes={sizes}
           priority={priority}
-          unoptimized={unoptimized}
+          unoptimized={unoptimized ?? /^https?:\/\//i.test(src)}
           onError={() => setOk(false)}
           style={{ objectFit, objectPosition }}
         />
