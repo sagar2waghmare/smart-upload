@@ -1,92 +1,81 @@
 import { listDriveLibrary, googleDriveConfigured } from "./google-drive";
 import { identifyFilename } from "./identify";
-import { getEpisodeMeta, tmdbConfigured } from "./metadata/tmdb";
-import type { Episode, LibraryResponse, MediaItem, Season } from "./types";
+import { parseFilename } from "./media/detect";
+import { getCachedDriveLibrary, setCachedDriveLibrary, getCachedMetadata, metadataCacheKey } from "./library-cache";
+import type { Episode, LibraryEnrichmentPatch, LibraryEnrichmentTarget, LibraryResponse, MediaItem, Season } from "./types";
 
-async function normalizeItem(raw: {
+type RawItem = {
   id: string;
   name: string;
   type: "movie" | "series" | "anime";
   modifiedTime?: string;
   thumbnailLink?: string;
-}): Promise<MediaItem | null> {
+};
+
+function baseItem(raw: RawItem): MediaItem | null {
   const id = raw.id.trim();
   const filename = raw.name.trim();
   if (!id || !filename) return null;
-
   const fallbackTitle = filename.replace(/\.[^.]+$/, "").trim();
   if (!fallbackTitle) return null;
 
-  const fallbackPoster = `/api/thumbnail/${encodeURIComponent(id)}`;
-  const base: MediaItem = {
+  const parsed = parseFilename(filename);
+  const title = parsed.title || fallbackTitle;
+  return {
     id,
     kind: raw.type,
-    title: fallbackTitle,
-    poster: raw.thumbnailLink?.trim() || fallbackPoster,
-    backdrop: raw.thumbnailLink?.trim() || fallbackPoster,
+    title,
+    year: parsed.year,
+    season: raw.type === "movie" ? undefined : parsed.season,
+    episode: raw.type === "movie" ? undefined : parsed.episode,
+    poster: raw.thumbnailLink?.trim() || `/api/thumbnail/${encodeURIComponent(id)}`,
+    backdrop: raw.thumbnailLink?.trim() || `/api/thumbnail/${encodeURIComponent(id)}`,
     tag: raw.modifiedTime ? "Recently Added" : undefined,
     source: "google-drive",
   };
+}
 
-  if (!tmdbConfigured()) return base;
-
-  try {
-    const identified = await identifyFilename(filename);
-    const tmdbId = identified.tmdb?.matched ? identified.tmdb.id : undefined;
-    if (identified.tmdb?.matched && identified.tmdb.poster) {
-      return {
-        ...base,
-        title: identified.title || fallbackTitle,
-        year: identified.year,
-        kind: base.kind,
-        season: base.kind === "movie" ? undefined : identified.season,
-        episode: base.kind === "movie" ? undefined : identified.episode,
-        tmdbId,
-        poster: identified.tmdb.poster,
-        backdrop: identified.tmdb.backdrop ?? identified.tmdb.poster,
-      };
-    }
-
-    return {
-      ...base,
-      title: identified.title || fallbackTitle,
-      year: identified.year,
-      kind: base.kind,
-      season: base.kind === "movie" ? undefined : identified.season,
-      episode: base.kind === "movie" ? undefined : identified.episode,
-      tmdbId,
-    };
-  } catch {
-    return base;
-  }
+function applyPatch(item: MediaItem, patch?: LibraryEnrichmentPatch | null): MediaItem {
+  if (!patch || patch.id !== item.id) return item;
+  return {
+    ...item,
+    title: patch.title || item.title,
+    year: patch.year ?? item.year,
+    kind: patch.kind ?? item.kind,
+    season: item.kind === "movie" ? undefined : patch.season ?? item.season,
+    episode: item.kind === "movie" ? undefined : patch.episode ?? item.episode,
+    tmdbId: patch.tmdbId ?? item.tmdbId,
+    poster: patch.poster || item.poster,
+    backdrop: patch.backdrop || item.backdrop,
+    overview: patch.overview ?? item.overview,
+    runtime: patch.runtime ?? item.runtime,
+    rating: patch.rating ?? item.rating,
+    genres: patch.genres ?? item.genres,
+  };
 }
 
 function groupKey(item: MediaItem): string {
   const kind = item.kind === "anime" ? "anime" : "series";
-  const identity = item.tmdbId ? `tmdb:${item.tmdbId}` : `title:${item.title.toLowerCase().replace(/\s+/g, " ").trim()}`;
+  const identity = item.tmdbId
+    ? `tmdb:${item.tmdbId}`
+    : `title:${item.title.toLowerCase().replace(/\s+/g, " ").trim()}`;
   return `${kind}|${identity}`;
 }
 
-async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
+function groupSeries(items: MediaItem[]): MediaItem[] {
   const output: MediaItem[] = [];
   const groups = new Map<string, MediaItem[]>();
 
   for (const item of items) {
-    if (item.kind === "movie") {
-      output.push(item);
-      continue;
-    }
-    const key = groupKey(item);
-    const group = groups.get(key);
-    if (group) group.push(item);
-    else groups.set(key, [item]);
+    if (item.kind === "movie") output.push(item);
+    else groups.set(groupKey(item), [...(groups.get(groupKey(item)) ?? []), item]);
   }
 
   for (const group of groups.values()) {
     const first = group[0];
     if (!first) continue;
-
     const episodeItems = group.filter((item) => item.season !== undefined && item.episode !== undefined);
+
     if (!episodeItems.length) {
       output.push(first);
       continue;
@@ -118,26 +107,6 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
         totalEpisodes: episodes.length,
       }));
 
-    if (first.tmdbId) {
-      for (const season of seasons) {
-        try {
-          const meta = await getEpisodeMeta(first.tmdbId, season.season);
-          if (!meta) continue;
-          season.totalEpisodes = meta.length;
-          for (const ep of season.episodes) {
-            const found = meta.find((m) => m.episode === ep.episode);
-            if (!found) continue;
-            ep.title = found.title;
-            ep.overview = found.overview;
-            ep.runtime = found.runtime;
-            ep.thumb = found.thumb ?? ep.thumb;
-          }
-        } catch {
-          // Keep Drive-backed episode data if TMDB episode metadata is unavailable.
-        }
-      }
-    }
-
     const availableEpisodes = seasons.reduce((sum, season) => sum + season.episodes.length, 0);
     const totalEpisodes = seasons.reduce((sum, season) => sum + (season.totalEpisodes ?? season.episodes.length), 0);
     output.push({
@@ -153,83 +122,103 @@ async function groupSeries(items: MediaItem[]): Promise<MediaItem[]> {
   return output.sort((a, b) => a.title.localeCompare(b.title));
 }
 
-async function mapWithConcurrency<T, R>(items: T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-
-  async function worker() {
-    while (true) {
-      const index = cursor++;
-      if (index >= items.length) return;
-      results[index] = await mapper(items[index]);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
-  return results;
+async function getRawLibrary(): Promise<RawItem[]> {
+  const cached = await getCachedDriveLibrary<RawItem[]>();
+  if (cached?.length) return cached;
+  const fresh = await listDriveLibrary();
+  if (fresh.length) await setCachedDriveLibrary(fresh);
+  return fresh;
 }
 
-// Do not put the Drive read behind Next's persistent Data Cache. A transient
-// Google Drive/API failure can otherwise cache an empty library and make the
-// home page appear to have no movies after a deployment. Keep the last
-// successful library only in the current server instance, and never replace
-// it with an empty/error response.
-let lastGoodLibrary: { at: number; response: LibraryResponse } | null = null;
-const GOOD_LIBRARY_TTL_MS = 30_000;
-
 async function loadLibrary(): Promise<LibraryResponse> {
-  if (lastGoodLibrary && Date.now() - lastGoodLibrary.at < GOOD_LIBRARY_TTL_MS) {
-    return lastGoodLibrary.response;
-  }
-
   if (!googleDriveConfigured()) {
     console.error("[library] Google Drive is not configured");
-    if (lastGoodLibrary) return lastGoodLibrary.response;
     return { mode: "google-drive", items: [], count: 0, error: "Google Drive is not configured" };
   }
 
   try {
-    const rawItems = await listDriveLibrary();
-    // Keep metadata lookups bounded. A large Drive folder can contain hundreds
-    // of files; firing one TMDB request chain per file at once causes bursts,
-    // rate limits, and slow/unstable page loads.
-    const normalized = await mapWithConcurrency(rawItems, 4, normalizeItem);
-    const items = normalized.filter((item): item is MediaItem => item !== null);
-    const grouped = await groupSeries(items);
+    const rawItems = await getRawLibrary();
+    const validRaw = rawItems.filter((raw) => raw.id?.trim() && raw.name?.trim());
+    const targets: LibraryEnrichmentTarget[] = validRaw.map((raw) => ({
+      id: raw.id,
+      name: raw.name,
+      type: raw.type,
+      modifiedTime: raw.modifiedTime,
+    }));
 
-    console.log(`[library] Google Drive returned ${items.length} files as ${grouped.length} library entries`);
+    const keys = validRaw.map((raw) => metadataCacheKey(raw.id, raw.modifiedTime));
+    const cached = await getCachedMetadata<LibraryEnrichmentPatch>(keys);
+    const normalized = validRaw
+      .map((raw, index) => applyPatch(baseItem(raw)!, cached.get(keys[index]) ?? null))
+      .filter(Boolean);
 
-    // Only remember a non-empty successful response. This prevents a transient
-    // empty Drive response from wiping an already working library.
-    if (grouped.length > 0) {
-      lastGoodLibrary = {
-        at: Date.now(),
-        response: { mode: "google-drive", items: grouped, count: grouped.length },
-      };
-      return lastGoodLibrary.response;
-    }
+    const grouped = groupSeries(normalized);
+    const pending = validRaw.filter((raw) => !cached.get(metadataCacheKey(raw.id, raw.modifiedTime)));
+    const pendingTargets: LibraryEnrichmentTarget[] = pending.map((raw) => ({
+      id: raw.id,
+      name: raw.name,
+      type: raw.type,
+      modifiedTime: raw.modifiedTime,
+    }));
 
-    if (lastGoodLibrary && Date.now() - lastGoodLibrary.at < GOOD_LIBRARY_TTL_MS) {
-      console.warn("[library] Drive returned 0 items; keeping the last successful library");
-      return lastGoodLibrary.response;
-    }
+    console.log(`[library] Drive returned ${validRaw.length} files as ${grouped.length} entries; ${pendingTargets.length} need metadata`);
 
-    return { mode: "google-drive", items: [], count: 0 };
+    return {
+      mode: "google-drive",
+      items: grouped,
+      count: grouped.length,
+      enrichmentTargets: pendingTargets.length ? pendingTargets : undefined,
+    };
   } catch (err) {
     console.error("[library] Google Drive fetch failed", err);
-
-    if (lastGoodLibrary) {
-      console.warn("[library] Serving the last successful library after Drive failure");
-      return lastGoodLibrary.response;
-    }
-
     return {
       mode: "google-drive",
       items: [],
       count: 0,
-      error: err instanceof Error ? err.message : "Google Drive library unavailable",
+      error: "Google Drive library unavailable",
     };
   }
+}
+
+export async function enrichLibraryBatch(targets: LibraryEnrichmentTarget[]): Promise<LibraryEnrichmentPatch[]> {
+  const safeTargets = targets.slice(0, 8);
+  const keys = safeTargets.map((target) => metadataCacheKey(target.id, target.modifiedTime));
+  const cached = await getCachedMetadata<LibraryEnrichmentPatch>(keys);
+  const patches: LibraryEnrichmentPatch[] = [];
+
+  for (let i = 0; i < safeTargets.length; i += 1) {
+    const target = safeTargets[i];
+    const key = keys[i];
+    const existing = cached.get(key);
+    if (existing) {
+      patches.push(existing);
+      continue;
+    }
+
+    try {
+      const identified = await identifyFilename(target.name);
+      const tmdb = identified.tmdb;
+      const patch: LibraryEnrichmentPatch = {
+        id: target.id,
+        title: identified.title,
+        year: identified.year,
+        kind: identified.kind,
+        season: target.type === "movie" ? undefined : identified.season,
+        episode: target.type === "movie" ? undefined : identified.episode,
+        tmdbId: tmdb?.matched ? tmdb.id : undefined,
+        poster: tmdb?.matched ? tmdb.poster : undefined,
+        backdrop: tmdb?.matched ? tmdb.backdrop : undefined,
+      };
+      await (await import("./library-cache")).setCachedMetadata(key, patch);
+      patches.push(patch);
+    } catch {
+      const patch: LibraryEnrichmentPatch = { id: target.id };
+      await (await import("./library-cache")).setCachedMetadata(key, patch);
+      patches.push(patch);
+    }
+  }
+
+  return patches;
 }
 
 export async function getLibrary(): Promise<LibraryResponse> {
