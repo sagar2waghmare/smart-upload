@@ -1,11 +1,14 @@
+import { env } from "cloudflare:workers";
 import type { MediaKind } from "../types";
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY;
+function tmdbApiKey(): string | undefined {
+  return (env as { TMDB_API_KEY?: string }).TMDB_API_KEY || process.env.TMDB_API_KEY;
+}
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const IMG = "https://image.tmdb.org/t/p/";
 
 export function tmdbConfigured(): boolean {
-  return Boolean(TMDB_API_KEY);
+  return Boolean(tmdbApiKey());
 }
 
 export interface TmdbMovie {
@@ -64,21 +67,22 @@ function cached<T>(key: string, producer: () => Promise<T>): Promise<T> {
 }
 
 async function tmdb<T>(path: string): Promise<T> {
-  if (!TMDB_API_KEY) throw new Error("TMDB API key not configured");
+  const apiKey = tmdbApiKey();
+  if (!apiKey) throw new Error("TMDB API key not configured");
 
   // TMDB v3 API keys use the api_key query parameter. Some deployments may
   // provide a v4 Read Access Token instead, so fall back to Bearer auth if
   // the v3 request is rejected as unauthorized.
   const separator = path.includes("?") ? "&" : "?";
-  const apiKeyUrl = `${TMDB_BASE}${path}${separator}api_key=${encodeURIComponent(TMDB_API_KEY)}`;
+  const apiKeyUrl = `${TMDB_BASE}${path}${separator}api_key=${encodeURIComponent(apiKey)}`;
   let res = await fetch(apiKeyUrl, {
     headers: { accept: "application/json" },
     cache: "no-store",
   });
 
-  if ((res.status === 401 || res.status === 403) && TMDB_API_KEY) {
+  if ((res.status === 401 || res.status === 403) && apiKey) {
     res = await fetch(`${TMDB_BASE}${path}`, {
-      headers: { accept: "application/json", Authorization: `Bearer ${TMDB_API_KEY}` },
+      headers: { accept: "application/json", Authorization: `Bearer ${apiKey}` },
       cache: "no-store",
     });
   }
