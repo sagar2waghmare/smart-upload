@@ -40,6 +40,7 @@ const db = (): D1Like | null =>
 
 const SYNC_INTERVAL_MS = 15_000;
 const FOLDER_CACHE_TTL_MS = 10 * 60 * 1000;
+const D1_BATCH_SIZE = 50;
 
 let schemaPromise: Promise<void> | null = null;
 let syncPromise: Promise<boolean> | null = null;
@@ -138,8 +139,8 @@ function insertStatements(store: D1Like, items: DriveLibraryItem[]): D1Statement
 }
 
 async function writeItems(store: D1Like, items: DriveLibraryItem[]): Promise<void> {
-  for (let i = 0; i < items.length; i += 500) {
-    await store.batch(insertStatements(store, items.slice(i, i + 50)));
+  for (let i = 0; i < items.length; i += D1_BATCH_SIZE) {
+    await store.batch(insertStatements(store, items.slice(i, i + D1_BATCH_SIZE)));
   }
 }
 
@@ -300,8 +301,8 @@ async function applyChanges(
     );
   }
 
-  for (let i = 0; i < statements.length; i += 500) {
-    await store.batch(statements.slice(i, i + 50));
+  for (let i = 0; i < statements.length; i += D1_BATCH_SIZE) {
+    await store.batch(statements.slice(i, i + D1_BATCH_SIZE));
   }
 
   return folderStructureChanged;
