@@ -15,10 +15,17 @@ function kv(): KvLike | null {
 const DRIVE_CACHE_KEY = "library:drive:v2";
 const DRIVE_CACHE_TTL = 60;
 const METADATA_TTL = 60 * 60 * 24 * 30;
+const NEGATIVE_METADATA_TTL = 60 * 60 * 6;
 
-export function metadataCacheKey(id: string, modifiedTime?: string): string {
-  const version = modifiedTime?.trim() || "unknown";
-  return `metadata:v2:${encodeURIComponent(id)}:${encodeURIComponent(version)}`;
+export function metadataCacheKey(
+  kind: string,
+  titleKey: string,
+  year?: string | number,
+): string {
+  const normalizedKind = kind.trim().toLowerCase() || "movie";
+  const normalizedTitle = titleKey.trim().toLowerCase() || "unknown";
+  const normalizedYear = year === undefined || year === null ? "" : String(year);
+  return `metadata:v3:${encodeURIComponent(normalizedKind)}:${encodeURIComponent(normalizedTitle)}:${encodeURIComponent(normalizedYear)}`;
 }
 
 export async function getCachedDriveLibrary<T>(): Promise<T | null> {
@@ -45,34 +52,35 @@ export async function getCachedMetadata<T>(keys: string[]): Promise<Map<string, 
   const store = kv();
   const out = new Map<string, T | null>();
   if (!store || !keys.length) return out;
+
   try {
     for (let i = 0; i < keys.length; i += 100) {
       const chunk = keys.slice(i, i + 100);
       const values = await store.get(chunk, "json");
-      for (const key of chunk) out.set(key, (values.get(key) as T | null | undefined) ?? null);
+      for (const key of chunk) {
+        out.set(key, (values.get(key) as T | null | undefined) ?? null);
+      }
     }
   } catch (error) {
     console.error("[library-cache] Metadata bulk read failed", error instanceof Error ? error.message : "unknown");
   }
+
   return out;
 }
 
-export async function getCachedMetadataOne<T>(key: string): Promise<T | null> {
-  const store = kv();
-  if (!store) return null;
-  try {
-    return (await store.get(key, "json")) as T | null;
-  } catch {
-    return null;
-  }
-}
-
-export async function setCachedMetadata(key: string, value: unknown): Promise<void> {
+export async function setCachedMetadata(
+  key: string,
+  value: unknown,
+  expirationTtl = METADATA_TTL,
+): Promise<void> {
   const store = kv();
   if (!store) return;
+
   try {
-    await store.put(key, JSON.stringify(value), { expirationTtl: METADATA_TTL });
+    await store.put(key, JSON.stringify(value), { expirationTtl });
   } catch (error) {
     console.error("[library-cache] Metadata write failed", error instanceof Error ? error.message : "unknown");
   }
 }
+
+export const NEGATIVE_METADATA_EXPIRATION_TTL = NEGATIVE_METADATA_TTL;
