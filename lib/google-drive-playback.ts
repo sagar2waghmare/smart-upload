@@ -399,7 +399,7 @@ export async function getValidatedDriveThumbnail(fileId: string): Promise<Respon
   if (!res.ok || !res.body) return null;
 
   const response = new Response(res.body, res);
-  response.headers.set("cache-control", "s-maxage=86400, stale-while-revalidate=604800");
+  response.headers.set("cache-control", "s-maxage=21600, stale-while-revalidate=86400");
   response.headers.set("x-content-type-options", "nosniff");
 
   await cache.put(cacheKey, response.clone());
