@@ -1,4 +1,5 @@
 "use client";
+import { useCallback } from "react";
 import type { MediaItem } from "../lib/types";
 import { FavButton } from "./FavButton";
 import { SmartImage } from "./SmartImage";
@@ -8,7 +9,7 @@ import { mergePatch, useLibraryEnrichment } from "./LibraryEnrichmentProvider";
 
 export function MediaCard({ item }: { item: MediaItem }) {
   const { openDetails } = useDetails();
-  const { getPatch } = useLibraryEnrichment();
+  const { getPatch, observe } = useLibraryEnrichment();
   const displayItem = mergePatch(item, getPatch(item.id));
   const progress = useWatchProgress()[item.id] ?? null;
   const pct = progress ? progressPercent(progress) : 0;
@@ -23,8 +24,16 @@ export function MediaCard({ item }: { item: MediaItem }) {
         : "Filme";
   const meta = displayItem.year ? `${displayItem.year} · ${kindLabel}` : kindLabel;
 
+  const setCardRef = useCallback(
+    (node: HTMLElement | null) => observe(item.id, node),
+    [item.id, observe],
+  );
+
   return (
-    <article className="card-conteudo">
+    <article
+      ref={setCardRef}
+      className="card-conteudo"
+    >
       <button className="poster" onClick={() => openDetails(displayItem)} aria-label={`Open details for ${displayItem.title}`}>
         <SmartImage src={displayItem.poster} alt={`${displayItem.title} poster`} objectFit="contain" />
       </button>
