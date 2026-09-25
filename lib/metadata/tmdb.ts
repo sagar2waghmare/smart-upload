@@ -23,6 +23,7 @@ export interface TmdbMovie {
   poster?: string;
   backdrop?: string;
   logo?: string;
+  imdbId?: string;
 }
 
 export interface TmdbEpisodeMeta {
@@ -51,6 +52,7 @@ export interface TmdbSeries {
   poster?: string;
   backdrop?: string;
   logo?: string;
+  imdbId?: string;
   seasons?: TmdbSeasonMeta[];
 }
 
@@ -144,7 +146,7 @@ async function searchKind(type: "movie" | "tv", query: string, year?: number): P
   const best = scored[0];
   const id = best.r.id;
   const detail = await cached<Record<string, unknown>>(`${type}:${id}`, () =>
-    tmdb<Record<string, unknown>>(`/${type === "tv" ? "tv" : "movie"}/${id}?language=en-US&append_to_response=images&include_image_language=en-US,null`)
+    tmdb<Record<string, unknown>>(`/${type === "tv" ? "tv" : "movie"}/${id}?language=en-US&append_to_response=images,external_ids&include_image_language=en-US,null`)
   );
 
   const foundYear =
@@ -168,6 +170,9 @@ async function searchKind(type: "movie" | "tv", query: string, year?: number): P
     poster: img((detail.poster_path as string | null) ?? best.r.poster_path),
     backdrop: img((detail.backdrop_path as string | null) ?? best.r.backdrop_path, "w1280"),
     logo: img(logoPath, "w500"),
+    imdbId: typeof (detail.external_ids as { imdb_id?: unknown } | undefined)?.imdb_id === "string"
+      ? (detail.external_ids as { imdb_id: string }).imdb_id
+      : undefined,
   };
 
   if (type === "tv") {
