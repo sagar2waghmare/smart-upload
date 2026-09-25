@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioVariant, MediaItem } from "../lib/types";
 import { useDetails } from "./DetailsProvider";
 import { VideoPlayer } from "./VideoPlayer";
+import { useTmdbMeta } from "../lib/use-tmdb-metadata";
 import { IAlert } from "./icons";
 import { clearProgress, getProgress, progressPercent, saveProgress } from "../lib/watch-progress";
 
@@ -20,6 +21,7 @@ type ApiResult = {
 
 export function PlaybackOverlay() {
   const { item, playerOpen, episode, openPlayer, closePlayer } = useDetails();
+  const tmdb = useTmdbMeta(item);
   const [ready, setReady] = useState(false);
   const [src, setSrc] = useState("");
   const [shareUrl, setShareUrl] = useState<string | undefined>();
@@ -137,6 +139,7 @@ export function PlaybackOverlay() {
               poster={item.poster}
               backdrop={item.backdrop}
               title={item.title}
+              logo={tmdb.meta?.logo}
               episodeTitle={episode?.title}
               demo={demo}
               item={item}
@@ -148,19 +151,27 @@ export function PlaybackOverlay() {
               onClose={closePlayer}
               audioTracks={audioTracks}
               preparedBrowserCopy={Boolean(prepared)}
+              autoplay
             />
           </>
         ) : (
-          <div className="play-loading premium-stream-loader" role="status">
-            <div className="player-loading-orbit" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-              <i />
-            </div>
-            <span>Preparing stream</span>
+          <div
+            className="premium-stream-splash"
+            role="status"
+            aria-live="polite"
+            style={{
+              backgroundImage: item.backdrop
+                ? `linear-gradient(180deg, rgba(0,0,0,.2), rgba(0,0,0,.78)), url("${item.backdrop}")`
+                : undefined,
+            }}
+          >
+            {tmdb.meta?.logo ? (
+              <img className="premium-stream-splash__logo" src={tmdb.meta.logo} alt="" />
+            ) : (
+              <strong className="premium-stream-splash__title">{item.title}</strong>
+            )}
+            <div className="premium-stream-splash__loader" aria-hidden="true"><span /></div>
+            <span className="premium-stream-splash__status">Loading</span>
           </div>
         )}
       </div>
