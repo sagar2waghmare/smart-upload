@@ -35,9 +35,6 @@ function publicHlsUrl(sourceId: string, relativePath: string): string {
 }
 
 function mediaUrl(fileId: string): string {
-  if (cloudflarePlaybackConfigured()) {
-    return createCloudflarePlaybackUrl(fileId) ?? `/api/stream/${encodeURIComponent(fileId)}`;
-  }
   return `/api/stream/${encodeURIComponent(fileId)}`;
 }
 
