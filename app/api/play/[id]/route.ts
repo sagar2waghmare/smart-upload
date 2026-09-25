@@ -32,6 +32,7 @@ export async function GET(_req: Request, { params }: Params) {
   }
 
   if (libraryItem) {
+    const useCloudflareStream = cloudflarePlaybackConfigured();
     let driveMedia = false;
     try {
       driveMedia = await validateDriveMedia(playbackId);
@@ -47,7 +48,7 @@ export async function GET(_req: Request, { params }: Params) {
     let audioTracks: Array<{ label: string; language?: string; id: string }> = [];
     let sourceType: string | null = null;
 
-    if (driveMedia) {
+    if (driveMedia && !useCloudflareStream) {
       try {
         [preparedId, hlsManifestId, audioTracks] = await Promise.all([
           findPreparedBrowserMedia(playbackId),
@@ -66,8 +67,6 @@ export async function GET(_req: Request, { params }: Params) {
         sourceType = null;
       }
     }
-
-    const useCloudflareStream = cloudflarePlaybackConfigured();
 
     // The streaming Worker has its own Google service-account boundary.
     // Prepared browser derivatives can exist in Drive yet be inaccessible to
@@ -90,22 +89,22 @@ export async function GET(_req: Request, { params }: Params) {
       demo: false,
       canPlay: true,
       playbackId,
-      hlsUrl: hlsManifestId
+      hlsUrl: !useCloudflareStream && hlsManifestId
         ? `/api/hls/${encodeURIComponent(playbackId)}/master.m3u8`
         : undefined,
       defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
       shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(playbackId)}`,
       prepared: useCloudflareStream ? false : Boolean(preparedId),
       sourceType: playbackSourceType ?? undefined,
-      audioTracks: audioTracks
-        .map((track) => ({
-          label: track.label,
-          language: track.language,
-          url: useCloudflareStream
-            ? createCloudflarePlaybackUrl(track.id)
-            : `/api/stream/${encodeURIComponent(track.id)}`,
-        }))
-        .filter((track) => Boolean(track.url)),
+      audioTracks: useCloudflareStream
+        ? []
+        : audioTracks
+            .map((track) => ({
+              label: track.label,
+              language: track.language,
+              url: `/api/stream/${encodeURIComponent(track.id)}`,
+            }))
+            .filter((track) => Boolean(track.url)),
     });
   }
 
