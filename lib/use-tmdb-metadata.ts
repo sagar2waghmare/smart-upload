@@ -103,7 +103,7 @@ export function useTmdbMeta(item: MediaItem | null): MetaState {
 
     let alive = true;
     const run = async () => {
-      const m = embedded ?? (await fetchMeta(title, year, kind));
+      const m = embedded?.logo ? embedded : (await fetchMeta(title, year, kind));
       if (alive) {
         cache.set(key, m);
         setState({ matched: Boolean(m), loading: false, meta: m });
