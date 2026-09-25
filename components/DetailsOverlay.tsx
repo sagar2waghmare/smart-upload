@@ -42,23 +42,21 @@ export function DetailsOverlay() {
   });
   const [episode, setEpisode] = useState<Episode | null>(priorEpisode);
 
-  if (!item) return null;
-
-  const progress = progressMap[item.id] ?? null;
+  const progress = item ? progressMap[item.id] ?? null : null;
   const mode = watchMode(progress);
   const playLabel = mode === "resume" ? "Resume Watching" : mode === "replay" ? "Watch Again" : "Play";
   const playEp = allEpisodes.length > 0 ? episode : null;
 
   const meta = tmdb.meta;
-  const backdrop = meta?.backdrop || item.backdrop || item.poster;
-  const poster = meta?.poster || item.poster;
-  const overview = meta?.overview || item.overview || "";
-  const genres = (meta?.genres && meta.genres.length ? meta.genres : item.genres) ?? [];
-  const rating = meta?.rating ?? item.rating;
-  const runtime = meta?.runtime ?? item.runtime;
-  const year = meta?.year ?? item.year;
+  const backdrop = meta?.backdrop || item?.backdrop || item?.poster;
+  const poster = meta?.poster || item?.poster;
+  const overview = meta?.overview || item?.overview || "";
+  const genres = (meta?.genres && meta.genres.length ? meta.genres : item?.genres) ?? [];
+  const rating = meta?.rating ?? item?.rating;
+  const runtime = meta?.runtime ?? item?.runtime;
+  const year = meta?.year ?? item?.year;
 
-  const seasons = item.seasons ?? [];
+  const seasons = item?.seasons ?? [];
   const currentSeason = seasons[seasonIdx] ?? seasons[0];
   const [episodeMeta, setEpisodeMeta] = useState<EpisodeMeta[]>([]);
   const [episodeMetaLoading, setEpisodeMetaLoading] = useState(false);
@@ -125,6 +123,8 @@ export function DetailsOverlay() {
       }),
     [currentSeason, episodeMeta],
   );
+  if (!item) return null;
+
   const totalEpisodes = allEpisodes.length;
   const seasonCountLabel = seasons.length === 1 ? "1 Season" : `${seasons.length} Seasons`;
   const episodeCountLabel = totalEpisodes === 1 ? "1 Episode" : `${totalEpisodes} Episodes`;
