@@ -202,7 +202,11 @@ export function VideoPlayer({
         onCanPlay={handleCanPlay}
         onLoadedMetadata={applyResume}
         onTimeUpdate={handleTimeUpdate}
-        onPause={() => emitProgress(true)}
+        onPlay={() => { setAutoplayBlocked(false); setMediaState("playing"); }}
+        onPlaying={() => { setAutoplayBlocked(false); setMediaState("playing"); }}
+        onWaiting={() => setMediaState("buffering")}
+        onStalled={() => setMediaState("buffering")}
+        onPause={() => { emitProgress(true); setMediaState("paused"); }}
         onEnded={() => {
           emitProgress(true);
           if (nextEpisode && !autoNextCancelledRef.current) playNextEpisode();
