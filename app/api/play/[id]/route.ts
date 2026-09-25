@@ -11,10 +11,37 @@ import { cloudflarePlaybackConfigured, createCloudflarePlaybackUrl } from "../..
 
 type Params = { params: Promise<{ id: string }> };
 
-function browserNativeVideo(type: string | null): boolean {
-  if (!type) return false;
-  const normalized = type.toLowerCase().split(";")[0].trim();
-  return normalized === "video/mp4" || normalized === "video/webm" || normalized === "video/ogg";
+function browserNativeVideo(type: string | null, name = ""): boolean {
+  const normalized = type?.toLowerCase().split(";")[0].trim() ?? "";
+  if (
+    normalized === "video/mp4" ||
+    normalized === "video/webm" ||
+    normalized === "video/ogg" ||
+    normalized === "video/x-matroska" ||
+    normalized === "video/matroska" ||
+    normalized === "video/quicktime"
+  ) {
+    return true;
+  }
+
+  // Drive can return generic MIME types for uploaded containers. Use the
+  // original filename as a secondary, conservative browser-container hint.
+  const ext = name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
+  return [".mp4", ".m4v", ".webm", ".ogg", ".ogv", ".mkv", ".mov"].includes(ext);
+}
+
+function browserPlaybackType(type: string | null, name = ""): string | null {
+  const normalized = type?.toLowerCase().split(";")[0].trim() ?? "";
+  if (browserNativeVideo(normalized, name)) {
+    if (normalized) return normalized;
+    const ext = name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
+    if (ext === ".mkv") return "video/x-matroska";
+    if (ext === ".mov") return "video/quicktime";
+    if (ext === ".webm") return "video/webm";
+    if (ext === ".ogg" || ext === ".ogv") return "video/ogg";
+    return "video/mp4";
+  }
+  return null;
 }
 
 
@@ -76,7 +103,8 @@ export async function GET(_req: Request, { params }: Params) {
     }
   }
 
-  const nativeVideo = browserNativeVideo(sourceType);
+  const browserType = browserPlaybackType(sourceType, playbackSource.name);
+  const nativeVideo = Boolean(browserType);
 
   // Use the Cloudflare gateway only for containers a browser can natively decode.
   // Non-native sources fall back to a prepared browser-safe MP4 or HLS.
@@ -91,7 +119,7 @@ export async function GET(_req: Request, { params }: Params) {
         defaultUrl: signedUrl,
         shareUrl: signedUrl,
         prepared: false,
-        sourceType,
+        sourceType: browserType,
         audioTracks: [],
       });
     }
@@ -163,7 +191,7 @@ export async function GET(_req: Request, { params }: Params) {
         defaultUrl: fallbackUrl,
         shareUrl: "/api/stream/" + encodeURIComponent(playbackId),
         prepared: false,
-        sourceType,
+        sourceType: browserType ?? sourceType,
         audioTracks: [],
       });
     }
