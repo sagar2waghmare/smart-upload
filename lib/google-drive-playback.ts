@@ -75,7 +75,10 @@ async function metadata(fileId: string, token: string): Promise<MediaCheck> {
   const cached = mediaMetadata.get(fileId);
   if (cached && cached.expiresAt > Date.now()) return cached.item;
   const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,name,parents,mimeType,trashed,size,thumbnailLink&supportsAllDrives=true`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "force-cache", next: { revalidate: 300 } });
+  // Cloudflare Workers only supports fetch cache modes "no-store" and
+  // "no-cache". Next.js-specific `next.revalidate` options are not valid in
+  // the Workers runtime and can throw before Google Drive is contacted.
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (res.status === 401) { cachedAccess = null; throw new Error("Google Drive authentication expired"); }
   if (!res.ok) throw new Error("Google Drive media not found");
   const item = (await res.json()) as MediaCheck;
