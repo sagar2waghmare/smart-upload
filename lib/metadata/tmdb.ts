@@ -212,7 +212,7 @@ async function searchKind(type: "movie" | "tv", query: string, year?: number, de
 }
 
 export async function searchTmdb(query: string, opts: { year?: number; kind?: MediaKind; details?: boolean } = {}): Promise<TmdbResult | null> {
-  const key = `s:${opts.kind ?? ""}:${norm(query)}:${opts.year ?? ""}`;
+  const key = `s:${opts.details === false ? "fast" : "full"}:${opts.kind ?? ""}:${norm(query)}:${opts.year ?? ""}`;
   const run = async (): Promise<TmdbResult | null> => {
     if (opts.kind === "series" || opts.kind === "anime") return searchKind("tv", query, opts.year, opts.details !== false);
     if (opts.kind === "movie") return searchKind("movie", query, opts.year, opts.details !== false);
