@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { getMediaById } from "../../../../lib/library-service";
+import { getPlaybackLibraryItem } from "../../../../lib/library-service";
 import { resolvePlaybackUrl } from "../../../../lib/playback";
 import {
   findPreparedAudioTracks,
   findPreparedBrowserMedia,
   findPreparedHlsManifest,
-  getDriveMediaMimeType,
-  validateDriveMedia,
+  getDrivePlaybackMetadata,
 } from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 import { cloudflarePlaybackConfigured, createCloudflarePlaybackUrl } from "../../../../lib/cloudflare-playback";
@@ -25,10 +24,15 @@ export async function GET(_req: Request, { params }: Params) {
   if (!user) return unauthorized();
   const { id } = await params;
 
-  const libraryItem = await getMediaById(id);
+  // The catalog/D1 index is the playback authorization boundary. Do not
+  // re-run the presentation-layer grouping logic as the source of truth.
+  const libraryItem = await getPlaybackLibraryItem(id);
   if (!libraryItem) {
     return NextResponse.json(
-      { error: "not-found", message: "Media not found" },
+      {
+        error: "media-not-in-library",
+        message: "Media not found in the indexed library.",
+      },
       { status: 404 },
     );
   }
@@ -43,24 +47,37 @@ export async function GET(_req: Request, { params }: Params) {
 
   const useCloudflareStream = cloudflarePlaybackConfigured();
 
-  let driveMedia = false;
+  // Manifest resolution needs the source MIME only. The byte-stream routes
+  // keep the stricter Drive ancestry validation; doing that check here caused
+  // valid indexed files to be rejected before a playback source was returned.
+  let driveMedia: Awaited<ReturnType<typeof getDrivePlaybackMetadata>> = null;
   try {
-    driveMedia = await validateDriveMedia(playbackId);
+    driveMedia = await getDrivePlaybackMetadata(playbackId);
   } catch (err) {
-    console.warn(
-      "[play] Drive validation unavailable; using indexed playback fallback",
+    console.error(
+      "[play] Drive metadata lookup failed",
       err instanceof Error ? err.message : "unknown error",
+    );
+    return NextResponse.json(
+      {
+        error: "drive-metadata-unavailable",
+        message: "Google Drive could not verify the playback source.",
+      },
+      { status: 502 },
     );
   }
 
   if (!driveMedia) {
     return NextResponse.json(
-      { error: "media-unavailable", message: "This media file is not available for playback." },
+      {
+        error: "source-not-found",
+        message: "The indexed media file is no longer accessible in Google Drive.",
+      },
       { status: 404 },
     );
   }
 
-  const sourceType = await getDriveMediaMimeType(playbackId).catch(() => null);
+  const sourceType = driveMedia.mimeType ?? null;
   const nativeVideo = browserNativeVideo(sourceType);
 
   // Use the Cloudflare gateway only for containers a browser can natively decode.
