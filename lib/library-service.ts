@@ -468,6 +468,7 @@ export async function getMediaById(id: string): Promise<MediaItem | undefined> {
 // presentation-layer cache is stale or a series grouping changed.
 export async function getPlaybackLibrarySource(id: string): Promise<{
   item: MediaItem;
+  name: string;
   mimeType?: string;
 } | undefined> {
   const normalizedId = id.trim();
@@ -480,7 +481,7 @@ export async function getPlaybackLibrarySource(id: string): Promise<{
   const published = await getPublished();
   const publishedMatch = findMediaInItems(published, normalizedId);
   if (publishedMatch) {
-    return { item: publishedMatch, mimeType: raw.mimeType };
+    return { item: publishedMatch, name: raw.name, mimeType: raw.mimeType };
   }
 
   const base = baseItem(raw);
@@ -490,6 +491,7 @@ export async function getPlaybackLibrarySource(id: string): Promise<{
   const cached = await getCachedMetadata<CachedMetadata>([key]);
   return {
     item: applyCachedMetadata(base, cached.get(key)),
+    name: raw.name,
     mimeType: raw.mimeType,
   };
 }
