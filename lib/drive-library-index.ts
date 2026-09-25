@@ -448,7 +448,13 @@ export async function getIndexedDriveLibrary(): Promise<IndexedRow[] | null> {
 
   try {
     const changed = await syncDriveLibraryIndex();
-    if (!changed && cached !== null) return cached;
+    const cachedHasMimeType =
+      cached !== null &&
+      cached.every((row) => typeof row.mimeType === "string" && row.mimeType.length > 0);
+    // Refresh old KV snapshots created before mimeType became part of the
+    // playback index. This keeps playback source selection independent from
+    // a stale cache generation.
+    if (!changed && cachedHasMimeType) return cached;
 
     await ensureSchema(store);
     const rows = await readIndexedRows(store);
