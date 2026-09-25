@@ -79,15 +79,17 @@ async function tmdb<T>(path: string): Promise<T> {
   // the v3 request is rejected as unauthorized.
   const separator = path.includes("?") ? "&" : "?";
   const apiKeyUrl = `${TMDB_BASE}${path}${separator}api_key=${encodeURIComponent(apiKey)}`;
+  // TMDB metadata is effectively immutable for our library. Cache the upstream
+  // response at Cloudflare's edge so repeated searches/details do not hit TMDB.
   let res = await fetch(apiKeyUrl, {
     headers: { accept: "application/json" },
-    cache: "no-store",
+    cf: { cacheTtl: 86400, cacheEverything: true },
   });
 
   if ((res.status === 401 || res.status === 403) && apiKey) {
     res = await fetch(`${TMDB_BASE}${path}`, {
       headers: { accept: "application/json", Authorization: `Bearer ${apiKey}` },
-      cache: "no-store",
+      cf: { cacheTtl: 86400, cacheEverything: true },
     });
   }
 
