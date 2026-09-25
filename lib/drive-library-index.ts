@@ -445,12 +445,16 @@ export async function getIndexedDriveLibrary(): Promise<IndexedRow[] | null> {
   if (!store) return null;
 
   const cached = await getCachedDriveLibrary<IndexedRow[]>();
+  const cachedHasMimeType =
+    cached !== null &&
+    cached.every((row) => typeof row.mimeType === "string" && row.mimeType.length > 0);
+
+  // Fast path: a valid KV snapshot is already enough to render the library.
+  // Do not make the first page request wait for a Google Drive change check.
+  if (cachedHasMimeType) return cached;
 
   try {
     const changed = await syncDriveLibraryIndex();
-    const cachedHasMimeType =
-      cached !== null &&
-      cached.every((row) => typeof row.mimeType === "string" && row.mimeType.length > 0);
     // Refresh old KV snapshots created before mimeType became part of the
     // playback index. This keeps playback source selection independent from
     // a stale cache generation.
