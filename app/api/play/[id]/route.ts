@@ -100,7 +100,7 @@ export async function GET(_req: Request, { params }: Params) {
   }
 
   if (preparedId) {
-    const preparedUrl = "/api/stream/" + encodeURIComponent(preparedId);
+    const preparedUrl = "/api/stream/" + encodeURIComponent(playbackId) + "?variant=browser";
     return NextResponse.json({
       item: libraryItem,
       demo: false,
