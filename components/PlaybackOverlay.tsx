@@ -19,6 +19,36 @@ type ApiResult = {
   audioTracks?: AudioVariant[];
 };
 
+type CachedPlayback = { data: ApiResult; expiresAt: number };
+
+const PLAYBACK_CACHE_TTL = 5 * 60 * 1000;
+const playbackCache = new Map<string, CachedPlayback>();
+const playbackInflight = new Map<string, Promise<ApiResult>>();
+
+async function loadPlayback(playbackId: string): Promise<ApiResult> {
+  const cached = playbackCache.get(playbackId);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+  const existing = playbackInflight.get(playbackId);
+  if (existing) return existing;
+
+  const request = fetch(`/api/play/${encodeURIComponent(playbackId)}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+  }).then(async (response) => {
+    const body = (await response.json()) as ApiResult & { error?: string; message?: string };
+    if (!response.ok) throw new Error(body.message ?? body.error ?? `Playback request failed (${response.status})`);
+    if (!body.defaultUrl) throw new Error("Playback source is unavailable.");
+    playbackCache.set(playbackId, { data: body, expiresAt: Date.now() + PLAYBACK_CACHE_TTL });
+    return body;
+  }).finally(() => {
+    playbackInflight.delete(playbackId);
+  });
+
+  playbackInflight.set(playbackId, request);
+  return request;
+}
+
 export function PlaybackOverlay() {
   const { item, playerOpen, episode, openPlayer, closePlayer } = useDetails();
   const tmdb = useTmdbMeta(item);
@@ -150,7 +180,6 @@ export function PlaybackOverlay() {
         ) : ready && src ? (
           <>
             <VideoPlayer
-              key={src}
               src={src}
               hlsUrl={hlsUrl}
               sourceType={sourceType}
@@ -160,6 +189,7 @@ export function PlaybackOverlay() {
               title={item.title}
               logo={tmdb.meta?.logo}
               imdbId={tmdb.meta?.imdbId}
+              tmdbId={item.tmdbId}
               episodeTitle={episode?.title}
               demo={demo}
               item={item}
