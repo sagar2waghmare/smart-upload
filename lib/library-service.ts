@@ -352,7 +352,7 @@ export async function enrichLibraryBatch(
       const existing = cached.get(key);
       // Older metadata entries predate logo caching. Refresh those once so
       // the player can render the title logo without a second client lookup.
-      if (existing && (existing.logo || existing.status !== "matched")) return existing;
+      if (existing) return existing;
 
       try {
         const identified = await identifyFilename(target.name);
@@ -412,7 +412,7 @@ export async function enrichLibraryBatch(
 
   for (const [key, result] of computedEntries) {
     const existing = cached.get(key);
-    if (existing?.logo || existing?.status !== "matched") continue;
+    if (existing) continue;
 
     if (!result) continue;
 
@@ -431,8 +431,8 @@ export async function enrichLibraryBatch(
     const target = safeTargets[i];
     const key = keyByTarget[i];
     const existing = cached.get(key);
-    if (existing?.logo || existing?.status !== "matched") {
-      patches.push(existing ? toClientPatch(target.id, existing) : { id: target.id });
+    if (existing) {
+      patches.push(toClientPatch(target.id, existing));
       continue;
     }
 
