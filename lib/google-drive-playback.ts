@@ -72,7 +72,7 @@ async function accessToken(): Promise<string> {
 async function metadata(fileId: string, token: string): Promise<MediaCheck> {
   const cached = mediaMetadata.get(fileId);
   if (cached && cached.expiresAt > Date.now()) return cached.item;
-  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,name,parents,mimeType,trashed,size,thumbnailLink`;
+  const url = `${DRIVE_API_URL}/${encodeURIComponent(fileId)}?fields=id,name,parents,mimeType,trashed,size,thumbnailLink&supportsAllDrives=true`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "force-cache", next: { revalidate: 300 } });
   if (res.status === 401) { cachedAccess = null; throw new Error("Google Drive authentication expired"); }
   if (!res.ok) throw new Error("Google Drive media not found");
@@ -498,7 +498,7 @@ export async function drivePlaybackFetch(fileId: string, headers: Record<string,
   const item = await metadata(id, token);
   if (item.trashed || !item.mimeType || (!item.mimeType.startsWith("video/") && !item.mimeType.startsWith("audio/"))) throw new Error("Media is not a playable media stream");
   if (!(await isInsideMedia(id, token))) throw new Error("Media is outside the Smart Upload library");
-  const url = `${DRIVE_API_URL}/${encodeURIComponent(id)}?alt=media`;
+  const url = `${DRIVE_API_URL}/${encodeURIComponent(id)}?alt=media&supportsAllDrives=true`;
   let res = await fetch(url, { headers: { ...headers, Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (res.status === 401) {
     cachedAccess = null;
