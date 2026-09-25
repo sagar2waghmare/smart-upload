@@ -220,8 +220,7 @@ export function PlaybackOverlay() {
             ) : (
               <strong className="premium-stream-splash__title">{item.title}</strong>
             )}
-            <div className="premium-stream-splash__loader" aria-hidden="true"><span /></div>
-            <span className="premium-stream-splash__status">Loading</span>
+            <span className="premium-stream-splash__status">Starting playback</span>
           </div>
         )}
       </div>
