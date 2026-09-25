@@ -53,6 +53,10 @@ export function SmartImage({
           priority={priority}
           unoptimized={unoptimized ?? /^https?:\/\//i.test(imageSrc)}
           onError={() => {
+            if (imageSrc.startsWith("/api/thumbnail/")) {
+              setOk(false);
+              return;
+            }
             if (retry < 1) {
               setRetry(1);
             } else {
