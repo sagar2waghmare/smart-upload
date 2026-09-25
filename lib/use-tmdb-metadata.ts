@@ -65,6 +65,28 @@ async function fetchMeta(
   }
 }
 
+
+async function fetchMetaById(
+  tmdbId: number,
+  kind?: MediaItem["kind"],
+): Promise<TmdbMetaEnrich | null> {
+  try {
+    const params = new URLSearchParams({
+      tmdbId: String(tmdbId),
+      type: metaType(kind),
+    });
+    const res = await fetch(`/api/metadata?${params.toString()}`, {
+      cache: "default",
+      credentials: "same-origin",
+    });
+    const json = (await res.json()) as { matched?: boolean; meta?: TmdbMetaEnrich };
+    if (!res.ok || json.matched !== true || !json.meta) return null;
+    return json.meta;
+  } catch {
+    return null;
+  }
+}
+
 function initialFromKey(key: string, item: MediaItem | null): MetaState {
   if (!key) return { matched: false, loading: false, meta: null };
 
@@ -89,7 +111,11 @@ export function useTmdbMeta(item: MediaItem | null): MetaState {
   const title = item?.title ?? "";
   const year = item?.year;
   const kind = item?.kind;
-  const key = item ? `${metaType(kind)}|${title}|${year ?? ""}` : "";
+  const key = item?.tmdbId
+    ? `${metaType(kind)}|id:${item.tmdbId}`
+    : item
+      ? `${metaType(kind)}|${title}|${year ?? ""}`
+      : "";
   const embedded = itemMeta(item);
   const [state, setState] = useState<MetaState>(() => initialFromKey(key, item));
   const [lastKey, setLastKey] = useState(key);
@@ -104,7 +130,11 @@ export function useTmdbMeta(item: MediaItem | null): MetaState {
 
     let alive = true;
     const run = async () => {
-      const m = embedded?.logo ? embedded : (await fetchMeta(title, year, kind));
+      const m = embedded?.logo
+        ? embedded
+        : item?.tmdbId
+          ? await fetchMetaById(item.tmdbId, kind)
+          : await fetchMeta(title, year, kind);
       if (alive) {
         cache.set(key, m);
         setState({ matched: Boolean(m), loading: false, meta: m });
