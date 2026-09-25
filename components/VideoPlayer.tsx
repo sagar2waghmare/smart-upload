@@ -391,11 +391,7 @@ export function VideoPlayer({
           src: source,
           type: hlsUrl && !fallbackUsed && source === hlsUrl
             ? "application/x-mpegurl"
-            : sourceType === "video/webm"
-              ? "video/webm"
-              : sourceType === "video/ogg"
-                ? "video/ogg"
-                : "video/mp4",
+            : sourceType || undefined,
         }}
         load="eager"
         playsInline
