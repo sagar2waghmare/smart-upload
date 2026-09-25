@@ -1,6 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  isHLSProvider,
+  MediaPlayer,
+  MediaProvider,
+  Track,
+  type MediaPlayerInstance,
+  type MediaProviderAdapter,
+} from "@vidstack/react";
 import type { Episode, MediaItem } from "../lib/types";
 import { IArrowLeft, IArrowRight, IClose, ILink } from "./icons";
 
@@ -32,9 +40,12 @@ type Props = {
 
 const UP_NEXT_DISPLAY_SECONDS = 12;
 
+type MediaState = "loading" | "buffering" | "playing" | "paused" | "error";
+
 export function VideoPlayer({
   src,
   hlsUrl,
+  sourceType,
   shareUrl,
   title,
   logo,
@@ -53,39 +64,28 @@ export function VideoPlayer({
   preparedBrowserCopy = false,
   autoplay = false,
 }: Props) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<MediaPlayerInstance>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressCallbackRef = useRef(onProgress);
   const endedCallbackRef = useRef(onEnded);
   const lastProgressRef = useRef(0);
+  const autoplayWantedRef = useRef(autoplay);
+  const autoNextCancelledRef = useRef(false);
 
   const preferredSource = preparedBrowserCopy && src ? src : hlsUrl || src;
-  const [mediaState, setMediaState] = useState<"loading" | "buffering" | "playing" | "paused" | "error">("loading");
-  const [soundLocked, setSoundLocked] = useState(false);
-  const autoplayWantedRef = useRef(autoplay);
+  const [source, setSource] = useState(preferredSource);
+  const [fallbackUsed, setFallbackUsed] = useState(false);
+  const [resumeApplied, setResumeApplied] = useState(false);
+  const [mediaState, setMediaState] = useState<MediaState>("loading");
   const [showUpNext, setShowUpNext] = useState(false);
   const [outroStart, setOutroStart] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [rate, setRate] = useState(1);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(Boolean(autoplay));
+  const [soundLocked, setSoundLocked] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-
-  useEffect(() => { progressCallbackRef.current = onProgress; }, [onProgress]);
-  useEffect(() => { endedCallbackRef.current = onEnded; }, [onEnded]);
-
-  const emitProgress = useCallback((force = false) => {
-    const video = videoRef.current;
-    if (!video) return;
-    const now = Date.now();
-    if (!force && now - lastProgressRef.current < 4000) return;
-    lastProgressRef.current = now;
-    progressCallbackRef.current?.({
-      position: Number.isFinite(video.currentTime) ? video.currentTime : 0,
-      duration: Number.isFinite(video.duration) ? video.duration : 0,
-    });
-  }, []);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const flatEpisodes = item.seasons?.flatMap((season) => season.episodes) ?? [];
   const episodeIndex = episode ? flatEpisodes.findIndex((candidate) => candidate.id === episode.id) : -1;
@@ -94,146 +94,88 @@ export function VideoPlayer({
     ? flatEpisodes[episodeIndex + 1]
     : null;
 
+  useEffect(() => { progressCallbackRef.current = onProgress; }, [onProgress]);
+  useEffect(() => { endedCallbackRef.current = onEnded; }, [onEnded]);
+
+  useEffect(() => {
+    autoplayWantedRef.current = autoplay;
+  }, [autoplay]);
+
+  useEffect(() => {
+    setSource(preferredSource);
+    setFallbackUsed(false);
+    setResumeApplied(false);
+    setMediaState("loading");
+    setShowUpNext(false);
+    setDuration(0);
+    setCurrentTime(0);
+    setOutroStart(null);
+    setErrorMessage(null);
+    setMuted(Boolean(autoplay));
+    setSoundLocked(false);
+    autoNextCancelledRef.current = false;
+  }, [preferredSource, autoplay]);
+
+  const emitProgress = useCallback((force = false) => {
+    const player = playerRef.current;
+    if (!player) return;
+    const now = Date.now();
+    if (!force && now - lastProgressRef.current < 4000) return;
+    lastProgressRef.current = now;
+    progressCallbackRef.current?.({
+      position: Number.isFinite(player.currentTime) ? player.currentTime : 0,
+      duration: Number.isFinite(player.duration) ? player.duration : 0,
+    });
+  }, []);
+
   const showControls = useCallback(() => {
     setControlsVisible(true);
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
-    const video = videoRef.current;
-    if (!video || video.paused) return;
-    controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 2600);
+    const player = playerRef.current;
+    if (!player || player.paused) return;
+    controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 2800);
   }, []);
 
-  const togglePlay = useCallback(async () => {
-    const video = videoRef.current;
-    if (!video) return;
+  const configureProvider = useCallback((provider: MediaProviderAdapter | null) => {
+    if (!isHLSProvider(provider)) return;
+    provider.library = () => import("hls.js");
+    provider.config = {
+      enableWorker: true,
+      lowLatencyMode: false,
+      capLevelToPlayerSize: true,
+      backBufferLength: 90,
+      maxBufferLength: 30,
+    };
+  }, []);
 
-    if (video.paused || video.ended) {
-      try {
-        await video.play();
-        setMediaState("playing");
-      } catch {
-        // Keep the startup surface clean. The media event handlers will retry
-        // once metadata/buffering is available.
-        if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-          setMediaState("paused");
-        }
-      }
-    } else {
-      video.pause();
-    }
-    showControls();
-  }, [showControls]);
-
-  const startAutoplay = useCallback(async () => {
-    if (!autoplayWantedRef.current) return;
-    const video = videoRef.current;
-    if (!video || (!video.currentSrc && !preferredSource)) return;
-
-    // Do not treat "not loaded yet" as an autoplay failure. Calling play()
-    // before metadata/source readiness is what caused the stale Tap to Play
-    // state seen on the live player.
-    if (video.readyState < HTMLMediaElement.HAVE_METADATA) return;
-
+  const applyResume = useCallback(() => {
+    const player = playerRef.current;
+    if (!player || resumeApplied || !initialTime || initialTime <= 0.5) return;
+    const currentDuration = player.duration;
+    if (!Number.isFinite(currentDuration) || currentDuration <= 0) return;
+    const target = Math.min(initialTime, Math.max(0, currentDuration - 0.25));
     try {
-      video.muted = true;
-      setMuted(true);
-      await video.play();
-
-      // Once the native element is genuinely playing, restore audio. If the
-      // browser keeps it muted, playback still continues and only the small
-      // sound affordance remains available.
-      window.setTimeout(() => {
-        const current = videoRef.current;
-        if (!current || current.paused) return;
-        try { current.muted = false; } catch { /* browser may keep autoplay muted */ }
-        setMuted(current.muted);
-        setSoundLocked(current.muted);
-      }, 0);
-
-      setMediaState("playing");
-      showControls();
+      player.currentTime = target;
+      setResumeApplied(true);
     } catch {
-      // Do not surface a blocking "Tap to play" overlay here. Retry from
-      // loadedmetadata/canplay/playing and the short startup retry window.
-      if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-        setMediaState(video.paused ? "paused" : "buffering");
-      }
+      // Retry on the next metadata/canplay event.
     }
-  }, [preferredSource, showControls]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    let cancelled = false;
-    let hlsInstance: { destroy: () => void } | null = null;
-
-    const attach = async () => {
-      video.removeAttribute("src");
-      video.load();
-
-      if (hlsUrl) {
-        if (video.canPlayType("application/vnd.apple.mpegurl")) {
-          video.src = hlsUrl;
-        } else {
-          try {
-            const module = await import("hls.js");
-            if (cancelled) return;
-            const HlsCtor = module.default;
-            if (HlsCtor.isSupported()) {
-              const hls = new HlsCtor({
-                enableWorker: true,
-                lowLatencyMode: false,
-                capLevelToPlayerSize: true,
-                backBufferLength: 90,
-                maxBufferLength: 30,
-              });
-              hls.loadSource(hlsUrl);
-              hls.attachMedia(video);
-              hlsInstance = hls;
-            } else {
-              video.src = preferredSource;
-            }
-          } catch {
-            video.src = preferredSource;
-          }
-        }
-      } else {
-        video.src = preferredSource;
-      }
-
-      video.load();
-
-      const retryDelays = [80, 220, 500, 1000, 1800, 3000, 5000];
-      retryDelays.forEach((delay) => {
-        window.setTimeout(() => {
-          if (!cancelled) void startAutoplay();
-        }, delay);
-      });
-    };
-
-    void attach();
-
-    return () => {
-      cancelled = true;
-      if (hlsInstance) hlsInstance.destroy();
-      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
-    };
-  }, [hlsUrl, preferredSource, startAutoplay]);
+  }, [initialTime, resumeApplied]);
 
   const loadOutroTiming = useCallback(async () => {
     const seasonNumber = episode?.season;
     const episodeNumber = episode?.episode;
     if ((!tmdbId && !imdbId) || !seasonNumber || !episodeNumber) return;
 
-    const video = videoRef.current;
+    const player = playerRef.current;
     const params = new URLSearchParams({
       season: String(seasonNumber),
       episode: String(episodeNumber),
     });
     if (tmdbId) params.set("tmdbId", String(tmdbId));
     else if (imdbId) params.set("imdbId", imdbId);
-    if (video && Number.isFinite(video.duration) && video.duration > 0) {
-      params.set("duration", String(video.duration));
+    if (player && Number.isFinite(player.duration) && player.duration > 0) {
+      params.set("duration", String(player.duration));
     }
 
     try {
@@ -243,20 +185,17 @@ export function VideoPlayer({
       if (!response.ok) return;
       const data = (await response.json()) as { outroStart?: number | null };
       const value = Number(data.outroStart);
-      if (Number.isFinite(value) && value > 0 && (!video?.duration || value < video.duration)) {
+      if (Number.isFinite(value) && value > 0 && (!player || !Number.isFinite(player.duration) || value < player.duration)) {
         setOutroStart(value);
       }
     } catch {
-      // File-end fallback remains active when credit metadata is unavailable.
+      // End-of-file fallback remains active when metadata is unavailable.
     }
-  }, [episode, imdbId, tmdbId]);
-
-  useEffect(() => {
-    if (tmdbId || imdbId) void loadOutroTiming();
-  }, [tmdbId, imdbId, episode?.id, loadOutroTiming]);
+  }, [episode?.season, episode?.episode, imdbId, tmdbId]);
 
   const playNextEpisode = useCallback(() => {
     if (!nextEpisode) return;
+    autoNextCancelledRef.current = false;
     setShowUpNext(false);
     onEpisode?.(nextEpisode);
   }, [nextEpisode, onEpisode]);
@@ -266,147 +205,153 @@ export function VideoPlayer({
     onEpisode?.(previousEpisode);
   }, [previousEpisode, onEpisode]);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+  const attemptAutoplay = useCallback(async () => {
+    if (!autoplayWantedRef.current) return false;
+    const player = playerRef.current;
+    if (!player) return false;
 
-    const onLoadedMetadata = () => {
-      const nextDuration = Number.isFinite(video.duration) ? video.duration : 0;
-      setDuration(nextDuration);
-      if (initialTime && initialTime > 0.5 && nextDuration > 0) {
-        try {
-          video.currentTime = Math.min(initialTime, Math.max(0, nextDuration - 0.25));
-        } catch {
-          // Ignore resume seek failures on streams that are not seek-ready yet.
-        }
-      }
-      void loadOutroTiming();
-      void startAutoplay();
-    };
+    const currentDuration = Number(player.duration);
+    if (!Number.isFinite(currentDuration) || currentDuration <= 0) return false;
 
-    const onCanPlay = () => {
-      void startAutoplay();
-      setMediaState(video.paused ? "loading" : "playing");
-    };
-
-    const onPlaying = () => {
+    try {
+      // Bootstrap muted so browser autoplay policy cannot block playback.
+      player.muted = true;
+      setMuted(true);
+      await player.play();
       setMediaState("playing");
-      setCurrentTime(video.currentTime);
-      setDuration(Number.isFinite(video.duration) ? video.duration : 0);
-      setMuted(video.muted);
-      setSoundLocked(video.muted);
+      setErrorMessage(null);
       showControls();
-    };
 
-    const onPause = () => {
-      emitProgress(true);
-      setMediaState(video.ended ? "paused" : "paused");
-      setCurrentTime(video.currentTime);
-      setMuted(video.muted);
-      setSoundLocked(false);
-      setControlsVisible(true);
-    };
+      // Restore audio only after playback is confirmed.
+      window.setTimeout(() => {
+        const current = playerRef.current;
+        if (!current || current.paused) return;
+        try {
+          current.muted = false;
+        } catch {
+          // Keep muted playback if the browser enforces the policy.
+        }
+        setMuted(Boolean(current.muted));
+        setSoundLocked(Boolean(current.muted));
+      }, 0);
+      return true;
+    } catch {
+      // A transient play rejection is not treated as a fatal playback error.
+      return false;
+    }
+  }, [showControls]);
 
-    const onWaiting = () => setMediaState("buffering");
-    const onStalled = () => setMediaState("buffering");
+  useEffect(() => {
+    if (!autoplay) return;
+    const retryDelays = [0, 100, 300, 700, 1400, 2500];
+    const timers = retryDelays.map((delay) => window.setTimeout(() => {
+      void attemptAutoplay();
+    }, delay));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [attemptAutoplay, autoplay, source]);
 
-    const onTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
-      const nextDuration = Number.isFinite(video.duration) ? video.duration : 0;
-      setDuration(nextDuration);
-      emitProgress(false);
+  const togglePlay = useCallback(async () => {
+    const player = playerRef.current;
+    if (!player) return;
 
-      if (!nextEpisode) return;
-      const trigger = outroStart !== null
-        ? outroStart
-        : Math.max(0, nextDuration - UP_NEXT_DISPLAY_SECONDS);
-      if (!video.paused && video.currentTime >= trigger) setShowUpNext(true);
-    };
-
-    const onEndedEvent = () => {
-      emitProgress(true);
-      setShowUpNext(false);
-      if (nextEpisode) playNextEpisode();
-      endedCallbackRef.current?.();
-    };
-
-    const onError = () => {
+    try {
+      if (player.paused) {
+        await player.play();
+        setMediaState("playing");
+        setErrorMessage(null);
+      } else {
+        player.pause();
+        setMediaState("paused");
+      }
+    } catch {
+      setErrorMessage("Playback could not be started.");
       setMediaState("error");
-      setControlsVisible(true);
-    };
-
-    video.addEventListener("loadedmetadata", onLoadedMetadata);
-    video.addEventListener("canplay", onCanPlay);
-    video.addEventListener("playing", onPlaying);
-    video.addEventListener("pause", onPause);
-    video.addEventListener("waiting", onWaiting);
-    video.addEventListener("stalled", onStalled);
-    video.addEventListener("timeupdate", onTimeUpdate);
-    video.addEventListener("ended", onEndedEvent);
-    video.addEventListener("error", onError);
-
-    return () => {
-      video.removeEventListener("loadedmetadata", onLoadedMetadata);
-      video.removeEventListener("canplay", onCanPlay);
-      video.removeEventListener("playing", onPlaying);
-      video.removeEventListener("pause", onPause);
-      video.removeEventListener("waiting", onWaiting);
-      video.removeEventListener("stalled", onStalled);
-      video.removeEventListener("timeupdate", onTimeUpdate);
-      video.removeEventListener("ended", onEndedEvent);
-      video.removeEventListener("error", onError);
-    };
-  }, [emitProgress, initialTime, loadOutroTiming, nextEpisode, outroStart, playNextEpisode, showControls, startAutoplay]);
-
-  const cancelAutoNext = useCallback(() => setShowUpNext(false), []);
-
-  const handleSeek = useCallback((value: string) => {
-    const video = videoRef.current;
-    if (!video) return;
-    const nextTime = Number(value);
-    if (!Number.isFinite(nextTime)) return;
-    video.currentTime = Math.max(0, Math.min(nextTime, Number.isFinite(video.duration) ? video.duration : nextTime));
-    setCurrentTime(video.currentTime);
+    }
     showControls();
   }, [showControls]);
 
   const toggleMute = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.muted = !video.muted;
-    setMuted(video.muted);
+    const player = playerRef.current;
+    if (!player) return;
+    player.muted = !player.muted;
+    setMuted(Boolean(player.muted));
     setSoundLocked(false);
     showControls();
   }, [showControls]);
 
   const changeRate = useCallback((nextRate: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.playbackRate = nextRate;
+    const player = playerRef.current;
+    if (!player) return;
+    player.playbackRate = nextRate;
     setRate(nextRate);
     showControls();
   }, [showControls]);
 
+  const handleSeek = useCallback((value: string) => {
+    const player = playerRef.current;
+    const nextTime = Number(value);
+    if (!player || !Number.isFinite(nextTime)) return;
+    try {
+      player.currentTime = Math.max(0, Math.min(nextTime, Number.isFinite(player.duration) ? player.duration : nextTime));
+      setCurrentTime(player.currentTime);
+    } catch {
+      // Ignore seek failures before the stream exposes a seekable range.
+    }
+    showControls();
+  }, [showControls]);
+
   const toggleFullscreen = useCallback(async () => {
-    const root = rootRef.current;
-    if (!root) return;
+    const host = document.querySelector(".player-overlay") as HTMLElement | null;
+    if (!host) return;
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
-      else await root.requestFullscreen?.();
+      else await host.requestFullscreen?.();
     } catch {
-      // Fullscreen can be unavailable or blocked on embedded browsers.
+      // Fullscreen is optional on browsers that do not expose the API.
     }
   }, []);
 
   const handleShare = useCallback(async () => {
     try {
       const url = shareUrl || src;
-      if (navigator.share) await navigator.share({ title, text: "Smart Upload stream", url });
-      else if (navigator.clipboard) await navigator.clipboard.writeText(url);
+      if (navigator.share) {
+        await navigator.share({ title, text: "Smart Upload stream", url });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
     } catch {
       // User cancelled sharing.
     }
   }, [shareUrl, src, title]);
+
+  const cancelAutoNext = useCallback(() => {
+    autoNextCancelledRef.current = true;
+    setShowUpNext(false);
+  }, []);
+
+  const handleRootClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("button,input")) return;
+    void togglePlay();
+  }, [togglePlay]);
+
+  const handleTimeUpdate = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    const nextDuration = Number(player.duration);
+    const nextTime = Number(player.currentTime);
+    setCurrentTime(Number.isFinite(nextTime) ? nextTime : 0);
+    setDuration(Number.isFinite(nextDuration) ? nextDuration : 0);
+    emitProgress(false);
+
+    if (!nextEpisode || autoNextCancelledRef.current || !Number.isFinite(nextDuration) || nextDuration <= 0 || !Number.isFinite(nextTime)) return;
+
+    const trigger = outroStart !== null
+      ? outroStart
+      : Math.max(0, nextDuration - UP_NEXT_DISPLAY_SECONDS);
+
+    if (!player.paused && nextTime >= trigger) setShowUpNext(true);
+  }, [emitProgress, nextEpisode, outroStart]);
 
   const formatTime = (value: number) => {
     if (!Number.isFinite(value) || value < 0) return "0:00";
@@ -419,62 +364,112 @@ export function VideoPlayer({
       : `${minutes}:${String(seconds).padStart(2, "0")}`;
   };
 
-  const progressValue = duration > 0 ? Math.min(currentTime, duration) : 0;
-  const progressPercent = duration > 0 ? (progressValue / duration) * 100 : 0;
-  const displayStatus = soundLocked
-    ? "Tap for sound"
-    : mediaState === "buffering"
-      ? "Buffering"
-      : mediaState === "error"
-        ? "Unable to start playback"
-        : "Starting playback";
+  const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
 
   return (
     <div
-      ref={rootRef}
       className={`premium-player-v2${controlsVisible ? " controls-visible" : ""}`}
       onPointerMove={showControls}
       onMouseLeave={() => {
-        const video = videoRef.current;
-        if (video && !video.paused) setControlsVisible(false);
+        const player = playerRef.current;
+        if (player && !player.paused) setControlsVisible(false);
       }}
+      onClick={handleRootClick}
     >
-      <video
-        ref={videoRef}
-        className="premium-player-v2__video"
+      <MediaPlayer
+        ref={playerRef}
+        className="premium-player-v2__media"
+        title={episodeTitle ? `${title} — ${episodeTitle}` : title}
+        src={{
+          src: source,
+          type: hlsUrl && !fallbackUsed && source === hlsUrl
+            ? "application/x-mpegurl"
+            : sourceType === "video/webm"
+              ? "video/webm"
+              : sourceType === "video/ogg"
+                ? "video/ogg"
+                : "video/mp4",
+        }}
+        load="eager"
         playsInline
-        preload="auto"
-        onClick={() => void togglePlay()}
-        aria-label={episodeTitle ? `${title} — ${episodeTitle}` : title}
+        autoplay
+        muted={autoplay}
+        onProviderChange={configureProvider}
+        onLoadedMetadata={() => {
+          applyResume();
+          setDuration(Number.isFinite(playerRef.current?.duration) ? Number(playerRef.current?.duration) : 0);
+          void loadOutroTiming();
+          void attemptAutoplay();
+        }}
+        onCanPlay={() => {
+          void attemptAutoplay();
+        }}
+        onPlaying={() => {
+          setMediaState("playing");
+          setErrorMessage(null);
+          setControlsVisible(true);
+        }}
+        onPlay={() => {
+          setMediaState("playing");
+          setErrorMessage(null);
+        }}
+        onTimeUpdate={handleTimeUpdate}
+        onWaiting={() => setMediaState("buffering")}
+        onStalled={() => setMediaState("buffering")}
+        onPause={() => {
+          emitProgress(true);
+          setMediaState("paused");
+          setControlsVisible(true);
+        }}
+        onEnded={() => {
+          emitProgress(true);
+          setShowUpNext(false);
+          if (nextEpisode && !autoNextCancelledRef.current) playNextEpisode();
+          endedCallbackRef.current?.();
+        }}
+        onError={() => {
+          if (!fallbackUsed && hlsUrl && src && source === hlsUrl) {
+            setFallbackUsed(true);
+            setSource(src);
+            setResumeApplied(false);
+            setMediaState("loading");
+            return;
+          }
+          setMediaState("error");
+          setErrorMessage("Unable to load this video.");
+        }}
       >
-        {subtitleUrl ? <track src={subtitleUrl} kind="subtitles" srcLang="en" label="English" /> : null}
-      </video>
+        <MediaProvider>
+          {subtitleUrl ? <Track src={subtitleUrl} kind="subtitles" language="en" label="English" default={false} /> : null}
+        </MediaProvider>
+      </MediaPlayer>
 
       <div className="premium-player-v2__vignette" aria-hidden="true" />
 
       {(mediaState === "loading" || mediaState === "buffering") ? (
         <div className="premium-player-state" aria-live="polite">
-          {logo ? (
-            <img className="premium-player-state__logo" src={logo} alt="" />
-          ) : (
-            <strong className="premium-player-state__title">{title}</strong>
-          )}
-          <span className="premium-player-state__status">{displayStatus}</span>
+          {logo ? <img className="premium-player-state__logo" src={logo} alt="" /> : <strong className="premium-player-state__title">{title}</strong>}
+          <span className="premium-player-state__status">{mediaState === "buffering" ? "Buffering" : "Starting playback"}</span>
+        </div>
+      ) : null}
+
+      {mediaState === "error" ? (
+        <div className="premium-player-state premium-player-state--error" aria-live="assertive">
+          {logo ? <img className="premium-player-state__logo" src={logo} alt="" /> : <strong className="premium-player-state__title">{title}</strong>}
+          <span className="premium-player-state__status">{errorMessage ?? "Unable to load this video."}</span>
+          <button type="button" className="premium-player-state__play" onClick={() => void attemptAutoplay()}>
+            Retry
+          </button>
         </div>
       ) : null}
 
       {soundLocked && mediaState === "playing" ? (
-        <button
-          type="button"
-          className="premium-player-v2__sound-hint"
-          onClick={toggleMute}
-          aria-label="Enable sound"
-        >
+        <button type="button" className="premium-player-v2__sound-hint" onClick={toggleMute} aria-label="Enable sound">
           Sound
         </button>
       ) : null}
 
-      {(mediaState === "paused") ? (
+      {mediaState === "paused" ? (
         <button type="button" className="premium-player-v2__center-play" onClick={() => void togglePlay()} aria-label="Play">
           <span aria-hidden="true">▶</span>
         </button>
@@ -498,29 +493,15 @@ export function VideoPlayer({
       ) : null}
 
       <div className="premium-player-v2__topbar">
-        <button type="button" className="premium-player-v2__icon" onClick={onClose} aria-label="Close player" title="Close">
-          <IClose />
-        </button>
+        <button type="button" className="premium-player-v2__icon" onClick={onClose} aria-label="Close player" title="Close"><IClose /></button>
         <div className="premium-player-v2__title-wrap">
           <span className="premium-player-v2__eyebrow">NOW PLAYING</span>
           <strong>{episodeTitle ? `${title} — ${episodeTitle}` : title}</strong>
         </div>
         <div className="premium-player-v2__actions">
-          {previousEpisode ? (
-            <button type="button" className="premium-player-v2__icon" onClick={playPreviousEpisode} aria-label="Previous episode" title="Previous episode">
-              <IArrowLeft />
-            </button>
-          ) : null}
-          {nextEpisode ? (
-            <button type="button" className="premium-player-v2__icon" onClick={playNextEpisode} aria-label="Next episode" title="Next episode">
-              <IArrowRight />
-            </button>
-          ) : null}
-          {shareUrl || src ? (
-            <button type="button" className="premium-player-v2__icon" onClick={() => void handleShare()} aria-label="Share stream" title="Share">
-              <ILink />
-            </button>
-          ) : null}
+          {previousEpisode ? <button type="button" className="premium-player-v2__icon" onClick={playPreviousEpisode} aria-label="Previous episode" title="Previous episode"><IArrowLeft /></button> : null}
+          {nextEpisode ? <button type="button" className="premium-player-v2__icon" onClick={playNextEpisode} aria-label="Next episode" title="Next episode"><IArrowRight /></button> : null}
+          {shareUrl || src ? <button type="button" className="premium-player-v2__icon" onClick={() => void handleShare()} aria-label="Share stream" title="Share"><ILink /></button> : null}
         </div>
       </div>
 
@@ -532,7 +513,7 @@ export function VideoPlayer({
             min="0"
             max={duration || 0}
             step="0.1"
-            value={progressValue}
+            value={Math.min(currentTime, duration || currentTime)}
             onChange={(event) => handleSeek(event.target.value)}
             style={{ "--progress": `${progressPercent}%` } as CSSProperties}
           />
@@ -559,6 +540,7 @@ export function VideoPlayer({
       </div>
 
       {demo ? <div className="premium-player-v2__badge" aria-label="Demo preview stream">DEMO PREVIEW</div> : null}
+      {fallbackUsed ? <div className="premium-player-v2__notice" role="status">Switched to the browser-compatible backup stream.</div> : null}
     </div>
   );
 }
