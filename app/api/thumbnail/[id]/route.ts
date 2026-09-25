@@ -45,6 +45,9 @@ export async function GET(
       "[thumbnail] Google Drive thumbnail failed",
       error instanceof Error ? error.message : "unknown",
     );
-    return NextResponse.json({ error: "thumbnail-unavailable" }, { status: 502 });
+    return NextResponse.json(
+      { error: "thumbnail-unavailable" },
+      { status: 404, headers: { "cache-control": "private, max-age=60" } },
+    );
   }
 }
