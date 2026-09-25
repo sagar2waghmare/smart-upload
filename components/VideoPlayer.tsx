@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Episode, MediaItem } from "../lib/types";
 import { IArrowLeft, IArrowRight, IClose, ILink } from "./icons";
 
@@ -238,6 +238,17 @@ export function VideoPlayer({
     if (tmdbId || imdbId) void loadOutroTiming();
   }, [tmdbId, imdbId, episode?.id, loadOutroTiming]);
 
+  const playNextEpisode = useCallback(() => {
+    if (!nextEpisode) return;
+    setShowUpNext(false);
+    onEpisode?.(nextEpisode);
+  }, [nextEpisode, onEpisode]);
+
+  const playPreviousEpisode = useCallback(() => {
+    if (!previousEpisode) return;
+    onEpisode?.(previousEpisode);
+  }, [previousEpisode, onEpisode]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -331,17 +342,6 @@ export function VideoPlayer({
       video.removeEventListener("error", onError);
     };
   }, [emitProgress, initialTime, loadOutroTiming, nextEpisode, outroStart, playNextEpisode, showControls, startAutoplay]);
-
-  const playNextEpisode = useCallback(() => {
-    if (!nextEpisode) return;
-    setShowUpNext(false);
-    onEpisode?.(nextEpisode);
-  }, [nextEpisode, onEpisode]);
-
-  const playPreviousEpisode = useCallback(() => {
-    if (!previousEpisode) return;
-    onEpisode?.(previousEpisode);
-  }, [previousEpisode, onEpisode]);
 
   const cancelAutoNext = useCallback(() => setShowUpNext(false), []);
 
@@ -522,7 +522,7 @@ export function VideoPlayer({
             step="0.1"
             value={progressValue}
             onChange={(event) => handleSeek(event.target.value)}
-            style={{ "--progress": `${progressPercent}%` } as React.CSSProperties}
+            style={{ "--progress": `${progressPercent}%` } as CSSProperties}
           />
         </div>
         <div className="premium-player-v2__control-row">
