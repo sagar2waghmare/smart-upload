@@ -129,7 +129,7 @@ type SearchRow = {
   backdrop_path?: string | null;
 };
 
-async function searchKind(type: "movie" | "tv", query: string, year?: number): Promise<TmdbResult | null> {
+async function searchKind(type: "movie" | "tv", query: string, year?: number, details = true): Promise<TmdbResult | null> {
   if (!query.trim()) return null;
   const yearParam = year ? `&year=${year}` : "";
   const rows = await tmdb<{ results: SearchRow[] }>(`/search/${type}?query=${encodeURIComponent(query)}&include_adult=false&language=en-US${yearParam}`);
@@ -147,6 +147,22 @@ async function searchKind(type: "movie" | "tv", query: string, year?: number): P
 
   const best = scored[0];
   const id = best.r.id;
+  if (!details) {
+    const title = best.title.trim() || query;
+    const foundYear = best.titleYear;
+    const fastMeta = {
+      title,
+      year: foundYear,
+      overview: best.r.overview,
+      rating: typeof best.r.vote_average === "number" ? Number(best.r.vote_average.toFixed(1)) : undefined,
+      poster: img(best.r.poster_path),
+      backdrop: img(best.r.backdrop_path, "w1280"),
+      imdbId: undefined,
+    };
+    return type === "tv"
+      ? { tmdbType: "tv", meta: { tmdbType: "tv", tmdbId: id, ...fastMeta, seasons: [] } as TmdbSeries }
+      : { tmdbType: "movie", meta: { tmdbType: "movie", tmdbId: id, ...fastMeta } as TmdbMovie };
+  }
   const detail = await cached<Record<string, unknown>>(`${type}:${id}`, () =>
     tmdb<Record<string, unknown>>(`/${type === "tv" ? "tv" : "movie"}/${id}?language=en-US&append_to_response=images,external_ids&include_image_language=en-US,null`)
   );
@@ -195,15 +211,15 @@ async function searchKind(type: "movie" | "tv", query: string, year?: number): P
   };
 }
 
-export async function searchTmdb(query: string, opts: { year?: number; kind?: MediaKind } = {}): Promise<TmdbResult | null> {
+export async function searchTmdb(query: string, opts: { year?: number; kind?: MediaKind; details?: boolean } = {}): Promise<TmdbResult | null> {
   const key = `s:${opts.kind ?? ""}:${norm(query)}:${opts.year ?? ""}`;
   const run = async (): Promise<TmdbResult | null> => {
-    if (opts.kind === "series" || opts.kind === "anime") return searchKind("tv", query, opts.year);
-    if (opts.kind === "movie") return searchKind("movie", query, opts.year);
+    if (opts.kind === "series" || opts.kind === "anime") return searchKind("tv", query, opts.year, opts.details !== false);
+    if (opts.kind === "movie") return searchKind("movie", query, opts.year, opts.details !== false);
 
     const [movie, tv] = await Promise.all([
-      searchKind("movie", query, opts.year),
-      searchKind("tv", query, opts.year),
+      searchKind("movie", query, opts.year, opts.details !== false),
+      searchKind("tv", query, opts.year, opts.details !== false),
     ]);
     const mScore = movie ? score(query, movie.meta.title, movie.meta.year, opts.year) : -1;
     const tScore = tv ? score(query, tv.meta.title, tv.meta.year, opts.year) : -1;
