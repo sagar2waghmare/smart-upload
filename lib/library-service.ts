@@ -442,7 +442,10 @@ export async function enrichLibraryBatch(
     }
   }
 
-  if (changed) libraryMemoryCache = null;
+  if (changed) {
+    libraryMemoryCache = null;
+    await clearCachedLibrarySnapshot();
+  }
 
   const patches: LibraryEnrichmentPatch[] = [];
   for (let i = 0; i < safeTargets.length; i += 1) {
