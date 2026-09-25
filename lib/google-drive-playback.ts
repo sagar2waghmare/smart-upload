@@ -5,6 +5,7 @@ import { getDriveMediaRootId } from "./google-drive";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files";
+const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
 
 const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 
@@ -383,7 +384,7 @@ export async function getValidatedDriveThumbnail(
   if (!(await isInsideMedia(id, token))) return null;
   if (!item.thumbnailLink) return null;
 
-  const cache = caches.default;
+  const cache = (globalThis.caches as CacheStorage & { default: Cache }).default;
   const cacheKey = cacheKeyUrl ? new Request(cacheKeyUrl) : null;
 
   // Cache is an optimization only. A cache runtime error must never turn a
