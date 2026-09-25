@@ -18,6 +18,7 @@ let cachedAccess: CachedAccess | null = null;
 let tokenPromise: Promise<string> | null = null;
 const mediaChecks = new Map<string, { valid: boolean; expiresAt: number }>();
 const mediaMetadata = new Map<string, CachedMedia>();
+const preparedBrowserMedia = new Map<string, { id: string | null; expiresAt: number }>();
 
 type HlsTreeEntry = {
   id: string;
@@ -116,6 +117,13 @@ function escapeDriveQueryValue(value: string): string {
 export async function findPreparedBrowserMedia(fileId: string): Promise<string | null> {
   const id = fileId.trim();
   if (!id) return null;
+
+  // Browser playback can issue many byte-range requests for the same movie.
+  // The prepared-file lookup is a Drive files.list query (100 quota units),
+  // so repeating it for every range request can quickly hit Drive rate limits.
+  const cached = preparedBrowserMedia.get(id);
+  if (cached && cached.expiresAt > Date.now()) return cached.id;
+
   const token = await accessToken();
   const item = await metadata(id, token);
   if (item.trashed || !item.mimeType?.startsWith("video/") || !item.name || !item.parents?.[0]) return null;
@@ -136,13 +144,23 @@ export async function findPreparedBrowserMedia(fileId: string): Promise<string |
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    // Cache a short negative result as well so repeated range requests do not
+    // hammer Drive when a prepared copy is genuinely absent.
+    preparedBrowserMedia.set(id, { id: null, expiresAt: Date.now() + 30_000 });
+    return null;
+  }
 
   const data = (await res.json()) as { files?: MediaCheck[] };
   const prepared = data.files?.find(
     (file) => file.id && file.mimeType === "video/mp4" && file.name === preparedName,
   );
-  return prepared?.id ?? null;
+  const preparedId = prepared?.id ?? null;
+  preparedBrowserMedia.set(id, {
+    id: preparedId,
+    expiresAt: Date.now() + (preparedId ? 5 * 60_000 : 30_000),
+  });
+  return preparedId;
 }
 
 export async function findPreparedAudioTracks(fileId: string): Promise<Array<{ label: string; language?: string; id: string }>> {
