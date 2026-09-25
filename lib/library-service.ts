@@ -460,3 +460,26 @@ function findMediaInItems(items: MediaItem[], id: string): MediaItem | undefined
 export async function getMediaById(id: string): Promise<MediaItem | undefined> {
   return findMediaInItems(await getPublished(), id);
 }
+
+// Playback authorization should use the same indexed raw Drive library as the
+// catalog, but it must not depend on TMDB grouping/enrichment being present.
+// This prevents a valid Drive file from becoming unplayable just because the
+// presentation-layer cache is stale or a series grouping changed.
+export async function getPlaybackLibraryItem(id: string): Promise<MediaItem | undefined> {
+  const normalizedId = id.trim();
+  if (!normalizedId) return undefined;
+
+  const published = await getPublished();
+  const publishedMatch = findMediaInItems(published, normalizedId);
+  if (publishedMatch) return publishedMatch;
+
+  const rawItems = await getRawLibrary();
+  const raw = rawItems.find((item) => item.id === normalizedId);
+  if (!raw) return undefined;
+
+  const base = baseItem(raw);
+  if (!base) return undefined;
+
+  const cached = await getCachedMetadata<CachedMetadata>([metadataKeyForRaw(raw)]);
+  return applyCachedMetadata(base, cached.get(metadataKeyForRaw(raw)));
+}
