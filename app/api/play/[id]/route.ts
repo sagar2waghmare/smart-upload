@@ -13,101 +13,19 @@ import { cloudflarePlaybackConfigured, createCloudflarePlaybackUrl } from "../..
 
 type Params = { params: Promise<{ id: string }> };
 
+function browserNativeVideo(type: string | null): boolean {
+  if (!type) return false;
+  const normalized = type.toLowerCase().split(";")[0].trim();
+  return normalized === "video/mp4" || normalized === "video/webm" || normalized === "video/ogg";
+}
+
+
 export async function GET(_req: Request, { params }: Params) {
   const user = await requireSession();
   if (!user) return unauthorized();
   const { id } = await params;
 
   const libraryItem = await getMediaById(id);
-
-  let playbackId = id;
-  if (libraryItem?.seasons?.length) {
-    const firstEpisode = libraryItem.seasons
-      .flatMap((season) => season.episodes)
-      .find((ep) => ep.id);
-
-    if (firstEpisode?.id && firstEpisode.id !== id) {
-      playbackId = firstEpisode.id;
-    }
-  }
-
-  if (libraryItem) {
-    const useCloudflareStream = cloudflarePlaybackConfigured();
-    let driveMedia = false;
-    try {
-      driveMedia = await validateDriveMedia(playbackId);
-    } catch (err) {
-      console.warn(
-        "[play] Drive validation unavailable; using indexed playback fallback",
-        err instanceof Error ? err.message : "unknown error",
-      );
-    }
-
-    let preparedId: string | null = null;
-    let hlsManifestId: string | null = null;
-    let audioTracks: Array<{ label: string; language?: string; id: string }> = [];
-    let sourceType: string | null = null;
-
-    if (driveMedia && !useCloudflareStream) {
-      try {
-        [preparedId, hlsManifestId, audioTracks] = await Promise.all([
-          findPreparedBrowserMedia(playbackId),
-          findPreparedHlsManifest(playbackId),
-          findPreparedAudioTracks(playbackId),
-        ]);
-        sourceType = preparedId ? "video/mp4" : await getDriveMediaMimeType(playbackId);
-      } catch (err) {
-        console.warn(
-          "[play] Prepared media discovery unavailable; using source fallback",
-          err instanceof Error ? err.message : "unknown error",
-        );
-        preparedId = null;
-        hlsManifestId = null;
-        audioTracks = [];
-        sourceType = null;
-      }
-    }
-
-    // The streaming Worker has its own Google service-account boundary.
-    // Prepared browser derivatives can exist in Drive yet be inaccessible to
-    // that Worker. Prefer the original library file for cross-worker playback;
-    // HLS remains available when a prepared manifest exists.
-    const browserId = useCloudflareStream ? playbackId : (preparedId ?? playbackId);
-    const playbackSourceType = useCloudflareStream
-      ? await getDriveMediaMimeType(playbackId).catch(() => null)
-      : sourceType;
-
-    const fastUrl = useCloudflareStream
-      ? createCloudflarePlaybackUrl(browserId)
-      : null;
-    const shareUrl = useCloudflareStream
-      ? createCloudflarePlaybackUrl(playbackId)
-      : null;
-
-    return NextResponse.json({
-      item: libraryItem,
-      demo: false,
-      canPlay: true,
-      playbackId,
-      hlsUrl: !useCloudflareStream && hlsManifestId
-        ? `/api/hls/${encodeURIComponent(playbackId)}/master.m3u8`
-        : undefined,
-      defaultUrl: fastUrl ?? `/api/stream/${encodeURIComponent(browserId)}`,
-      shareUrl: shareUrl ?? `/api/stream/${encodeURIComponent(playbackId)}`,
-      prepared: useCloudflareStream ? false : Boolean(preparedId),
-      sourceType: playbackSourceType ?? undefined,
-      audioTracks: useCloudflareStream
-        ? []
-        : audioTracks
-            .map((track) => ({
-              label: track.label,
-              language: track.language,
-              url: `/api/stream/${encodeURIComponent(track.id)}`,
-            }))
-            .filter((track) => Boolean(track.url)),
-    });
-  }
-
   if (!libraryItem) {
     return NextResponse.json(
       { error: "not-found", message: "Media not found" },
@@ -115,11 +33,137 @@ export async function GET(_req: Request, { params }: Params) {
     );
   }
 
-  const resolved = resolvePlaybackUrl(libraryItem.mediaUrl);
+  let playbackId = id;
+  if (libraryItem.seasons?.length) {
+    const firstEpisode = libraryItem.seasons
+      .flatMap((season) => season.episodes)
+      .find((ep) => ep.id);
+    if (firstEpisode?.id && firstEpisode.id !== id) playbackId = firstEpisode.id;
+  }
+
+  const useCloudflareStream = cloudflarePlaybackConfigured();
+
+  let driveMedia = false;
+  try {
+    driveMedia = await validateDriveMedia(playbackId);
+  } catch (err) {
+    console.warn(
+      "[play] Drive validation unavailable; using indexed playback fallback",
+      err instanceof Error ? err.message : "unknown error",
+    );
+  }
+
+  if (!driveMedia) {
+    return NextResponse.json(
+      { error: "media-unavailable", message: "This media file is not available for playback." },
+      { status: 404 },
+    );
+  }
+
+  const sourceType = await getDriveMediaMimeType(playbackId).catch(() => null);
+  const nativeVideo = browserNativeVideo(sourceType);
+
+  // Use the Cloudflare gateway only for containers a browser can natively decode.
+  // Non-native sources fall back to a prepared browser-safe MP4 or HLS.
+  if (useCloudflareStream && nativeVideo) {
+    const signedUrl = createCloudflarePlaybackUrl(playbackId);
+    if (signedUrl) {
+      return NextResponse.json({
+        item: libraryItem,
+        demo: false,
+        canPlay: true,
+        playbackId,
+        defaultUrl: signedUrl,
+        shareUrl: signedUrl,
+        prepared: false,
+        sourceType,
+        audioTracks: [],
+      });
+    }
+  }
+
+  let preparedId: string | null = null;
+  let hlsManifestId: string | null = null;
+  let audioTracks: Array<{ label: string; language?: string; id: string }> = [];
+
+  try {
+    [preparedId, hlsManifestId, audioTracks] = await Promise.all([
+      findPreparedBrowserMedia(playbackId),
+      findPreparedHlsManifest(playbackId),
+      findPreparedAudioTracks(playbackId),
+    ]);
+  } catch (err) {
+    console.warn(
+      "[play] Prepared media discovery unavailable; using direct source fallback",
+      err instanceof Error ? err.message : "unknown error",
+    );
+  }
+
+  if (preparedId) {
+    const preparedUrl = "/api/stream/" + encodeURIComponent(preparedId);
+    return NextResponse.json({
+      item: libraryItem,
+      demo: false,
+      canPlay: true,
+      playbackId,
+      defaultUrl: preparedUrl,
+      shareUrl: "/api/stream/" + encodeURIComponent(playbackId),
+      prepared: true,
+      sourceType: "video/mp4",
+      audioTracks: audioTracks.map((track) => ({
+        label: track.label,
+        language: track.language,
+        url: "/api/stream/" + encodeURIComponent(track.id),
+      })),
+    });
+  }
+
+  if (hlsManifestId) {
+    const hlsUrl = "/api/hls/" + encodeURIComponent(playbackId) + "/master.m3u8";
+    return NextResponse.json({
+      item: libraryItem,
+      demo: false,
+      canPlay: true,
+      playbackId,
+      defaultUrl: hlsUrl,
+      hlsUrl,
+      shareUrl: "/api/stream/" + encodeURIComponent(playbackId),
+      prepared: false,
+      sourceType: "application/x-mpegurl",
+      audioTracks: [],
+    });
+  }
+
+  if (nativeVideo) {
+    const fallbackUrl = useCloudflareStream
+      ? createCloudflarePlaybackUrl(playbackId)
+      : "/api/stream/" + encodeURIComponent(playbackId);
+
+    if (fallbackUrl) {
+      return NextResponse.json({
+        item: libraryItem,
+        demo: false,
+        canPlay: true,
+        playbackId,
+        defaultUrl: fallbackUrl,
+        shareUrl: "/api/stream/" + encodeURIComponent(playbackId),
+        prepared: false,
+        sourceType,
+        audioTracks: [],
+      });
+    }
+  }
+
   return NextResponse.json({
     item: libraryItem,
-    demo: resolved.demo,
-    canPlay: resolved.canPlay,
-    defaultUrl: resolved.url,
-  });
+    demo: false,
+    canPlay: false,
+    playbackId,
+    defaultUrl: "",
+    shareUrl: "/api/stream/" + encodeURIComponent(playbackId),
+    prepared: false,
+    sourceType: sourceType ?? undefined,
+    error: "browser-unsupported",
+    message: "This source needs a prepared browser-compatible copy or HLS stream.",
+  }, { status: 422 });
 }
