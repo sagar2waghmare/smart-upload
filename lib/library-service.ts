@@ -73,10 +73,11 @@ function baseItem(raw: RawItem): MediaItem | null {
     year: parsed.year,
     season: raw.type === "movie" ? undefined : parsed.season,
     episode: raw.type === "movie" ? undefined : parsed.episode,
-    // Keep Google Drive thumbnails behind our authenticated proxy. Never expose
-    // the Drive thumbnailLink directly to the browser.
-    poster: `/api/thumbnail/${encodeURIComponent(id)}`,
-    backdrop: `/api/thumbnail/${encodeURIComponent(id)}`,
+    // Poster/backdrop are supplied by TMDB enrichment when available. Do not
+    // eagerly request Google Drive thumbnail proxies for every library item;
+    // those links are transient and can generate avoidable 502/retry noise.
+    poster: undefined,
+    backdrop: undefined,
     tag: raw.modifiedTime ? "Recently Added" : undefined,
     source: "google-drive",
   };
