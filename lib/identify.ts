@@ -51,6 +51,7 @@ export async function identifyFilename(raw: string, opts: { year?: number } = {}
           title: result.meta.title,
           poster: result.meta.poster,
           backdrop: result.meta.backdrop,
+          logo: result.meta.logo,
           overview: result.meta.overview,
           runtime: result.tmdbType === "movie" ? result.meta.runtime : undefined,
           rating: result.meta.rating,
