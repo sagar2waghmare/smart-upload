@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { AudioVariant, Episode, MediaItem } from "../../../lib/types";
+import { useTmdbMeta } from "../../../lib/use-tmdb-metadata";
 import { VideoPlayer } from "../../../components/VideoPlayer";
 import { FavButton } from "../../../components/FavButton";
 import { SmartImage } from "../../../components/SmartImage";
@@ -67,6 +68,7 @@ export default function PlayPage() {
   }, [id]);
 
   const item = data?.item;
+  const tmdbMeta = useTmdbMeta(item ?? null);
 
   // Each episode can have its own browser-safe MP4 and AAC sidecars. Resolve
   // playback for the selected episode instead of reusing the first episode's
@@ -179,7 +181,7 @@ export default function PlayPage() {
             shareUrl={activePlayback?.shareUrl ?? data.shareUrl}
             poster={item.poster}
             backdrop={item.backdrop}
-            logo={item.logo}
+            logo={tmdbMeta.meta?.logo ?? item.logo}
             tmdbId={item.tmdbId}
             title={item.title}
             episodeTitle={episode?.title}
