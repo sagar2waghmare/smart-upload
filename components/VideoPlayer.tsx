@@ -70,6 +70,8 @@ export function VideoPlayer({
   const endedCallbackRef = useRef(onEnded);
   const lastProgressRef = useRef(0);
   const autoplayWantedRef = useRef(autoplay);
+  const playbackStartedRef = useRef(false);
+  const userPausedRef = useRef(false);
   const autoNextCancelledRef = useRef(false);
 
   const preferredSource = preparedBrowserCopy && src ? src : hlsUrl || src;
@@ -113,6 +115,8 @@ export function VideoPlayer({
     setErrorMessage(null);
     setMuted(Boolean(autoplay));
     setSoundLocked(false);
+    playbackStartedRef.current = false;
+    userPausedRef.current = false;
     autoNextCancelledRef.current = false;
   }, [preferredSource, autoplay]);
 
@@ -218,6 +222,7 @@ export function VideoPlayer({
       player.muted = true;
       setMuted(true);
       await player.play();
+      userPausedRef.current = false;
       setMediaState("playing");
       setErrorMessage(null);
       showControls();
@@ -256,10 +261,12 @@ export function VideoPlayer({
 
     try {
       if (player.paused) {
+        userPausedRef.current = false;
         await player.play();
         setMediaState("playing");
         setErrorMessage(null);
       } else {
+        userPausedRef.current = true;
         player.pause();
         setMediaState("paused");
       }
@@ -405,11 +412,17 @@ export function VideoPlayer({
           void attemptAutoplay();
         }}
         onPlaying={() => {
+          playbackStartedRef.current = true;
+          userPausedRef.current = false;
           setMediaState("playing");
           setErrorMessage(null);
+          setMuted(Boolean(playerRef.current?.muted));
+          setSoundLocked(Boolean(playerRef.current?.muted));
           setControlsVisible(true);
         }}
         onPlay={() => {
+          playbackStartedRef.current = true;
+          userPausedRef.current = false;
           setMediaState("playing");
           setErrorMessage(null);
         }}
@@ -418,6 +431,11 @@ export function VideoPlayer({
         onStalled={() => setMediaState("buffering")}
         onPause={() => {
           emitProgress(true);
+          if (autoplayWantedRef.current && !playbackStartedRef.current && !userPausedRef.current) {
+            setMediaState("loading");
+            window.setTimeout(() => void attemptAutoplay(), 120);
+            return;
+          }
           setMediaState("paused");
           setControlsVisible(true);
         }}
@@ -428,6 +446,7 @@ export function VideoPlayer({
           endedCallbackRef.current?.();
         }}
         onError={() => {
+          playbackStartedRef.current = false;
           if (!fallbackUsed && hlsUrl && src && source === hlsUrl) {
             setFallbackUsed(true);
             setSource(src);
