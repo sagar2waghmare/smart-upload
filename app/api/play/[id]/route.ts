@@ -13,16 +13,22 @@ type Params = { params: Promise<{ id: string }> };
 
 function browserNativeVideo(type: string | null, name = ""): boolean {
   const normalized = type?.toLowerCase().split(";")[0].trim() ?? "";
-  // Keep direct byte-for-byte gateway playback limited to the broadly
-  // interoperable browser containers. Matroska/QuickTime may be decodable
-  // in some Chromium environments, but container support alone does not
-  // guarantee the contained video/audio codecs are browser-playable.
-  if (normalized === "video/mp4" || normalized === "video/webm" || normalized === "video/ogg") {
+  // Chromium now supports Matroska containers for HTML media. Codec
+  // compatibility is still determined by the browser/device, but the API
+  // must not reject an MKV before the browser gets a chance to play it.
+  if (
+    normalized === "video/mp4" ||
+    normalized === "video/webm" ||
+    normalized === "video/ogg" ||
+    normalized === "video/matroska" ||
+    normalized === "video/x-matroska" ||
+    normalized === "video/quicktime"
+  ) {
     return true;
   }
 
   const ext = name.toLowerCase().match(/\.[^.]+$/)?.[0] ?? "";
-  return [".mp4", ".m4v", ".webm", ".ogg", ".ogv"].includes(ext);
+  return [".mp4", ".m4v", ".webm", ".ogg", ".ogv", ".mkv", ".mov"].includes(ext);
 }
 
 function browserPlaybackType(type: string | null, name = ""): string | null {
