@@ -66,9 +66,8 @@ export function PlaybackOverlay() {
   const id = item?.id ?? null;
 
   const epoch = playerOpen ? `${id}:${episode?.id ?? "movie"}` : null;
-  const [lastEpoch, setLastEpoch] = useState(epoch);
-  if (epoch !== lastEpoch) {
-    setLastEpoch(epoch);
+
+  useEffect(() => {
     setReady(false);
     setSrc("");
     setShareUrl(undefined);
@@ -77,17 +76,21 @@ export function PlaybackOverlay() {
     setPrepared(false);
     setHlsUrl(undefined);
     setError(null);
-  }
+  }, [epoch]);
 
   useEffect(() => {
-    if (!id) return;
+    // Prefetch only while the player is closed. When the player is open,
+    // the active request below owns source resolution so a failed manifest
+    // cannot be requested twice by preload + playback effects.
+    if (!id || playerOpen) return;
 
     const preload = async (playbackId: string | null) => {
       if (!playbackId) return;
       try {
         await loadPlayback(playbackId);
       } catch {
-        // Playback retries when actually opened.
+        // A failed prefetch is deliberately not cached; the real playback
+        // request will retry when the user opens the player.
       }
     };
 
@@ -96,12 +99,10 @@ export function PlaybackOverlay() {
     void preload(flat[0]?.id ?? null);
 
     if (episode?.id) {
-      void preload(episode.id);
       const currentIndex = flat.findIndex((candidate) => candidate.id === episode.id);
       void preload(currentIndex >= 0 ? flat[currentIndex + 1]?.id ?? null : null);
     }
-
-  }, [id, episode?.id, item]);
+  }, [id, playerOpen, episode?.id, item]);
 
   useEffect(() => {
     if (!id || !playerOpen) return;
