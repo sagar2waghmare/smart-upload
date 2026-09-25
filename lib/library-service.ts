@@ -38,6 +38,7 @@ type CachedMetadata = {
   tmdbId?: number;
   poster?: string;
   backdrop?: string;
+  logo?: string;
   overview?: string;
   runtime?: number;
   rating?: number;
@@ -95,6 +96,7 @@ function applyCachedMetadata(item: MediaItem, cached?: CachedMetadata | null): M
     tmdbId: cached.tmdbId ?? item.tmdbId,
     poster: cached.poster || item.poster,
     backdrop: cached.backdrop || item.backdrop,
+    logo: cached.logo || item.logo,
     overview: cached.overview ?? item.overview,
     runtime: cached.runtime ?? item.runtime,
     rating: cached.rating ?? item.rating,
@@ -112,6 +114,7 @@ function toClientPatch(id: string, cached: CachedMetadata): LibraryEnrichmentPat
     tmdbId: cached.tmdbId,
     poster: cached.poster,
     backdrop: cached.backdrop,
+    logo: cached.logo,
     overview: cached.overview,
     runtime: cached.runtime,
     rating: cached.rating,
@@ -283,6 +286,7 @@ async function loadLibrary(): Promise<LibraryResponse> {
           tmdbId: legacy.tmdbId,
           poster: legacy.poster,
           backdrop: legacy.backdrop,
+          logo: legacy.logo,
           overview: legacy.overview,
           runtime: legacy.runtime,
           rating: legacy.rating,
@@ -366,6 +370,7 @@ export async function enrichLibraryBatch(
             tmdbId: tmdb.id,
             poster: tmdb.poster,
             backdrop: tmdb.backdrop,
+            logo: tmdb.logo,
             overview: tmdb.overview,
             runtime: tmdb.runtime,
             rating: tmdb.rating,
