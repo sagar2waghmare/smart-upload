@@ -446,6 +446,46 @@ export async function getPreparedHlsEntry(
   return tree?.entries.get(safePath) ?? null;
 }
 
+export async function drivePreparedBrowserPlaybackFetch(
+  sourceFileId: string,
+  headers: Record<string, string>,
+): Promise<Response> {
+  const sourceId = sourceFileId.trim();
+  if (!sourceId) throw new Error("Invalid source media id");
+
+  let token = await accessToken();
+  const source = await metadata(sourceId, token);
+  if (
+    source.trashed ||
+    !source.mimeType?.startsWith("video/") ||
+    !(await isInsideMedia(sourceId, token))
+  ) {
+    throw new Error("Source media is outside the Smart Upload library");
+  }
+
+  const preparedId = await findPreparedBrowserMedia(sourceId);
+  if (!preparedId) {
+    throw new Error("Prepared browser media not found");
+  }
+
+  const url = DRIVE_API_URL + "/" + encodeURIComponent(preparedId) + "?alt=media";
+  let res = await fetch(url, {
+    headers: { ...headers, Authorization: "Bearer " + token },
+    cache: "no-store",
+  });
+
+  if (res.status === 401) {
+    cachedAccess = null;
+    token = await accessToken();
+    res = await fetch(url, {
+      headers: { ...headers, Authorization: "Bearer " + token },
+      cache: "no-store",
+    });
+  }
+
+  return res;
+}
+
 export async function drivePlaybackFetch(fileId: string, headers: Record<string, string>): Promise<Response> {
   const id = fileId.trim();
   if (!id) throw new Error("Invalid media id");
