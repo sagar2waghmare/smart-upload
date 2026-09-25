@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import {
   isHLSProvider,
   MediaPlayer,
@@ -329,7 +329,7 @@ export function VideoPlayer({
     setShowUpNext(false);
   }, []);
 
-  const handleRootClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+  const handleRootClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     if (target.closest("button,input")) return;
     void togglePlay();
