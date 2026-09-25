@@ -26,6 +26,7 @@ type RawItem = {
   id: string;
   name: string;
   type: MediaKind;
+  mimeType?: string;
   modifiedTime?: string;
 };
 
@@ -465,21 +466,30 @@ export async function getMediaById(id: string): Promise<MediaItem | undefined> {
 // catalog, but it must not depend on TMDB grouping/enrichment being present.
 // This prevents a valid Drive file from becoming unplayable just because the
 // presentation-layer cache is stale or a series grouping changed.
-export async function getPlaybackLibraryItem(id: string): Promise<MediaItem | undefined> {
+export async function getPlaybackLibrarySource(id: string): Promise<{
+  item: MediaItem;
+  mimeType?: string;
+} | undefined> {
   const normalizedId = id.trim();
   if (!normalizedId) return undefined;
-
-  const published = await getPublished();
-  const publishedMatch = findMediaInItems(published, normalizedId);
-  if (publishedMatch) return publishedMatch;
 
   const rawItems = await getRawLibrary();
   const raw = rawItems.find((item) => item.id === normalizedId);
   if (!raw) return undefined;
 
+  const published = await getPublished();
+  const publishedMatch = findMediaInItems(published, normalizedId);
+  if (publishedMatch) {
+    return { item: publishedMatch, mimeType: raw.mimeType };
+  }
+
   const base = baseItem(raw);
   if (!base) return undefined;
 
-  const cached = await getCachedMetadata<CachedMetadata>([metadataKeyForRaw(raw)]);
-  return applyCachedMetadata(base, cached.get(metadataKeyForRaw(raw)));
+  const key = metadataKeyForRaw(raw);
+  const cached = await getCachedMetadata<CachedMetadata>([key]);
+  return {
+    item: applyCachedMetadata(base, cached.get(key)),
+    mimeType: raw.mimeType,
+  };
 }
