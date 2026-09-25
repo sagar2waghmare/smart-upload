@@ -40,8 +40,8 @@ export async function GET(req: Request) {
             ? "series"
             : undefined,
     });
-    if (!result) return NextResponse.json({ matched: false, mode: "tmdb" });
-    return NextResponse.json({ matched: true, mode: "tmdb", tmdbType: result.tmdbType, meta: result.meta });
+    if (!result) return NextResponse.json({ matched: false, mode: "tmdb" }, { headers: { "cache-control": "private, max-age=3600, stale-while-revalidate=86400" } });
+    return NextResponse.json({ matched: true, mode: "tmdb", tmdbType: result.tmdbType, meta: result.meta }, { headers: { "cache-control": "private, max-age=86400, stale-while-revalidate=604800" } });
   } catch {
     return NextResponse.json({ matched: false, mode: "error", message: "TMDB request failed." }, { status: 502 });
   }
