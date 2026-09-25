@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPlaybackLibraryItem } from "../../../../lib/library-service";
+import { getPlaybackLibrarySource } from "../../../../lib/library-service";
 import { resolvePlaybackUrl } from "../../../../lib/playback";
 import {
   findPreparedAudioTracks,
@@ -26,8 +26,8 @@ export async function GET(_req: Request, { params }: Params) {
 
   // The catalog/D1 index is the playback authorization boundary. Do not
   // re-run the presentation-layer grouping logic as the source of truth.
-  const libraryItem = await getPlaybackLibraryItem(id);
-  if (!libraryItem) {
+  const sourceRecord = await getPlaybackLibrarySource(id);
+  if (!sourceRecord) {
     return NextResponse.json(
       {
         error: "media-not-in-library",
@@ -37,6 +37,7 @@ export async function GET(_req: Request, { params }: Params) {
     );
   }
 
+  const libraryItem = sourceRecord.item;
   let playbackId = id;
   if (libraryItem.seasons?.length) {
     const firstEpisode = libraryItem.seasons
@@ -45,39 +46,37 @@ export async function GET(_req: Request, { params }: Params) {
     if (firstEpisode?.id && firstEpisode.id !== id) playbackId = firstEpisode.id;
   }
 
+  // For a series, the catalog id can point at the grouped series while the
+  // actual media source is the selected episode. Resolve MIME from the exact
+  // playback file's indexed row before falling back to a Drive metadata read.
+  let playbackSource = sourceRecord;
+  if (playbackId !== id) {
+    const episodeSource = await getPlaybackLibrarySource(playbackId);
+    if (episodeSource) playbackSource = episodeSource;
+  }
+
   const useCloudflareStream = cloudflarePlaybackConfigured();
+  let sourceType = playbackSource.mimeType ?? null;
 
-  // Manifest resolution needs the source MIME only. The byte-stream routes
-  // keep the stricter Drive ancestry validation; doing that check here caused
-  // valid indexed files to be rejected before a playback source was returned.
-  let driveMedia: Awaited<ReturnType<typeof getDrivePlaybackMetadata>> = null;
-  try {
-    driveMedia = await getDrivePlaybackMetadata(playbackId);
-  } catch (err) {
-    console.error(
-      "[play] Drive metadata lookup failed",
-      err instanceof Error ? err.message : "unknown error",
-    );
-    return NextResponse.json(
-      {
-        error: "drive-metadata-unavailable",
-        message: "Google Drive could not verify the playback source.",
-      },
-      { status: 502 },
-    );
+  if (!sourceType) {
+    try {
+      const driveMedia = await getDrivePlaybackMetadata(playbackId);
+      sourceType = driveMedia?.mimeType ?? null;
+    } catch (err) {
+      console.error(
+        "[play] Drive metadata lookup failed",
+        err instanceof Error ? err.message : "unknown error",
+      );
+      return NextResponse.json(
+        {
+          error: "drive-metadata-unavailable",
+          message: "Google Drive could not verify the playback source.",
+        },
+        { status: 502 },
+      );
+    }
   }
 
-  if (!driveMedia) {
-    return NextResponse.json(
-      {
-        error: "source-not-found",
-        message: "The indexed media file is no longer accessible in Google Drive.",
-      },
-      { status: 404 },
-    );
-  }
-
-  const sourceType = driveMedia.mimeType ?? null;
   const nativeVideo = browserNativeVideo(sourceType);
 
   // Use the Cloudflare gateway only for containers a browser can natively decode.
