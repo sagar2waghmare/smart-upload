@@ -179,6 +179,8 @@ export default function PlayPage() {
             shareUrl={activePlayback?.shareUrl ?? data.shareUrl}
             poster={item.poster}
             backdrop={item.backdrop}
+            logo={item.logo}
+            tmdbId={item.tmdbId}
             title={item.title}
             episodeTitle={episode?.title}
             demo={data.demo}
