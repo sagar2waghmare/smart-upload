@@ -12,6 +12,7 @@ export interface TmdbMetaEnrich {
   poster?: string;
   backdrop?: string;
   logo?: string;
+  imdbId?: string;
 }
 
 type MetaState = {
