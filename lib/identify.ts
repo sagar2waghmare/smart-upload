@@ -35,7 +35,7 @@ export async function identifyFilename(raw: string, opts: { year?: number } = {}
 
   try {
     for (const query of tmdbQueries(raw, parsed.title)) {
-      const result = await searchTmdb(query, { year, kind: parsed.kind });
+      const result = await searchTmdb(query, { year, kind: parsed.kind, details: false });
       if (!result?.meta.poster) continue;
       const isShow = result.tmdbType === "tv";
       return {
