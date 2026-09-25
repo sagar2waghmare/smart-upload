@@ -115,7 +115,7 @@ export function LibraryEnrichmentProvider({
           observer.unobserve(node);
         }
       },
-      { rootMargin: "700px 0px", threshold: 0.01 },
+      { rootMargin: "350px 0px", threshold: 0.01 },
     );
 
     observerRef.current = observer;
@@ -134,7 +134,7 @@ export function LibraryEnrichmentProvider({
   useEffect(() => {
     if (active >= 2 || queue.length === 0 || cancelledRef.current) return;
 
-    const ids = queue.slice(0, 6);
+    const ids = queue.slice(0, 4);
     setQueue((previous) => previous.slice(ids.length));
     setActive((count) => count + 1);
 
