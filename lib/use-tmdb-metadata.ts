@@ -94,8 +94,8 @@ function initialFromKey(key: string, item: MediaItem | null): MetaState {
   if (!key) return { matched: false, loading: false, meta: null };
 
   if (cache.has(key)) {
-    const m = cache.get(key) ?? null;
-    return { matched: Boolean(m), loading: false, meta: m };
+    const m = cache.get(key);
+    return { matched: Boolean(m), loading: false, meta: m ?? null };
   }
 
   const embedded = itemMeta(item);

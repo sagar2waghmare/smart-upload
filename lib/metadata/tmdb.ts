@@ -1,8 +1,8 @@
-import { env } from "cloudflare:workers";
 import type { MediaKind } from "../types";
+import { getEnvValue } from "../env";
 
 function tmdbApiKey(): string | undefined {
-  return (env as { TMDB_API_KEY?: string }).TMDB_API_KEY || process.env.TMDB_API_KEY;
+  return getEnvValue("TMDB_API_KEY");
 }
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const IMG = "https://image.tmdb.org/t/p/";
@@ -82,10 +82,15 @@ async function tmdb<T>(path: string): Promise<T> {
   // NOTE: do NOT add `cf: { cacheTtl/cacheEverything }` here. This route is
   // force-dynamic, so the server fetch shim injects `cache: "no-store"`, and
   // workerd rejects cacheTtl combined with no-store (metadata returned 502).
-  let res = await fetch(apiKeyUrl, { headers: { accept: "application/json" } });
+  // Use explicit no-store to prevent any caching conflicts.
+  let res = await fetch(apiKeyUrl, {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
   if ((res.status === 401 || res.status === 403) && apiKey) {
     res = await fetch(`${TMDB_BASE}${path}`, {
       headers: { accept: "application/json", Authorization: `Bearer ${apiKey}` },
+      cache: "no-store",
     });
   }
 

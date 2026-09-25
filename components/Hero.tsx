@@ -8,6 +8,15 @@ import { IArrowLeft, IArrowRight, IInfo, IPlay } from "./icons";
 import { mergePatch, useLibraryEnrichment } from "./LibraryEnrichmentProvider";
 
 const AUTO_DURATION = 7000;
+/** Movement (px) that separates a tap from a drag (used to suppress the click). */
+const TAP_SLOP = 10;
+/** Movement (px) before horizontal intent is considered established. */
+const INTENT_MIN = 12;
+/** Horizontal movement (px) required to actually change slide. */
+const SWIPE_MIN = 45;
+/** Max poster follow distance while dragging (desktop / mobile). */
+const DRAG_LIMIT = 140;
+const MOBILE_DRAG_LIMIT = 55;
 const AMBIENT_TONES = [
   "rgba(38, 30, 52, .58)",
   "rgba(24, 38, 54, .58)",
@@ -17,15 +26,30 @@ const AMBIENT_TONES = [
 ];
 const kindLabel = (k?: MediaItem["kind"]) => k === "series" ? "TV SERIES" : k === "anime" ? "ANIME" : "FEATURED MOVIE";
 
+type GestureState = {
+  /** The hero section: the only element that reliably receives pointer events
+      on desktop (the `.hero-track` box collapses to 0x0 there). */
+  surface: HTMLElement;
+  /** Carries `.is-dragging` so the existing desktop drag polish still applies. */
+  track: HTMLElement | null;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+  horizontal: boolean;
+  dragging: boolean;
+  suppressClick: boolean;
+};
+
 export function Hero({ items }: { items: MediaItem[] }) {
   const { openDetails } = useDetails();
   const { getPatch, request } = useLibraryEnrichment();
   const count = items.length;
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
-  const dragRef = useRef({ startX: 0, startY: 0, dragging: false, moved: false, horizontal: false });
-  const heroRef = useRef<HTMLElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
+  // Swipe state for ONE gesture at a time, owned by the artwork surface that
+  // received the pointerdown (never by the whole hero).
+  const gestureRef = useRef<GestureState | null>(null);
 
   const go = useCallback((next: number) => {
     if (!count) return;
@@ -56,57 +80,110 @@ export function Hero({ items }: { items: MediaItem[] }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
+  // --- Gesture surface --------------------------------------------------------
+  // Handlers live on the hero section (`.hero-track` collapses to a 0x0 box on
+  // desktop, so it cannot be the listener), but the gesture is scoped by
+  // hit-testing: editorial copy, dots, the nav strip and every control are
+  // rejected, so only artwork/background starts a swipe. Nothing is ever
+  // preventDefault()-ed and the pointer is never captured on touch-down, so
+  // Android keeps native vertical scrolling until horizontal intent is proven.
+  const onSurfaceDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    // One gesture at a time: a second finger must not restart the first drag.
+    if (gestureRef.current?.dragging) return;
     const target = e.target as Element | null;
-    const interactive = target?.closest('button, a, input, select, textarea, [role="button"]');
+    const surface = e.currentTarget;
     const poster = target?.closest(".hero-poster, .mobile-hero-poster");
-    if (interactive && !poster) return;
+    const control = target?.closest('button, a, input, select, textarea, [role="button"]');
+    // Controls are never swipe targets; the poster is the only interactive
+    // element allowed to start (and then usually just tap through).
+    if (control && !poster) return;
+    // Editorial copy, carousel dots and the nav strip are never gesture surfaces.
+    if (target?.closest(".hero-editorial, .mobile-hero-copy, .hero-dots, .hero-nav")) return;
 
-    dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: true, moved: false, horizontal: false };
-    // Do not capture the pointer on touch-down. Android browsers need the
-    // browser to retain native vertical scrolling until horizontal intent is clear.
-    heroRef.current?.classList.add("is-pressing");
+    gestureRef.current = {
+      surface,
+      track: surface.querySelector<HTMLElement>(".hero-track"),
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      horizontal: false,
+      dragging: true,
+      suppressClick: false,
+    };
+    // No pointer capture here: Android must stay free to scroll vertically
+    // until horizontal intent is proven.
+    surface.classList.add("is-pressing");
   }, []);
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragRef.current.dragging || !trackRef.current) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    if (!dragRef.current.horizontal && Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
-    if (!dragRef.current.horizontal) {
-      dragRef.current.horizontal = Math.abs(dx) > Math.abs(dy);
-      if (!dragRef.current.horizontal) {
-        dragRef.current.dragging = false;
-        try { heroRef.current?.releasePointerCapture(e.pointerId); } catch {}
-        heroRef.current?.classList.remove("is-pressing");
+
+  const onSurfaceMove = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    const g = gestureRef.current;
+    if (!g?.dragging || e.pointerId !== g.pointerId) return;
+    const dx = e.clientX - g.startX;
+    const dy = e.clientY - g.startY;
+    if (Math.abs(dx) > TAP_SLOP || Math.abs(dy) > TAP_SLOP) g.moved = true;
+
+    if (!g.horizontal) {
+      if (Math.abs(dx) < INTENT_MIN && Math.abs(dy) < INTENT_MIN) return;
+      if (Math.abs(dx) <= Math.abs(dy)) {
+        // Vertical-dominant: abandon the carousel gesture entirely so the
+        // browser keeps the page scroll (no capture, no slide change).
+        g.dragging = false;
+        g.surface.classList.remove("is-pressing");
+        try { g.surface.releasePointerCapture(e.pointerId); } catch { /* not captured */ }
         return;
       }
-      try { heroRef.current?.setPointerCapture(e.pointerId); } catch {}
-      trackRef.current?.classList.add("is-dragging");
+      g.horizontal = true;
+      // Capture only after horizontal intent is established — never on
+      // touch-down — so a vertical scroll is never hijacked.
+      try { g.surface.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+      g.surface.classList.add("is-dragging");
+      g.track?.classList.add("is-dragging");
     }
-    if (Math.abs(dx) > 8) dragRef.current.moved = true;
-    trackRef.current.style.setProperty("--drag-x", `${Math.max(-140, Math.min(140, dx))}px`);
-    heroRef.current?.style.setProperty("--hero-drag-x", `${Math.max(-55, Math.min(55, dx))}px`);
+
+    // Both drag variables are published on the section so desktop posters
+    // (`--drag-x`) and the mobile poster (`--hero-drag-x`) both follow, each
+    // with its own clamp.
+    g.surface.style.setProperty("--drag-x", `${Math.max(-DRAG_LIMIT, Math.min(DRAG_LIMIT, dx))}px`);
+    g.surface.style.setProperty("--hero-drag-x", `${Math.max(-MOBILE_DRAG_LIMIT, Math.min(MOBILE_DRAG_LIMIT, dx))}px`);
   }, []);
 
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    if (!dragRef.current.dragging) return;
-    dragRef.current.dragging = false;
+  const finishGesture = useCallback((e: React.PointerEvent<HTMLElement>, commit: boolean) => {
+    const g = gestureRef.current;
+    // Ignore a pointer that is not the one we are tracking (e.g. a second
+    // finger tapping an arrow while a drag is running) and never commit twice.
+    if (!g || e.pointerId !== g.pointerId || !g.dragging) return;
+    g.dragging = false;
     try {
-      if (heroRef.current?.hasPointerCapture(e.pointerId)) {
-        heroRef.current.releasePointerCapture(e.pointerId);
-      }
-    } catch {}
-    heroRef.current?.classList.remove("is-pressing");
-    trackRef.current?.classList.remove("is-dragging");
-    trackRef.current?.style.setProperty("--drag-x", "0px");
-    heroRef.current?.style.setProperty("--hero-drag-x", "0px");
-    const dx = e.clientX - dragRef.current.startX;
-    if (dragRef.current.horizontal && Math.abs(dx) > 45) {
-      e.preventDefault();
-      go(dx < 0 ? index + 1 : index - 1);
-    }
-  }, [index, go]);
+      if (g.surface.hasPointerCapture(e.pointerId)) g.surface.releasePointerCapture(e.pointerId);
+    } catch { /* nothing captured */ }
+    g.surface.classList.remove("is-pressing", "is-dragging");
+    g.track?.classList.remove("is-dragging");
+    g.surface.style.setProperty("--drag-x", "0px");
+    g.surface.style.setProperty("--hero-drag-x", "0px");
 
+    const dx = e.clientX - g.startX;
+    const navigated = commit && g.horizontal && Math.abs(dx) > SWIPE_MIN;
+    if (navigated) go(dx < 0 ? index + 1 : index - 1);
+    // Anything that moved past the tap slop was a drag, not a tap: the poster
+    // click that follows must never open details after a swipe.
+    if (g.moved || navigated) g.suppressClick = true;
+    g.horizontal = false;
+    g.moved = false;
+  }, [go, index]);
+
+  const onSurfaceUp = useCallback((e: React.PointerEvent<HTMLElement>) => finishGesture(e, true), [finishGesture]);
+  // pointercancel = the browser took the gesture (usually a page scroll):
+  // clean up but never change slide.
+  const onSurfaceCancel = useCallback((e: React.PointerEvent<HTMLElement>) => finishGesture(e, false), [finishGesture]);
+
+  const openFromPoster = useCallback((item: MediaItem) => {
+    if (gestureRef.current?.suppressClick) {
+      gestureRef.current.suppressClick = false;
+      return;
+    }
+    openDetails(item);
+  }, [openDetails]);
 
   // Keyboard/remote navigation: desktop and TV can move the hero without clicking arrows.
   useEffect(() => {
@@ -123,7 +200,15 @@ export function Hero({ items }: { items: MediaItem[] }) {
   const ambientTone = AMBIENT_TONES[index % AMBIENT_TONES.length];
 
   return (
-    <section ref={heroRef} className="hero-filmes" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} aria-roledescription="carousel" aria-label="Featured titles">
+    <section
+      className="hero-filmes"
+      aria-roledescription="carousel"
+      aria-label="Featured titles"
+      onPointerDown={onSurfaceDown}
+      onPointerMove={onSurfaceMove}
+      onPointerUp={onSurfaceUp}
+      onPointerCancel={onSurfaceCancel}
+    >
       <div className="hero-ambient" aria-hidden="true" style={{ backgroundColor: ambientTone }}><SmartImage src={active.backdrop ?? active.poster} alt="" sizes="100vw" priority /></div>
       <div className="hero-vignette" aria-hidden="true" />
 
@@ -144,7 +229,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
         </div>
       </div>
 
-      <div ref={trackRef} className="hero-track">
+      <div className="hero-track">
         {items.map((rawItem, i) => {
           const item = mergePatch(rawItem, getPatch(rawItem.id));
           let posicao = i - index;
@@ -161,14 +246,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
               aria-label={`Open ${item.title} details`}
               aria-hidden={!ativo}
               tabIndex={ativo ? 0 : -1}
-              onClick={(e) => {
-                if (dragRef.current.moved) {
-                  e.preventDefault();
-                  dragRef.current.moved = false;
-                  return;
-                }
-                openDetails(item);
-              }}
+              onClick={() => openFromPoster(item)}
               onKeyDown={(e) => {
                 if (!ativo || (e.key !== "Enter" && e.key !== " ")) return;
                 e.preventDefault();
@@ -198,14 +276,7 @@ export function Hero({ items }: { items: MediaItem[] }) {
             role="button"
             tabIndex={0}
             aria-label={`Open ${active.title} details`}
-            onClick={(e) => {
-              if (dragRef.current.moved) {
-                e.preventDefault();
-                dragRef.current.moved = false;
-                return;
-              }
-              openDetails(active);
-            }}
+            onClick={() => openFromPoster(active)}
             onKeyDown={(e) => {
               if (e.key !== "Enter" && e.key !== " ") return;
               e.preventDefault();
@@ -229,12 +300,12 @@ export function Hero({ items }: { items: MediaItem[] }) {
             {active.year ? <span>{active.year}</span> : null}
             {active.runtime ? <span>{Math.floor(active.runtime / 60)}h {active.runtime % 60}m</span> : null}
           </div>
-          {active.overview ? <p>{active.overview}</p> : null}
           <div className="mobile-hero-actions">
             <button type="button" className="btn btn-primary" onClick={() => openDetails(active)}><IPlay /> Play</button>
             <FavButton id={active.id} labelStyle="chip" />
             <button type="button" className="btn btn-secondary" onClick={() => openDetails(active)}><IInfo /> Details</button>
           </div>
+          {active.overview ? <p>{active.overview}</p> : null}
         </div>
 
         <div className="mobile-hero-dots" role="tablist" aria-label="Featured titles">

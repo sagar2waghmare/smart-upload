@@ -146,7 +146,11 @@ export function PlaybackOverlay() {
       if (endedRef.current) {
         const nearEnd = p.duration > 0 && p.position >= p.duration * 0.95;
         if (nearEnd) return;
-        endedRef.current = false;
+        // Reset ended state only when user seeks to a non-terminal position
+        // or when starting fresh after replay
+        if (p.position < p.duration * 0.95) {
+          endedRef.current = false;
+        }
       }
       saveProgress({ id, position: p.position, duration: p.duration, episodeId: episode?.id });
     },

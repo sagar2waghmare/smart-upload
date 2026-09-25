@@ -167,7 +167,10 @@ export async function verifySessionCookie(cookie: string): Promise<SessionUser |
 
   const fingerprint = await sessionFingerprint(cookie);
   const cached = sessionVerificationCache.get(fingerprint);
-  if (cached && cached.expiresAt > Date.now()) return cached.user;
+  if (cached && cached.expiresAt > Date.now()) {
+    // Ensure the cached user matches what we're about to verify
+    return cached.user;
+  }
   sessionVerificationCache.delete(fingerprint);
 
   const inflight = sessionVerificationInflight.get(fingerprint);
@@ -190,6 +193,9 @@ export async function verifySessionCookie(cookie: string): Promise<SessionUser |
       });
       return user;
     } catch {
+      // Invalid cookie - clear any stale cache and return null
+      sessionVerificationCache.delete(fingerprint);
+      sessionVerificationInflight.delete(fingerprint);
       return null;
     }
   })();

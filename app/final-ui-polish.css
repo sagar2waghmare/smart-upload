@@ -28,7 +28,46 @@
 .hero-nav,
 .hero-dots {
   z-index: 100 !important;
+}
+/* The nav strip spans the full hero width and sits above the active poster:
+   only the arrow buttons may capture pointer events, otherwise the strip
+   swallows the poster's tap/click (and blocks its swipe). */
+.hero-nav {
+  pointer-events: none !important;
+}
+.hero-nav-btn {
   pointer-events: auto !important;
+}
+/* The dots pill is a visual cluster; only the individual dots are interactive. */
+.hero-dots {
+  pointer-events: none !important;
+}
+.hero-dot {
+  pointer-events: auto !important;
+}
+
+/* Desktop carousel indicator: compact and consistent with the mobile dots
+   (6px inactive / 17px active). The invisible ::before only enlarges the
+   touch/click target — the visible dot stays small. */
+.hero-dots {
+  gap: .3rem !important;
+}
+.hero-dot {
+  position: relative !important;
+  width: 6px !important;
+  height: 6px !important;
+}
+.hero-dot::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  bottom: -7px;
+  left: 0; /* no left expansion: prevents the first dot's hit area from
+              overlapping the hero section's gesture surface */
+}
+.hero-dot.on {
+  width: 17px !important;
 }
 
 
@@ -693,7 +732,7 @@
     position: absolute !important;
     inset: 0 !important;
     display: grid !important;
-    grid-template-rows: 305px 1fr auto !important;
+    grid-template-rows: 296px 1fr auto !important;
     z-index: 20 !important;
     pointer-events: none !important;
   }
@@ -703,7 +742,11 @@
     display: grid !important;
     place-items: start center !important;
     padding-top: 22px !important;
-    pointer-events: none !important;
+    /* The artwork zone is the mobile swipe surface: it must receive pointer
+       events (it sits inside a pointer-events:none content wrapper, so it
+       opts back in) while still allowing native vertical page scrolling. */
+    pointer-events: auto !important;
+    touch-action: pan-y !important;
   }
 
   .mobile-hero-poster {
@@ -832,7 +875,7 @@
     -webkit-line-clamp: 2 !important;
     overflow: hidden !important;
     max-width: 58ch !important;
-    margin: 10px 0 0 !important;
+    margin: 14px 0 0 !important;
     color: rgba(255,255,255,.58) !important;
     font-size: .69rem !important;
     line-height: 1.45 !important;
@@ -843,7 +886,7 @@
     align-items: center !important;
     flex-wrap: wrap !important;
     gap: 8px !important;
-    margin-top: 14px !important;
+    margin-top: 16px !important;
   }
 
   .mobile-hero-actions .btn {
@@ -865,29 +908,45 @@
     justify-self: center !important;
     display: flex !important;
     align-items: center !important;
-    gap: 5px !important;
-    padding: 7px 10px !important;
-    margin-bottom: 11px !important;
+    gap: 2px !important;
+    padding: 4px 7px !important;
+    margin-bottom: 8px !important;
     border-radius: 999px !important;
-    background: rgba(10,10,12,.34) !important;
-    border: 1px solid rgba(255,255,255,.07) !important;
+    background: rgba(10,10,12,.30) !important;
+    border: 1px solid rgba(255,255,255,.06) !important;
     backdrop-filter: blur(10px) !important;
     -webkit-backdrop-filter: blur(10px) !important;
     pointer-events: auto !important;
   }
 
+  /* The button is the touch target (14x22px, transparent); the visible dot is
+     drawn with ::after so controls stay small without becoming hard to hit. */
   .mobile-hero-dot {
-    width: 5px !important;
-    height: 5px !important;
-    padding: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    width: auto !important;
+    min-width: 14px !important;
+    height: 22px !important;
+    padding: 0 4px !important;
     border: 0 !important;
     border-radius: 999px !important;
-    background: rgba(255,255,255,.30) !important;
+    background: transparent !important;
     cursor: pointer !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 
-  .mobile-hero-dot.on {
-    width: 18px !important;
+  .mobile-hero-dot::after {
+    content: "" !important;
+    display: block !important;
+    width: 5px !important;
+    height: 5px !important;
+    border-radius: 999px !important;
+    background: rgba(255,255,255,.32) !important;
+  }
+
+  .mobile-hero-dot.on::after {
+    width: 17px !important;
     background: #fff !important;
   }
 
@@ -924,7 +983,7 @@
   }
 
   .hero-mobile-content {
-    grid-template-rows: 286px 1fr auto !important;
+    grid-template-rows: 276px 1fr auto !important;
   }
 
   .mobile-hero-art {
@@ -949,7 +1008,7 @@
   }
 
   .mobile-hero-actions {
-    margin-top: 12px !important;
+    margin-top: 14px !important;
   }
 }
 
@@ -961,7 +1020,7 @@
   }
 
   .hero-mobile-content {
-    grid-template-rows: 270px 1fr auto !important;
+    grid-template-rows: 260px 1fr auto !important;
   }
 
   .mobile-hero-poster {
