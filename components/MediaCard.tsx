@@ -35,9 +35,10 @@ export function MediaCard({ item, priority = false }: { item: MediaItem; priorit
   const statusLabel = completed ? "Watched" : mode === "resume" ? "Resume" : recentlyAdded ? "New" : null;
   const statusIcon = completed ? <ICheck /> : mode === "resume" ? <IPlay /> : recentlyAdded ? <IClock /> : null;
 
+  const needsEnrichment = !displayItem.poster || !displayItem.tmdbId;
   const setCardRef = useCallback(
-    (node: HTMLElement | null) => observe(item.id, node),
-    [item.id, observe],
+    (node: HTMLElement | null) => observe(item.id, needsEnrichment ? node : null),
+    [item.id, needsEnrichment, observe],
   );
 
   return (

@@ -5,6 +5,7 @@ type KvLike = {
     (key: string, type?: "text" | "json"): Promise<unknown>;
     (keys: string[], type?: "text" | "json"): Promise<Map<string, unknown>>;
   };
+  delete?(key: string): Promise<void>;
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
 };
 
@@ -13,7 +14,9 @@ function kv(): KvLike | null {
 }
 
 const DRIVE_CACHE_KEY = "library:drive:v2";
+const LIBRARY_SNAPSHOT_KEY = "library:snapshot:v1";
 const DRIVE_CACHE_TTL = 60 * 60;
+const LIBRARY_SNAPSHOT_TTL = 60;
 const METADATA_TTL = 60 * 60 * 24 * 30;
 const NEGATIVE_METADATA_TTL = 60 * 60 * 6;
 
@@ -40,6 +43,39 @@ export async function getCachedDriveLibrary<T>(): Promise<T | null> {
     return (await store.get(DRIVE_CACHE_KEY, "json")) as T | null;
   } catch {
     return null;
+  }
+}
+
+export async function getCachedLibrarySnapshot<T>(): Promise<T | null> {
+  const store = kv();
+  if (!store) return null;
+  try {
+    return (await store.get(LIBRARY_SNAPSHOT_KEY, "json")) as T | null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setCachedLibrarySnapshot(
+  value: unknown,
+  expirationTtl = LIBRARY_SNAPSHOT_TTL,
+): Promise<void> {
+  const store = kv();
+  if (!store) return;
+  try {
+    await store.put(LIBRARY_SNAPSHOT_KEY, JSON.stringify(value), { expirationTtl });
+  } catch (error) {
+    console.error("[library-cache] Snapshot write failed", error instanceof Error ? error.message : "unknown");
+  }
+}
+
+export async function clearCachedLibrarySnapshot(): Promise<void> {
+  const store = kv();
+  if (!store) return;
+  try {
+    if (typeof store.delete === "function") await store.delete(LIBRARY_SNAPSHOT_KEY);
+  } catch (error) {
+    console.error("[library-cache] Snapshot delete failed", error instanceof Error ? error.message : "unknown");
   }
 }
 

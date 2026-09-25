@@ -41,9 +41,14 @@ export function Hero({ items }: { items: MediaItem[] }) {
 
   useEffect(() => {
     if (!count) return;
-    const next = count > 1 ? items[(index + 1) % count]?.id : undefined;
-    request([items[index]?.id, next].filter((id): id is string => Boolean(id)));
-  }, [count, index, items, request]);
+    const current = mergePatch(items[index], getPatch(items[index].id));
+    const next = count > 1 ? mergePatch(items[(index + 1) % count], getPatch(items[(index + 1) % count].id)) : undefined;
+    const ids = [current, next]
+      .filter((item): item is MediaItem => Boolean(item))
+      .filter((item) => !item.poster || !item.tmdbId)
+      .map((item) => item.id);
+    if (ids.length) request(ids);
+  }, [count, index, items, request, getPatch]);
 
   useEffect(() => {
     const onVis = () => setHidden(document.hidden);

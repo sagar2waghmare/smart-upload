@@ -6,6 +6,9 @@ import { parseFilename } from "./media/detect";
 import {
   getCachedDriveLibrary,
   setCachedDriveLibrary,
+  getCachedLibrarySnapshot,
+  setCachedLibrarySnapshot,
+  clearCachedLibrarySnapshot,
   getCachedMetadata,
   metadataCacheKey,
   legacyMetadataCacheKey,
@@ -46,7 +49,8 @@ type CachedMetadata = {
 };
 
 const RAW_MEMORY_TTL_MS = 15_000;
-const LIBRARY_MEMORY_TTL_MS = 10_000;
+const LIBRARY_MEMORY_TTL_MS = 30_000;
+const LIBRARY_SNAPSHOT_TTL_SECONDS = 60;
 
 let rawMemoryCache: { items: RawItem[]; expiresAt: number } | null = null;
 let libraryMemoryCache: { value: LibraryResponse; expiresAt: number } | null = null;
@@ -251,6 +255,15 @@ async function loadLibrary(): Promise<LibraryResponse> {
     return libraryMemoryCache.value;
   }
 
+  const snapshot = await getCachedLibrarySnapshot<LibraryResponse>();
+  if (snapshot?.mode === "google-drive" && Array.isArray(snapshot.items)) {
+    libraryMemoryCache = {
+      value: snapshot,
+      expiresAt: now + LIBRARY_MEMORY_TTL_MS,
+    };
+    return snapshot;
+  }
+
   if (!googleDriveConfigured()) {
     console.error("[library] Google Drive is not configured");
     return { mode: "google-drive", items: [], count: 0, error: "Google Drive is not configured" };
@@ -316,6 +329,11 @@ async function loadLibrary(): Promise<LibraryResponse> {
       value: result,
       expiresAt: now + LIBRARY_MEMORY_TTL_MS,
     };
+
+    // Persist the assembled catalog, not just its individual metadata records.
+    // Warm homepage requests can then resolve from a single KV read instead of
+    // rebuilding the catalog through D1/Drive + hundreds of metadata keys.
+    await setCachedLibrarySnapshot(result, LIBRARY_SNAPSHOT_TTL_SECONDS);
 
     return result;
   } catch (err) {
@@ -445,6 +463,7 @@ export async function enrichLibraryBatch(
 
 export function invalidateLibraryCache(): void {
   libraryMemoryCache = null;
+  void clearCachedLibrarySnapshot();
 }
 
 export async function getLibrary(): Promise<LibraryResponse> {

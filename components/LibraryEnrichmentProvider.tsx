@@ -37,6 +37,7 @@ function mergePatch(item: MediaItem, patch?: LibraryEnrichmentPatch): MediaItem 
     tmdbId: patch.tmdbId ?? item.tmdbId,
     poster: patch.poster || item.poster,
     backdrop: patch.backdrop || item.backdrop,
+    logo: patch.logo || item.logo,
     overview: patch.overview ?? item.overview,
     runtime: patch.runtime ?? item.runtime,
     rating: patch.rating ?? item.rating,

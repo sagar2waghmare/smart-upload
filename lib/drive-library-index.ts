@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getCachedDriveLibrary, setCachedDriveLibrary } from "./library-cache";
+import { getCachedDriveLibrary, setCachedDriveLibrary, clearCachedLibrarySnapshot } from "./library-cache";
 import {
   getDriveFileMetadata,
   getDriveMediaRootId,
@@ -457,6 +457,7 @@ export async function getIndexedDriveLibrary(): Promise<IndexedRow[] | null> {
 
   try {
     const changed = await syncDriveLibraryIndex();
+    if (changed) void clearCachedLibrarySnapshot();
     // Refresh old KV snapshots created before mimeType became part of the
     // playback index. This keeps playback source selection independent from
     // a stale cache generation.
