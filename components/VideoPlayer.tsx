@@ -246,12 +246,12 @@ export function VideoPlayer({
         </div>
       ) : null}
 
-      {mediaState !== "playing" ? (
+      {mediaState === "loading" || mediaState === "buffering" || autoplayBlocked ? (
         <div className="premium-player-state" aria-live="polite">
           {logo ? <img className="premium-player-state__logo" src={logo} alt="" /> : <strong className="premium-player-state__title">{title}</strong>}
           <div className="premium-player-state__loader" aria-hidden="true"><span /></div>
           <span className="premium-player-state__status">
-            {mediaState === "buffering" ? "Buffering" : "Loading"}
+            {autoplayBlocked ? "Tap to play" : mediaState === "buffering" ? "Buffering" : "Loading"}
           </span>
           {autoplayBlocked ? (
             <button type="button" className="premium-player-state__play" onClick={() => {
