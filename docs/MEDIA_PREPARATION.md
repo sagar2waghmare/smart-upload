@@ -74,19 +74,18 @@ For large Drive files, rclone can serve a Drive remote over localhost HTTP, whic
 
 ## Current playback design
 
-```text
-                    Google Drive
-                         |
-             +-----------+-----------+
-             |                       |
-       Original.mkv           Original.browser.mp4
-             |                       |
-       VLC / direct               Video.js
-       playback                 H.264 + AAC
-```
+Smart Upload uses a browser-first playback architecture.
 
-This does not delete, replace, or modify the original media.
+Primary playback:
+- `h265web.js PRO` is loaded lazily in the browser.
+- It handles VOD MP4/MOV/MKV/H.264/HEVC/HLS through native/MSE/WebCodec/WASM routes where supported.
+- The Smart Upload Drive range API remains the media source; the player does not download the entire movie before playback.
 
-## Future upgrade
+Fallbacks:
+- If the h265web engine cannot load or decode a source, the player falls back to the browser's native media element.
+- Existing `.browser.mp4` and prepared HLS assets remain supported.
+- The original media remains untouched.
 
-The same preparation pipeline can later generate HLS VOD variants such as 1080p/720p/480p. The existing Video.js quality UI is already compatible with multiple supplied variants, but real adaptive quality requires actual encoded HLS/DASH representations.
+The movie logo is preserved in the premium player overlay together with resume position, seeking, playback-rate, fullscreen, subtitle rendering, episode navigation and progress reporting.
+
+This player-side strategy is intentionally separate from the upload/preparation pipeline. It reduces unnecessary pre-conversion for sources the browser engine can handle directly.
