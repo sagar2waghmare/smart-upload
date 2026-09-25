@@ -1,11 +1,11 @@
 import { importPKCS8, SignJWT } from "jose";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { getDriveMediaRootId } from "./google-drive";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API_URL = "https://www.googleapis.com/drive/v3/files";
-const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
-const DEFAULT_MEDIA_FOLDER_ID = "1TEIGqujqwuNnzl_WfdHOYRWU_-4bWRp_";
+
 const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 
 interface ServiceAccount { client_email: string; private_key: string; }
@@ -82,23 +82,8 @@ async function metadata(fileId: string, token: string): Promise<MediaCheck> {
   return item;
 }
 
-async function mediaRoot(token: string): Promise<string> {
-  const configured = process.env.SMART_UPLOAD_DRIVE_MEDIA_ID?.trim();
-  if (configured) return configured;
-
-  if (cachedMediaRoot && cachedMediaRoot.expiresAt > Date.now()) {
-    return cachedMediaRoot.id;
-  }
-
-  const res = await fetch(`${DRIVE_API_URL}/${DEFAULT_MEDIA_FOLDER_ID}?fields=id,mimeType`, { headers: { Authorization: `Bearer ${token}` }, cache: "force-cache", next: { revalidate: 3600 } });
-  if (res.ok) {
-    const data = (await res.json()) as { id: string; mimeType?: string };
-    if (data.mimeType === DRIVE_FOLDER_MIME) {
-      cachedMediaRoot = { id: data.id, expiresAt: Date.now() + 60 * 60 * 1000 };
-      return data.id;
-    }
-  }
-  throw new Error("Google Drive MEDIA folder not found");
+async function mediaRoot(_token: string): Promise<string> {
+  return getDriveMediaRootId();
 }
 
 async function isInsideMedia(fileId: string, token: string): Promise<boolean> {
