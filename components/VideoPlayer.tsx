@@ -25,6 +25,7 @@ type Props = {
   poster?: string | null;
   backdrop?: string | null;
   title: string;
+  logo?: string | null;
   episodeTitle?: string;
   demo?: boolean;
   subtitleUrl?: string;
@@ -37,9 +38,11 @@ type Props = {
   onClose?: () => void;
   audioTracks?: Array<{ label: string; language?: string; url: string }>;
   preparedBrowserCopy?: boolean;
+  autoplay?: boolean;
 };
 
-const AUTO_NEXT_SECONDS = 10;
+const UP_NEXT_DISPLAY_SECONDS = 12;
+const AUTO_NEXT_TRIGGER_SECONDS = 0.75;
 
 export function VideoPlayer({
   src,
@@ -49,6 +52,7 @@ export function VideoPlayer({
   poster,
   backdrop,
   title,
+  logo,
   episodeTitle,
   demo,
   subtitleUrl,
@@ -61,13 +65,16 @@ export function VideoPlayer({
   onClose,
   audioTracks,
   preparedBrowserCopy = false,
+  autoplay = false,
 }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   const preferredSource = preparedBrowserCopy && src ? src : hlsUrl || src;
   const [source, setSource] = useState(preferredSource);
   const [fallbackUsed, setFallbackUsed] = useState(false);
   const [resumeApplied, setResumeApplied] = useState(false);
-  const [nextCountdown, setNextCountdown] = useState<number | null>(null);
+  const [showUpNext, setShowUpNext] = useState(false);
+  const [mediaState, setMediaState] = useState<"loading" | "buffering" | "playing" | "paused">("loading");
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const lastProgressRef = useRef(0);
   const progressCallbackRef = useRef(onProgress);
   const endedCallbackRef = useRef(onEnded);
@@ -81,7 +88,9 @@ export function VideoPlayer({
     setSource(preferredSource);
     setFallbackUsed(false);
     setResumeApplied(false);
-    setNextCountdown(null);
+    setShowUpNext(false);
+    setAutoplayBlocked(false);
+    setMediaState("loading");
     autoNextCancelledRef.current = false;
     autoNextTriggeredRef.current = false;
   }, [preferredSource]);
@@ -125,7 +134,21 @@ export function VideoPlayer({
     try { player.currentTime = target; } catch { setResumeApplied(false); }
   }, [initialTime, resumeApplied]);
 
-  const handleCanPlay = useCallback(() => { applyResume(); }, [applyResume]);
+  const handleCanPlay = useCallback(() => {
+    applyResume();
+    if (autoplay) {
+      const player = playerRef.current;
+      if (player) {
+        void player.play().then(() => {
+          setAutoplayBlocked(false);
+          setMediaState("playing");
+        }).catch(() => {
+          setAutoplayBlocked(true);
+          setMediaState("paused");
+        });
+      }
+    }
+  }, [applyResume, autoplay]);
 
   const flatEpisodes = item.seasons?.flatMap((season) => season.episodes) ?? [];
   const episodeIndex = episode ? flatEpisodes.findIndex((candidate) => candidate.id === episode.id) : -1;
@@ -135,13 +158,13 @@ export function VideoPlayer({
   const playNextEpisode = useCallback(() => {
     if (!nextEpisode || !onEpisode || autoNextTriggeredRef.current) return;
     autoNextTriggeredRef.current = true;
-    setNextCountdown(null);
+    setShowUpNext(false);
     onEpisode(nextEpisode);
   }, [nextEpisode, onEpisode]);
 
   const cancelAutoNext = useCallback(() => {
     autoNextCancelledRef.current = true;
-    setNextCountdown(null);
+    setShowUpNext(false);
   }, []);
 
   const handleTimeUpdate = useCallback(() => {
@@ -153,10 +176,12 @@ export function VideoPlayer({
     const currentTime = Number(player.currentTime);
     if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return;
     const remaining = duration - currentTime;
-    if (remaining <= 0.15) { playNextEpisode(); return; }
-    if (remaining <= AUTO_NEXT_SECONDS) setNextCountdown(Math.max(1, Math.ceil(remaining)));
-    else if (nextCountdown !== null) setNextCountdown(null);
-  }, [emitProgress, nextCountdown, nextEpisode, playNextEpisode]);
+    if (remaining <= AUTO_NEXT_TRIGGER_SECONDS) {
+      playNextEpisode();
+      return;
+    }
+    setShowUpNext(remaining <= UP_NEXT_DISPLAY_SECONDS);
+  }, [emitProgress, nextEpisode, playNextEpisode]);
 
   return (
     <div className="premium-player-v2">
@@ -172,6 +197,7 @@ export function VideoPlayer({
         load="eager"
         crossOrigin="anonymous"
         playsInline
+        autoplay={autoplay}
         onProviderChange={configureProvider}
         onCanPlay={handleCanPlay}
         onLoadedMetadata={applyResume}
@@ -199,18 +225,42 @@ export function VideoPlayer({
         <DefaultVideoLayout icons={defaultLayoutIcons} colorScheme="dark" noModal seekStep={10} playbackRates={[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]} />
       </MediaPlayer>
 
-      {nextEpisode && nextCountdown !== null ? (
+      {showUpNext && nextEpisode ? (
         <div className="auto-next-card" role="status" aria-live="polite">
           <div className="auto-next-copy">
             <span className="auto-next-eyebrow">UP NEXT</span>
             <strong>{nextEpisode.title}</strong>
-            <span className="auto-next-meta">S{String(nextEpisode.season).padStart(2, "0")} · E{String(nextEpisode.episode).padStart(2, "0")}</span>
+            <span className="auto-next-meta">
+              S{String(nextEpisode.season).padStart(2, "0")} · E{String(nextEpisode.episode).padStart(2, "0")}
+            </span>
+            <span className="auto-next-hint">Starts automatically at the end</span>
           </div>
           <div className="auto-next-actions">
             <button type="button" className="auto-next-play" onClick={playNextEpisode}>Play now</button>
             <button type="button" className="auto-next-cancel" onClick={cancelAutoNext}>Cancel</button>
           </div>
-          <span className="auto-next-countdown" aria-label={`Next episode in ${nextCountdown} seconds`}>{nextCountdown}</span>
+        </div>
+      ) : null}
+
+      {mediaState !== "playing" ? (
+        <div className="premium-player-state" aria-live="polite">
+          {logo ? <img className="premium-player-state__logo" src={logo} alt="" /> : <strong className="premium-player-state__title">{title}</strong>}
+          <div className="premium-player-state__loader" aria-hidden="true"><span /></div>
+          <span className="premium-player-state__status">
+            {mediaState === "buffering" ? "Buffering" : "Loading"}
+          </span>
+          {autoplayBlocked ? (
+            <button type="button" className="premium-player-state__play" onClick={() => {
+              const player = playerRef.current;
+              if (!player) return;
+              void player.play().then(() => {
+                setAutoplayBlocked(false);
+                setMediaState("playing");
+              });
+            }}>
+              Play
+            </button>
+          ) : null}
         </div>
       ) : null}
 
