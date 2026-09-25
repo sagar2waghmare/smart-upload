@@ -11,6 +11,7 @@ export interface TmdbMetaEnrich {
   genres?: string[];
   poster?: string;
   backdrop?: string;
+  logo?: string;
 }
 
 type MetaState = {
@@ -37,6 +38,7 @@ function itemMeta(item: MediaItem | null): TmdbMetaEnrich | null {
     genres: item.genres,
     poster: item.poster,
     backdrop: item.backdrop,
+    logo: undefined,
   };
 
   return meta.overview || meta.poster || meta.backdrop || meta.rating !== undefined ? meta : null;
