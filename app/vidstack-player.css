@@ -441,3 +441,29 @@
     animation: none;
   }
 }
+
+
+.premium-player-v2__sound-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 4.8rem;
+  z-index: 10;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 999px;
+  padding: .45rem .8rem;
+  background: rgba(10,10,12,.62);
+  color: rgba(255,255,255,.86);
+  font: inherit;
+  font-size: .68rem;
+  font-weight: 750;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+}
+.premium-player-v2__sound-hint:hover {
+  background: rgba(255,255,255,.12);
+}
+@media (max-width: 680px) {
+  .premium-player-v2__sound-hint { bottom: 4.5rem; }
+}
