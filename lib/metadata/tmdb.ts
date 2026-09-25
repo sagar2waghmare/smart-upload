@@ -272,7 +272,7 @@ export async function getTmdbById(
       genres: ((detail.genres as { name?: string }[]) ?? []).map((g) => g.name ?? "").filter(Boolean),
       poster: img(detail.poster_path as string | null, "w342"),
       backdrop: img(detail.backdrop_path as string | null, "w1280"),
-      logo: img(logoPath, "w342"),
+      logo: img(logoPath, "original"),
       imdbId: typeof (detail.external_ids as { imdb_id?: unknown } | undefined)?.imdb_id === "string"
         ? (detail.external_ids as { imdb_id: string }).imdb_id
         : undefined,
