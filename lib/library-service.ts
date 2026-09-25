@@ -411,7 +411,8 @@ export async function enrichLibraryBatch(
   );
 
   for (const [key, result] of computedEntries) {
-    if (cached.has(key)) continue;
+    const existing = cached.get(key);
+    if (existing?.logo || existing?.status !== "matched") continue;
 
     if (!result) continue;
 
@@ -430,8 +431,8 @@ export async function enrichLibraryBatch(
     const target = safeTargets[i];
     const key = keyByTarget[i];
     const existing = cached.get(key);
-    if (existing) {
-      patches.push(toClientPatch(target.id, existing));
+    if (existing?.logo || existing?.status !== "matched") {
+      patches.push(existing ? toClientPatch(target.id, existing) : { id: target.id });
       continue;
     }
 
