@@ -22,6 +22,7 @@ export interface TmdbMovie {
   genres?: string[];
   poster?: string;
   backdrop?: string;
+  logo?: string;
 }
 
 export interface TmdbEpisodeMeta {
@@ -49,6 +50,7 @@ export interface TmdbSeries {
   genres?: string[];
   poster?: string;
   backdrop?: string;
+  logo?: string;
   seasons?: TmdbSeasonMeta[];
 }
 
@@ -142,12 +144,21 @@ async function searchKind(type: "movie" | "tv", query: string, year?: number): P
   const best = scored[0];
   const id = best.r.id;
   const detail = await cached<Record<string, unknown>>(`${type}:${id}`, () =>
-    tmdb<Record<string, unknown>>(`/${type === "tv" ? "tv" : "movie"}/${id}?language=en-US`)
+    tmdb<Record<string, unknown>>(`/${type === "tv" ? "tv" : "movie"}/${id}?language=en-US&append_to_response=images&include_image_language=en-US,null`)
   );
 
   const foundYear =
     Number(((type === "tv" ? detail.first_air_date : detail.release_date) as string | undefined)?.slice(0, 4)) || best.titleYear;
   const title = (best.r.title ?? best.r.name ?? best.r.original_title ?? best.r.original_name ?? query).trim();
+  const images = detail.images as { logos?: { file_path?: string; iso_639_1?: string | null; vote_average?: number }[] } | undefined;
+  const logoPath = [...(images?.logos ?? [])]
+    .filter((logo) => Boolean(logo.file_path))
+    .sort((a, b) => {
+      const aLang = a.iso_639_1 === "en" ? 0 : a.iso_639_1 === null ? 1 : 2;
+      const bLang = b.iso_639_1 === "en" ? 0 : b.iso_639_1 === null ? 1 : 2;
+      return (aLang - bLang) || ((b.vote_average ?? 0) - (a.vote_average ?? 0));
+    })[0]?.file_path;
+
   const base = {
     title,
     year: foundYear,
@@ -156,6 +167,7 @@ async function searchKind(type: "movie" | "tv", query: string, year?: number): P
     genres: ((detail.genres as { name?: string }[]) ?? []).map((g) => g.name ?? "").filter(Boolean),
     poster: img((detail.poster_path as string | null) ?? best.r.poster_path),
     backdrop: img((detail.backdrop_path as string | null) ?? best.r.backdrop_path, "w1280"),
+    logo: img(logoPath, "w500"),
   };
 
   if (type === "tv") {
