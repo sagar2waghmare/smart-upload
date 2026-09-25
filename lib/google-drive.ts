@@ -270,6 +270,7 @@ export async function listDriveChanges(pageToken: string): Promise<DriveChangesP
     spaces: "drive",
     includeRemoved: "true",
     includeItemsFromAllDrives: "true",
+    supportsAllDrives: "true",
     restrictToMyDrive: "true",
     pageSize: "1000",
     fields: "nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,size,modifiedTime,thumbnailLink,parents,trashed))",

@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -11,14 +10,6 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.googleapis.com" },
       { protocol: "https", hostname: "**.amazonaws.com" },
     ],
-  },
-  webpack(config) {
-    config.resolve ??= {};
-    config.resolve.alias = {
-      ...(config.resolve.alias ?? {}),
-      "cloudflare:workers": path.resolve(process.cwd(), "lib/cloudflare-workers-shim.ts"),
-    };
-    return config;
   },
 };
 
