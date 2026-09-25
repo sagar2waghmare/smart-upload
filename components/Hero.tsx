@@ -170,7 +170,14 @@ export function Hero({ items }: { items: MediaItem[] }) {
                 openDetails(item);
               }}
             >
-              <SmartImage src={item.poster} alt={`${item.title} poster`} sizes="(max-width: 600px) 180px, 235px" priority={ativo} />
+              {(ativo || distancia === 1) ? (
+                <SmartImage
+                  src={item.poster}
+                  alt={`${item.title} poster`}
+                  sizes="(max-width: 600px) 180px, 235px"
+                  priority={false}
+                />
+              ) : null}
               <span className="hero-poster-sheen" aria-hidden="true" />
             </div>
           );
