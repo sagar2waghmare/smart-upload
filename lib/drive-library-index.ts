@@ -46,6 +46,7 @@ const D1_BATCH_SIZE = 50;
 let schemaPromise: Promise<void> | null = null;
 let syncPromise: Promise<boolean> | null = null;
 let lastCheckedAt = 0;
+let lastFastPathAt = 0;
 const folderMetaCache = new Map<string, { file: DriveIndexFile; expiresAt: number }>();
 
 function videoFile(item: {
@@ -451,7 +452,8 @@ export async function getIndexedDriveLibrary(): Promise<IndexedRow[] | null> {
 
   // Fast path: a valid KV snapshot is already enough to render the library.
   // Do not make the first page request wait for a Google Drive change check.
-  if (cachedHasMimeType) return cached;
+  if (cachedHasMimeType && Date.now() - lastFastPathAt < 30_000) return cached;
+  if (cachedHasMimeType) lastFastPathAt = Date.now();
 
   try {
     const changed = await syncDriveLibraryIndex();
