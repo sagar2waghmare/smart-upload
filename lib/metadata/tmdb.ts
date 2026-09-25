@@ -95,7 +95,7 @@ async function tmdb<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-function img(path?: string | null, size = "w500"): string | undefined {
+function img(path?: string | null, size = "w342"): string | undefined {
   return path ? `${IMG}${size}${path}` : undefined;
 }
 
@@ -169,7 +169,7 @@ async function searchKind(type: "movie" | "tv", query: string, year?: number): P
     genres: ((detail.genres as { name?: string }[]) ?? []).map((g) => g.name ?? "").filter(Boolean),
     poster: img((detail.poster_path as string | null) ?? best.r.poster_path),
     backdrop: img((detail.backdrop_path as string | null) ?? best.r.backdrop_path, "w1280"),
-    logo: img(logoPath, "w500"),
+    logo: img(logoPath, "w342"),
     imdbId: typeof (detail.external_ids as { imdb_id?: unknown } | undefined)?.imdb_id === "string"
       ? (detail.external_ids as { imdb_id: string }).imdb_id
       : undefined,
