@@ -39,7 +39,7 @@ function itemMeta(item: MediaItem | null): TmdbMetaEnrich | null {
     genres: item.genres,
     poster: item.poster,
     backdrop: item.backdrop,
-    logo: undefined,
+    logo: item.logo,
   };
 
   return meta.overview || meta.poster || meta.backdrop || meta.rating !== undefined ? meta : null;
@@ -54,7 +54,7 @@ async function fetchMeta(
     const params = new URLSearchParams({ query: title, type: metaType(kind) });
     if (year) params.set("year", String(year));
     const res = await fetch(`/api/metadata?${params.toString()}`, {
-      cache: "no-store",
+      cache: "default",
       credentials: "same-origin",
     });
     const json = (await res.json()) as { matched?: boolean; meta?: TmdbMetaEnrich };
