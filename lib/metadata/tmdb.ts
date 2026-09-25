@@ -79,21 +79,20 @@ async function tmdb<T>(path: string): Promise<T> {
   // the v3 request is rejected as unauthorized.
   const separator = path.includes("?") ? "&" : "?";
   const apiKeyUrl = `${TMDB_BASE}${path}${separator}api_key=${encodeURIComponent(apiKey)}`;
-  // TMDB metadata is effectively immutable for our library. Cache the upstream
-  // response at Cloudflare's edge so repeated searches/details do not hit TMDB.
-  let res = await fetch(apiKeyUrl, {
-    headers: { accept: "application/json" },
-    cf: { cacheTtl: 86400, cacheEverything: true },
-  });
-
+  // NOTE: do NOT add `cf: { cacheTtl/cacheEverything }` here. This route is
+  // force-dynamic, so the server fetch shim injects `cache: "no-store"`, and
+  // workerd rejects cacheTtl combined with no-store (metadata returned 502).
+  let res = await fetch(apiKeyUrl, { headers: { accept: "application/json" } });
   if ((res.status === 401 || res.status === 403) && apiKey) {
     res = await fetch(`${TMDB_BASE}${path}`, {
       headers: { accept: "application/json", Authorization: `Bearer ${apiKey}` },
-      cf: { cacheTtl: 86400, cacheEverything: true },
     });
   }
 
-  if (!res.ok) throw new Error(`TMDB responded ${res.status}`);
+  if (!res.ok) {
+    console.error(`TMDB request failed: status=${res.status} path=${path}`);
+    throw new Error(`TMDB responded ${res.status}`);
+  }
   return (await res.json()) as T;
 }
 

@@ -22,6 +22,9 @@ type MetaState = {
 };
 
 const cache = new Map<string, TmdbMetaEnrich | null>();
+// One in-flight lookup per key so concurrent mounts (details + player) do not
+// duplicate the request.
+const inflight = new Set<string>();
 
 function metaType(kind?: MediaItem["kind"]): "movie" | "series" {
   return kind === "movie" ? "movie" : "series";
@@ -116,7 +119,7 @@ export function useTmdbMeta(item: MediaItem | null): MetaState {
     : item
       ? `${metaType(kind)}|${title}|${year ?? ""}`
       : "";
-  const embedded = itemMeta(item);
+  const embedded = useMemo(() => itemMeta(item), [item]);
   const [state, setState] = useState<MetaState>(() => initialFromKey(key, item));
   const [lastKey, setLastKey] = useState(key);
 
@@ -126,18 +129,26 @@ export function useTmdbMeta(item: MediaItem | null): MetaState {
   }
 
   useEffect(() => {
-    if (!item || !key || (cache.has(key) && Boolean(cache.get(key)?.logo))) return;
+    // Any cached result (including null = "no match / lookup failed") is
+    // terminal for this mount, so a failed lookup is never refetched in a loop.
+    if (!item || !key || cache.has(key) || inflight.has(key)) return;
+    inflight.add(key);
 
     let alive = true;
     const run = async () => {
-      const m = embedded?.logo
-        ? embedded
-        : item?.tmdbId
-          ? await fetchMetaById(item.tmdbId, kind)
-          : await fetchMeta(title, year, kind);
-      if (alive) {
-        cache.set(key, m);
-        setState({ matched: Boolean(m), loading: false, meta: m });
+      try {
+        const m = embedded?.logo
+          ? embedded
+          : item?.tmdbId
+            ? await fetchMetaById(item.tmdbId, kind)
+            : await fetchMeta(title, year, kind);
+        const final = m ?? embedded;
+        // Always publish to the shared cache (even if this mount already
+        // unmounted), otherwise closing/reopening the overlay refetches.
+        cache.set(key, final);
+        if (alive) setState({ matched: Boolean(final), loading: false, meta: final });
+      } finally {
+        inflight.delete(key);
       }
     };
 
