@@ -43,6 +43,7 @@ export interface MediaItem {
   genres?: string[];
   poster?: string;
   backdrop?: string;
+  logo?: string;
   tag?: string;
   tagStyle?: "new" | "demo" | "4k" | string;
   progress?: number;
@@ -73,6 +74,7 @@ export interface LibraryEnrichmentPatch {
   tmdbId?: number;
   poster?: string;
   backdrop?: string;
+  logo?: string;
   overview?: string;
   runtime?: number;
   rating?: number;
@@ -130,6 +132,7 @@ export interface IdentifyResult {
     title?: string;
     poster?: string;
     backdrop?: string;
+    logo?: string;
     overview?: string;
     runtime?: number;
     rating?: number;
