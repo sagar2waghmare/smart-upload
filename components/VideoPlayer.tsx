@@ -62,8 +62,8 @@ export function VideoPlayer({
 
   const preferredSource = preparedBrowserCopy && src ? src : hlsUrl || src;
   const [mediaState, setMediaState] = useState<"loading" | "buffering" | "playing" | "paused" | "error">("loading");
-  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [soundLocked, setSoundLocked] = useState(false);
+  const autoplayWantedRef = useRef(autoplay);
   const [showUpNext, setShowUpNext] = useState(false);
   const [outroStart, setOutroStart] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -109,11 +109,13 @@ export function VideoPlayer({
     if (video.paused || video.ended) {
       try {
         await video.play();
-        setAutoplayBlocked(false);
         setMediaState("playing");
       } catch {
-        setAutoplayBlocked(true);
-        setMediaState("paused");
+        // Keep the startup surface clean. The media event handlers will retry
+        // once metadata/buffering is available.
+        if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+          setMediaState("paused");
+        }
       }
     } else {
       video.pause();
@@ -122,29 +124,41 @@ export function VideoPlayer({
   }, [showControls]);
 
   const startAutoplay = useCallback(async () => {
-    if (!autoplay) return;
+    if (!autoplayWantedRef.current) return;
     const video = videoRef.current;
-    if (!video || !video.src && !preferredSource) return;
+    if (!video || (!video.currentSrc && !preferredSource)) return;
+
+    // Do not treat "not loaded yet" as an autoplay failure. Calling play()
+    // before metadata/source readiness is what caused the stale Tap to Play
+    // state seen on the live player.
+    if (video.readyState < HTMLMediaElement.HAVE_METADATA) return;
 
     try {
       video.muted = true;
       setMuted(true);
       await video.play();
-      // Muted autoplay is the reliable bootstrap path after an async source
-      // fetch. The native <video> element is not subject to a second Vidstack
-      // state-machine pause, so it can continue playing.
-      video.muted = false;
-      setMuted(video.muted);
-      setSoundLocked(video.muted);
-      setAutoplayBlocked(false);
+
+      // Once the native element is genuinely playing, restore audio. If the
+      // browser keeps it muted, playback still continues and only the small
+      // sound affordance remains available.
+      window.setTimeout(() => {
+        const current = videoRef.current;
+        if (!current || current.paused) return;
+        try { current.muted = false; } catch { /* browser may keep autoplay muted */ }
+        setMuted(current.muted);
+        setSoundLocked(current.muted);
+      }, 0);
+
       setMediaState("playing");
       showControls();
     } catch {
-      setAutoplayBlocked(true);
-      setMediaState("paused");
-      showControls();
+      // Do not surface a blocking "Tap to play" overlay here. Retry from
+      // loadedmetadata/canplay/playing and the short startup retry window.
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+        setMediaState(video.paused ? "paused" : "buffering");
+      }
     }
-  }, [autoplay, preferredSource, showControls]);
+  }, [preferredSource, showControls]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -189,9 +203,12 @@ export function VideoPlayer({
 
       video.load();
 
-      window.setTimeout(() => {
-        if (!cancelled) void startAutoplay();
-      }, 80);
+      const retryDelays = [80, 220, 500, 1000, 1800, 3000, 5000];
+      retryDelays.forEach((delay) => {
+        window.setTimeout(() => {
+          if (!cancelled) void startAutoplay();
+        }, delay);
+      });
     };
 
     void attach();
@@ -268,12 +285,11 @@ export function VideoPlayer({
     };
 
     const onCanPlay = () => {
-      setMediaState(video.paused ? "paused" : "playing");
       void startAutoplay();
+      setMediaState(video.paused ? "loading" : "playing");
     };
 
     const onPlaying = () => {
-      setAutoplayBlocked(false);
       setMediaState("playing");
       setCurrentTime(video.currentTime);
       setDuration(Number.isFinite(video.duration) ? video.duration : 0);
@@ -316,7 +332,6 @@ export function VideoPlayer({
 
     const onError = () => {
       setMediaState("error");
-      setAutoplayBlocked(false);
       setControlsVisible(true);
     };
 
@@ -406,15 +421,13 @@ export function VideoPlayer({
 
   const progressValue = duration > 0 ? Math.min(currentTime, duration) : 0;
   const progressPercent = duration > 0 ? (progressValue / duration) * 100 : 0;
-  const displayStatus = autoplayBlocked
-    ? "Tap to play"
-    : soundLocked
-      ? "Tap for sound"
-      : mediaState === "buffering"
-        ? "Buffering"
-        : mediaState === "error"
-          ? "Unable to start playback"
-          : "Starting playback";
+  const displayStatus = soundLocked
+    ? "Tap for sound"
+    : mediaState === "buffering"
+      ? "Buffering"
+      : mediaState === "error"
+        ? "Unable to start playback"
+        : "Starting playback";
 
   return (
     <div
@@ -439,7 +452,7 @@ export function VideoPlayer({
 
       <div className="premium-player-v2__vignette" aria-hidden="true" />
 
-      {(mediaState === "loading" || mediaState === "buffering" || autoplayBlocked || soundLocked) ? (
+      {(mediaState === "loading" || mediaState === "buffering") ? (
         <div className="premium-player-state" aria-live="polite">
           {logo ? (
             <img className="premium-player-state__logo" src={logo} alt="" />
@@ -447,22 +460,21 @@ export function VideoPlayer({
             <strong className="premium-player-state__title">{title}</strong>
           )}
           <span className="premium-player-state__status">{displayStatus}</span>
-          {(autoplayBlocked || soundLocked) ? (
-            <button
-              type="button"
-              className="premium-player-state__play"
-              onClick={() => {
-                if (soundLocked) toggleMute();
-                else void togglePlay();
-              }}
-            >
-              {soundLocked ? "Sound" : "Play"}
-            </button>
-          ) : null}
         </div>
       ) : null}
 
-      {(mediaState === "paused" && !autoplayBlocked) ? (
+      {soundLocked && mediaState === "playing" ? (
+        <button
+          type="button"
+          className="premium-player-v2__sound-hint"
+          onClick={toggleMute}
+          aria-label="Enable sound"
+        >
+          Sound
+        </button>
+      ) : null}
+
+      {(mediaState === "paused") ? (
         <button type="button" className="premium-player-v2__center-play" onClick={() => void togglePlay()} aria-label="Play">
           <span aria-hidden="true">▶</span>
         </button>
