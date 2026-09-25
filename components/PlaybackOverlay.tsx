@@ -163,6 +163,7 @@ export function PlaybackOverlay() {
               backdrop={item.backdrop}
               title={item.title}
               logo={tmdb.meta?.logo}
+              imdbId={tmdb.meta?.imdbId}
               episodeTitle={episode?.title}
               demo={demo}
               item={item}
