@@ -26,6 +26,7 @@ type Props = {
   backdrop?: string | null;
   title: string;
   logo?: string | null;
+  imdbId?: string;
   episodeTitle?: string;
   demo?: boolean;
   subtitleUrl?: string;
@@ -53,6 +54,7 @@ export function VideoPlayer({
   backdrop,
   title,
   logo,
+  imdbId,
   episodeTitle,
   demo,
   subtitleUrl,
@@ -75,6 +77,7 @@ export function VideoPlayer({
   const [showUpNext, setShowUpNext] = useState(false);
   const [mediaState, setMediaState] = useState<"loading" | "buffering" | "playing" | "paused">("loading");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [outroStart, setOutroStart] = useState<number | null>(null);
   const lastProgressRef = useRef(0);
   const progressCallbackRef = useRef(onProgress);
   const endedCallbackRef = useRef(onEnded);
@@ -91,6 +94,7 @@ export function VideoPlayer({
     setShowUpNext(false);
     setAutoplayBlocked(false);
     setMediaState("loading");
+    setOutroStart(null);
     autoNextCancelledRef.current = false;
     autoNextTriggeredRef.current = false;
   }, [preferredSource]);
@@ -134,8 +138,32 @@ export function VideoPlayer({
     try { player.currentTime = target; } catch { setResumeApplied(false); }
   }, [initialTime, resumeApplied]);
 
+  const loadOutroTiming = useCallback(async () => {
+    if (!imdbId || !episode) return;
+    const player = playerRef.current;
+    const duration = player?.duration;
+    const params = new URLSearchParams({
+      imdbId,
+      season: String(episode.season),
+      episode: String(episode.episode),
+    });
+    if (Number.isFinite(duration) && duration > 0) params.set("duration", String(duration));
+    try {
+      const response = await fetch(`/api/segments?${params.toString()}`, { credentials: "same-origin" });
+      if (!response.ok) return;
+      const data = (await response.json()) as { outroStart?: number | null };
+      const value = Number(data.outroStart);
+      if (Number.isFinite(value) && value > 0 && (!Number.isFinite(duration) || value < duration)) {
+        setOutroStart(value);
+      }
+    } catch {
+      // End-of-file fallback remains active when segment metadata is unavailable.
+    }
+  }, [episode, imdbId]);
+
   const handleCanPlay = useCallback(() => {
     applyResume();
+    void loadOutroTiming();
     if (autoplay) {
       const player = playerRef.current;
       if (player) {
@@ -148,7 +176,7 @@ export function VideoPlayer({
         });
       }
     }
-  }, [applyResume, autoplay]);
+  }, [applyResume, autoplay, loadOutroTiming]);
 
   const flatEpisodes = item.seasons?.flatMap((season) => season.episodes) ?? [];
   const episodeIndex = episode ? flatEpisodes.findIndex((candidate) => candidate.id === episode.id) : -1;
@@ -175,19 +203,20 @@ export function VideoPlayer({
     const duration = Number(player.duration);
     const currentTime = Number(player.currentTime);
     if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return;
-    const remaining = duration - currentTime;
-    if (remaining <= AUTO_NEXT_TRIGGER_SECONDS) {
+    const triggerAt = outroStart !== null
+      ? outroStart
+      : Math.max(0, duration - AUTO_NEXT_TRIGGER_SECONDS);
+    if (currentTime >= triggerAt) {
       playNextEpisode();
       return;
     }
-    setShowUpNext(remaining <= UP_NEXT_DISPLAY_SECONDS);
-  }, [emitProgress, nextEpisode, playNextEpisode]);
+    setShowUpNext(currentTime >= Math.max(0, triggerAt - UP_NEXT_DISPLAY_SECONDS));
+  }, [emitProgress, nextEpisode, outroStart, playNextEpisode]);
 
   return (
     <div className="premium-player-v2">
       <MediaPlayer
         ref={playerRef}
-        key={source}
         className="premium-player-v2__media"
         title={episodeTitle ? `${title} — ${episodeTitle}` : title}
         src={{
