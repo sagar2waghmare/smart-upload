@@ -51,7 +51,6 @@ export function PlaybackOverlay() {
 
   useEffect(() => {
     if (!id) return;
-    let alive = true;
 
     const preload = async (playbackId: string | null) => {
       if (!playbackId) return;
@@ -72,9 +71,6 @@ export function PlaybackOverlay() {
       void preload(currentIndex >= 0 ? flat[currentIndex + 1]?.id ?? null : null);
     }
 
-    return () => {
-      alive = false;
-    };
   }, [id, episode?.id, item]);
 
   useEffect(() => {
