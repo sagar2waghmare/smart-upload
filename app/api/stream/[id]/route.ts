@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { drivePlaybackFetch } from "../../../../lib/google-drive-playback";
+import {
+  drivePlaybackFetch,
+  drivePreparedBrowserPlaybackFetch,
+} from "../../../../lib/google-drive-playback";
 import { requireSession, unauthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +24,8 @@ export async function GET(req: Request, { params }: Params) {
   if (!user) return unauthorized();
 
   const { id } = await params;
+  const requestUrl = new URL(req.url);
+  const variant = requestUrl.searchParams.get("variant");
   const forwardHeaders: Record<string, string> = {};
   const range = req.headers.get("range");
   if (range) forwardHeaders.Range = range;
@@ -36,7 +41,9 @@ export async function GET(req: Request, { params }: Params) {
 
   let upstream: Response;
   try {
-    upstream = await drivePlaybackFetch(id, forwardHeaders);
+    upstream = variant === "browser"
+      ? await drivePreparedBrowserPlaybackFetch(id, forwardHeaders)
+      : await drivePlaybackFetch(id, forwardHeaders);
   } catch (err) {
     console.error("[stream] Drive playback validation failed", err instanceof Error ? err.message : "unknown error");
     return NextResponse.json(
