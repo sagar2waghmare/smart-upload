@@ -160,8 +160,8 @@ export function PlaybackOverlay() {
             role="status"
             aria-live="polite"
             style={{
-              backgroundImage: item.backdrop
-                ? `linear-gradient(180deg, rgba(0,0,0,.2), rgba(0,0,0,.78)), url("${item.backdrop}")`
+              backgroundImage: (tmdb.meta?.backdrop ?? item.backdrop)
+                ? `linear-gradient(180deg, rgba(0,0,0,.2), rgba(0,0,0,.78)), url("${tmdb.meta?.backdrop ?? item.backdrop}")`
                 : undefined,
             }}
           >
