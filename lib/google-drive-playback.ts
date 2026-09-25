@@ -15,7 +15,6 @@ type CachedMedia = { item: MediaCheck; expiresAt: number };
 
 let cachedAccess: CachedAccess | null = null;
 let tokenPromise: Promise<string> | null = null;
-let cachedMediaRoot: { id: string; expiresAt: number } | null = null;
 const mediaChecks = new Map<string, { valid: boolean; expiresAt: number }>();
 const mediaMetadata = new Map<string, CachedMedia>();
 
@@ -341,6 +340,27 @@ export async function readPreparedHlsPlaylist(
   return { content: await res.text(), tree };
 }
 
+export async function getDrivePlaybackMetadata(fileId: string): Promise<{
+  id: string;
+  name?: string;
+  mimeType?: string;
+  size?: string;
+} | null> {
+  const id = fileId.trim();
+  if (!id) return null;
+
+  const token = await accessToken();
+  const item = await metadata(id, token);
+  if (item.trashed || !item.mimeType?.startsWith("video/")) return null;
+
+  return {
+    id: item.id,
+    name: item.name,
+    mimeType: item.mimeType,
+    size: item.size,
+  };
+}
+
 export async function getDriveMediaMimeType(fileId: string): Promise<string | null> {
   const id = fileId.trim();
   if (!id) return null;
@@ -453,7 +473,7 @@ export async function drivePreparedBrowserPlaybackFetch(
     throw new Error("Prepared browser media not found");
   }
 
-  const url = DRIVE_API_URL + "/" + encodeURIComponent(preparedId) + "?alt=media";
+  const url = DRIVE_API_URL + "/" + encodeURIComponent(preparedId) + "?alt=media&supportsAllDrives=true";
   let res = await fetch(url, {
     headers: { ...headers, Authorization: "Bearer " + token },
     cache: "no-store",
