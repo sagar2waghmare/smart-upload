@@ -229,6 +229,78 @@ export async function searchTmdb(query: string, opts: { year?: number; kind?: Me
   return cached(key, run);
 }
 
+
+export async function getTmdbById(
+  tmdbId: number,
+  kind: "movie" | "series" | "anime",
+): Promise<TmdbResult | null> {
+  if (!Number.isFinite(tmdbId) || tmdbId <= 0) return null;
+  const type = kind === "movie" ? "movie" : "tv";
+  const key = `id:${type}:${tmdbId}`;
+
+  return cached(key, async () => {
+    const detail = await tmdb<Record<string, unknown>>(
+      `/${type}/${tmdbId}?language=en-US&append_to_response=images,external_ids&include_image_language=en-US,null`,
+    );
+
+    const title = (
+      (type === "movie" ? detail.title : detail.name) as string | undefined
+    )?.trim();
+    if (!title) return null;
+
+    const date = (
+      (type === "movie" ? detail.release_date : detail.first_air_date) as string | undefined
+    );
+    const year = Number(date?.slice(0, 4)) || undefined;
+    const images = detail.images as {
+      logos?: { file_path?: string; iso_639_1?: string | null; vote_average?: number }[];
+    } | undefined;
+
+    const logoPath = [...(images?.logos ?? [])]
+      .filter((logo) => Boolean(logo.file_path))
+      .sort((a, b) => {
+        const aLang = a.iso_639_1 === "en" ? 0 : a.iso_639_1 === null ? 1 : 2;
+        const bLang = b.iso_639_1 === "en" ? 0 : b.iso_639_1 === null ? 1 : 2;
+        return (aLang - bLang) || ((b.vote_average ?? 0) - (a.vote_average ?? 0));
+      })[0]?.file_path;
+
+    const base = {
+      title,
+      year,
+      overview: (detail.overview as string) ?? undefined,
+      rating: typeof detail.vote_average === "number" ? Number(detail.vote_average.toFixed(1)) : undefined,
+      genres: ((detail.genres as { name?: string }[]) ?? []).map((g) => g.name ?? "").filter(Boolean),
+      poster: img(detail.poster_path as string | null, "w342"),
+      backdrop: img(detail.backdrop_path as string | null, "w1280"),
+      logo: img(logoPath, "w342"),
+      imdbId: typeof (detail.external_ids as { imdb_id?: unknown } | undefined)?.imdb_id === "string"
+        ? (detail.external_ids as { imdb_id: string }).imdb_id
+        : undefined,
+    };
+
+    if (type === "tv") {
+      const seasons = ((detail.seasons as { season_number?: number; name?: string }[]) ?? [])
+        .filter((s) => Number(s.season_number) > 0)
+        .map((s) => ({
+          season: Number(s.season_number),
+          title: s.name ? `Season ${s.season_number}` : undefined,
+          episodes: [] as TmdbEpisodeMeta[],
+        }));
+      return { tmdbType: "tv", meta: { tmdbType: "tv", tmdbId, ...base, seasons } as TmdbSeries };
+    }
+
+    return {
+      tmdbType: "movie",
+      meta: {
+        tmdbType: "movie",
+        tmdbId,
+        ...base,
+        runtime: typeof detail.runtime === "number" ? detail.runtime : undefined,
+      } as TmdbMovie,
+    };
+  });
+}
+
 export async function getEpisodeMeta(tmdbId: number, season: number): Promise<TmdbEpisodeMeta[] | null> {
   const key = `eps:${tmdbId}:${season}`;
   return cached(key, async () => {
