@@ -5,7 +5,6 @@ import {
   isHLSProvider,
   MediaPlayer,
   MediaProvider,
-  Poster,
   Track,
   type MediaPlayerInstance,
   type MediaProviderAdapter,
@@ -71,6 +70,7 @@ export function VideoPlayer({
   autoplay = false,
 }: Props) {
   const playerRef = useRef<MediaPlayerInstance>(null);
+  const playerRootRef = useRef<HTMLDivElement>(null);
   const preferredSource = preparedBrowserCopy && src ? src : hlsUrl || src;
   const [source, setSource] = useState(preferredSource);
   const [fallbackUsed, setFallbackUsed] = useState(false);
@@ -173,16 +173,26 @@ export function VideoPlayer({
   }, [tmdbId, imdbId, loadOutroTiming]);
 
   const startAutoplay = useCallback(async () => {
+    if (!autoplay) return;
     const player = playerRef.current;
-    if (!player) return;
+    const video = playerRootRef.current?.querySelector("video") as HTMLVideoElement | null;
+    if (!player && !video) return;
 
     try {
-      if (autoplay) player.muted = true;
-      await player.play();
-      if (autoplay) {
-        try { player.muted = false; } catch { /* browser may reject unmute */ }
+      if (video) {
+        video.autoplay = true;
+        video.playsInline = true;
+        video.muted = true;
+        await video.play();
+        video.muted = false;
+        setSoundLocked(video.muted);
+      } else if (player) {
+        player.muted = true;
+        await player.play();
+        player.muted = false;
         setSoundLocked(Boolean(player.muted));
       }
+
       setAutoplayBlocked(false);
       setMediaState("playing");
     } catch {
@@ -191,11 +201,26 @@ export function VideoPlayer({
     }
   }, [autoplay]);
 
+  useEffect(() => {
+    if (!autoplay || !source) return;
+    let cancelled = false;
+
+    const attempt = () => {
+      if (!cancelled) void startAutoplay();
+    };
+
+    const timers = [40, 220, 700, 1400].map((delay) => setTimeout(attempt, delay));
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
+  }, [autoplay, source, startAutoplay]);
+
   const handleCanPlay = useCallback(() => {
     applyResume();
     void loadOutroTiming();
-    if (autoplay) void startAutoplay();
-  }, [applyResume, autoplay, loadOutroTiming, startAutoplay]);
+    void startAutoplay();
+  }, [applyResume, loadOutroTiming, startAutoplay]);
 
   const flatEpisodes = item.seasons?.flatMap((season) => season.episodes) ?? [];
   const episodeIndex = episode ? flatEpisodes.findIndex((candidate) => candidate.id === episode.id) : -1;
@@ -229,7 +254,7 @@ export function VideoPlayer({
   }, [emitProgress, nextEpisode, outroStart, playNextEpisode]);
 
   return (
-    <div className="premium-player-v2">
+    <div className="premium-player-v2" ref={playerRootRef}>
       <MediaPlayer
         ref={playerRef}
         className="premium-player-v2__media"
@@ -245,7 +270,11 @@ export function VideoPlayer({
         muted={autoplay}
         onProviderChange={configureProvider}
         onCanPlay={handleCanPlay}
-        onLoadedMetadata={applyResume}
+        onLoadedMetadata={() => {
+          applyResume();
+          void startAutoplay();
+        }}
+        onCanPlayThrough={startAutoplay}
         onTimeUpdate={handleTimeUpdate}
         onPlay={() => {
           setAutoplayBlocked(false);
@@ -272,6 +301,7 @@ export function VideoPlayer({
           endedCallbackRef.current?.();
         }}
         onError={() => {
+          setMediaState("paused");
           if (!fallbackUsed && hlsUrl && src && source === hlsUrl) {
             setFallbackUsed(true);
             setSource(src);
@@ -282,10 +312,16 @@ export function VideoPlayer({
         }}
       >
         <MediaProvider>
-          {poster || backdrop ? <Poster className="premium-player-v2__poster" src={poster ?? backdrop ?? undefined} alt="" /> : null}
           {subtitleUrl ? <Track src={subtitleUrl} kind="subtitles" language="en" label="English" default={false} /> : null}
         </MediaProvider>
-        <DefaultVideoLayout icons={defaultLayoutIcons} colorScheme="dark" noModal seekStep={10} playbackRates={[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]} />
+        <DefaultVideoLayout
+          icons={defaultLayoutIcons}
+          colorScheme="dark"
+          noModal
+          seekStep={10}
+          playbackRates={[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]}
+          slots={{ bufferingIndicator: null }}
+        />
       </MediaPlayer>
 
       {showUpNext && nextEpisode ? (
@@ -308,9 +344,8 @@ export function VideoPlayer({
       {mediaState === "loading" || mediaState === "buffering" || autoplayBlocked || soundLocked ? (
         <div className="premium-player-state" aria-live="polite">
           {logo ? <img className="premium-player-state__logo" src={logo} alt="" /> : <strong className="premium-player-state__title">{title}</strong>}
-          {mediaState !== "playing" || autoplayBlocked ? <div className="premium-player-state__loader" aria-hidden="true"><span /></div> : null}
           <span className="premium-player-state__status">
-            {autoplayBlocked ? "Tap to play" : soundLocked ? "Tap for sound" : mediaState === "buffering" ? "Buffering" : "Loading"}
+            {autoplayBlocked ? "Tap to play" : soundLocked ? "Tap for sound" : mediaState === "buffering" ? "Buffering" : "Starting playback"}
           </span>
           {(autoplayBlocked || soundLocked) ? (
             <button type="button" className="premium-player-state__play" onClick={() => {
