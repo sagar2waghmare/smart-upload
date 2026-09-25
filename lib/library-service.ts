@@ -350,7 +350,9 @@ export async function enrichLibraryBatch(
 
     const promise = (async (): Promise<CachedMetadata | null> => {
       const existing = cached.get(key);
-      if (existing) return existing;
+      // Older metadata entries predate logo caching. Refresh those once so
+      // the player can render the title logo without a second client lookup.
+      if (existing && (existing.logo || existing.status !== "matched")) return existing;
 
       try {
         const identified = await identifyFilename(target.name);
