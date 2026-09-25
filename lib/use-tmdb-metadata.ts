@@ -74,8 +74,11 @@ function initialFromKey(key: string, item: MediaItem | null): MetaState {
 
   const embedded = itemMeta(item);
   if (embedded) {
-    cache.set(key, embedded);
-    return { matched: true, loading: false, meta: embedded };
+    return {
+      matched: true,
+      loading: Boolean(item?.tmdbId && !embedded.logo),
+      meta: embedded,
+    };
   }
 
   return { matched: false, loading: true, meta: null };
@@ -96,7 +99,7 @@ export function useTmdbMeta(item: MediaItem | null): MetaState {
   }
 
   useEffect(() => {
-    if (!item || !key || cache.has(key)) return;
+    if (!item || !key || (cache.has(key) && Boolean(cache.get(key)?.logo))) return;
 
     let alive = true;
     const run = async () => {
