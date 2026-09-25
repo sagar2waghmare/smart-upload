@@ -50,17 +50,40 @@ export function PlaybackOverlay() {
   }
 
   useEffect(() => {
+    if (!id) return;
+    let alive = true;
+
+    const preload = async (playbackId: string | null) => {
+      if (!playbackId) return;
+      try {
+        await loadPlayback(playbackId);
+      } catch {
+        // Playback retries when actually opened.
+      }
+    };
+
+    void preload(id);
+    const flat = item?.seasons?.flatMap((season) => season.episodes) ?? [];
+    void preload(flat[0]?.id ?? null);
+
+    if (episode?.id) {
+      void preload(episode.id);
+      const currentIndex = flat.findIndex((candidate) => candidate.id === episode.id);
+      void preload(currentIndex >= 0 ? flat[currentIndex + 1]?.id ?? null : null);
+    }
+
+    return () => {
+      alive = false;
+    };
+  }, [id, episode?.id, item]);
+
+  useEffect(() => {
     if (!id || !playerOpen) return;
     let alive = true;
     endedRef.current = false;
 
     const playbackId = episode?.id ?? id;
-    fetch(`/api/play/${encodeURIComponent(playbackId)}`)
-      .then(async (r) => {
-        if (r.status === 404) throw new Error("This title is not in your library.");
-        if (!r.ok) throw new Error("Could not load playback information.");
-        return (await r.json()) as ApiResult;
-      })
+    loadPlayback(playbackId)
       .then((data) => {
         if (!alive) return;
         if (!data.canPlay) {
@@ -88,7 +111,7 @@ export function PlaybackOverlay() {
     return () => {
       alive = false;
     };
-  }, [id, playerOpen, episode, item]);
+  }, [id, playerOpen, episode?.id, item]);
 
   const handleProgress = useCallback(
     (p: { position: number; duration: number }) => {
