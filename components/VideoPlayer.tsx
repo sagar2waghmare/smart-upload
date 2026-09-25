@@ -73,8 +73,22 @@ export function VideoPlayer({
   const playbackStartedRef = useRef(false);
   const userPausedRef = useRef(false);
   const autoNextCancelledRef = useRef(false);
+  const mediaErrorRef = useRef(false);
 
   const preferredSource = preparedBrowserCopy && src ? src : hlsUrl || src;
+
+  // Vidstack's Video provider selector does not list MKV/QuickTime MIME types,
+  // even though Chromium can load some of those containers natively. Use a
+  // provider-supported video hint only to select the native <video> provider;
+  // the actual response Content-Type remains authoritative to the browser.
+  const playerSourceType = (() => {
+    const normalized = sourceType?.toLowerCase().split(";")[0].trim() ?? "";
+    if (normalized === "video/x-matroska" || normalized === "video/matroska" || normalized === "video/quicktime") {
+      return "video/mp4";
+    }
+    return sourceType;
+  })();
+
   const [source, setSource] = useState(preferredSource);
   const [fallbackUsed, setFallbackUsed] = useState(false);
   const [resumeApplied, setResumeApplied] = useState(false);
@@ -118,6 +132,7 @@ export function VideoPlayer({
     playbackStartedRef.current = false;
     userPausedRef.current = false;
     autoNextCancelledRef.current = false;
+    mediaErrorRef.current = false;
   }, [preferredSource, autoplay]);
 
   const emitProgress = useCallback((force = false) => {
@@ -210,7 +225,7 @@ export function VideoPlayer({
   }, [previousEpisode, onEpisode]);
 
   const attemptAutoplay = useCallback(async () => {
-    if (!autoplayWantedRef.current) return false;
+    if (!autoplayWantedRef.current || mediaErrorRef.current) return false;
     const player = playerRef.current;
     if (!player) return false;
 
@@ -391,7 +406,7 @@ export function VideoPlayer({
           src: source,
           type: hlsUrl && !fallbackUsed && source === hlsUrl
             ? "application/x-mpegurl"
-            : sourceType || undefined,
+            : playerSourceType || undefined,
         }}
         load="eager"
         playsInline
@@ -427,7 +442,12 @@ export function VideoPlayer({
         onStalled={() => setMediaState("buffering")}
         onPause={() => {
           emitProgress(true);
-          if (autoplayWantedRef.current && !playbackStartedRef.current && !userPausedRef.current) {
+          if (
+            autoplayWantedRef.current &&
+            !mediaErrorRef.current &&
+            !playbackStartedRef.current &&
+            !userPausedRef.current
+          ) {
             setMediaState("loading");
             window.setTimeout(() => void attemptAutoplay(), 120);
             return;
@@ -443,7 +463,15 @@ export function VideoPlayer({
         }}
         onError={() => {
           playbackStartedRef.current = false;
+          mediaErrorRef.current = true;
+          console.error("[VideoPlayer] media source failed", {
+            source,
+            sourceType: playerSourceType,
+            preparedBrowserCopy,
+            hlsUrl,
+          });
           if (!fallbackUsed && hlsUrl && src && source === hlsUrl) {
+            mediaErrorRef.current = false;
             setFallbackUsed(true);
             setSource(src);
             setResumeApplied(false);
