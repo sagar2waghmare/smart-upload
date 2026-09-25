@@ -27,6 +27,7 @@ type Props = {
   title: string;
   logo?: string | null;
   imdbId?: string;
+  tmdbId?: number;
   episodeTitle?: string;
   demo?: boolean;
   subtitleUrl?: string;
@@ -43,7 +44,6 @@ type Props = {
 };
 
 const UP_NEXT_DISPLAY_SECONDS = 12;
-const AUTO_NEXT_TRIGGER_SECONDS = 0.75;
 
 export function VideoPlayer({
   src,
@@ -55,6 +55,7 @@ export function VideoPlayer({
   title,
   logo,
   imdbId,
+  tmdbId,
   episodeTitle,
   demo,
   subtitleUrl,
@@ -77,6 +78,7 @@ export function VideoPlayer({
   const [showUpNext, setShowUpNext] = useState(false);
   const [mediaState, setMediaState] = useState<"loading" | "buffering" | "playing" | "paused">("loading");
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [soundLocked, setSoundLocked] = useState(false);
   const [outroStart, setOutroStart] = useState<number | null>(null);
   const lastProgressRef = useRef(0);
   const progressCallbackRef = useRef(onProgress);
@@ -138,16 +140,21 @@ export function VideoPlayer({
     try { player.currentTime = target; } catch { setResumeApplied(false); }
   }, [initialTime, resumeApplied]);
 
+  const seasonNumber = episode?.season;
+  const episodeNumber = episode?.episode;
+
   const loadOutroTiming = useCallback(async () => {
-    if (!imdbId || !episode) return;
+    if ((!tmdbId && !imdbId) || !seasonNumber || !episodeNumber) return;
     const player = playerRef.current;
     const duration = player?.duration;
     const params = new URLSearchParams({
-      imdbId,
-      season: String(episode.season),
-      episode: String(episode.episode),
+      season: String(seasonNumber),
+      episode: String(episodeNumber),
     });
+    if (tmdbId) params.set("tmdbId", String(tmdbId));
+    else if (imdbId) params.set("imdbId", imdbId);
     if (Number.isFinite(duration) && duration > 0) params.set("duration", String(duration));
+
     try {
       const response = await fetch(`/api/segments?${params.toString()}`, { credentials: "same-origin" });
       if (!response.ok) return;
@@ -159,24 +166,36 @@ export function VideoPlayer({
     } catch {
       // End-of-file fallback remains active when segment metadata is unavailable.
     }
-  }, [episode, imdbId]);
+  }, [tmdbId, imdbId, seasonNumber, episodeNumber]);
+
+  useEffect(() => {
+    if (tmdbId || imdbId) void loadOutroTiming();
+  }, [tmdbId, imdbId, loadOutroTiming]);
+
+  const startAutoplay = useCallback(async () => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    try {
+      if (autoplay) player.muted = true;
+      await player.play();
+      if (autoplay) {
+        try { player.muted = false; } catch { /* browser may reject unmute */ }
+        setSoundLocked(Boolean(player.muted));
+      }
+      setAutoplayBlocked(false);
+      setMediaState("playing");
+    } catch {
+      setAutoplayBlocked(true);
+      setMediaState("paused");
+    }
+  }, [autoplay]);
 
   const handleCanPlay = useCallback(() => {
     applyResume();
     void loadOutroTiming();
-    if (autoplay) {
-      const player = playerRef.current;
-      if (player) {
-        void player.play().then(() => {
-          setAutoplayBlocked(false);
-          setMediaState("playing");
-        }).catch(() => {
-          setAutoplayBlocked(true);
-          setMediaState("paused");
-        });
-      }
-    }
-  }, [applyResume, autoplay, loadOutroTiming]);
+    if (autoplay) void startAutoplay();
+  }, [applyResume, autoplay, loadOutroTiming, startAutoplay]);
 
   const flatEpisodes = item.seasons?.flatMap((season) => season.episodes) ?? [];
   const episodeIndex = episode ? flatEpisodes.findIndex((candidate) => candidate.id === episode.id) : -1;
@@ -203,14 +222,10 @@ export function VideoPlayer({
     const duration = Number(player.duration);
     const currentTime = Number(player.currentTime);
     if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(currentTime)) return;
-    const triggerAt = outroStart !== null
+    const showAt = outroStart !== null
       ? outroStart
-      : Math.max(0, duration - AUTO_NEXT_TRIGGER_SECONDS);
-    if (currentTime >= triggerAt) {
-      playNextEpisode();
-      return;
-    }
-    setShowUpNext(currentTime >= Math.max(0, triggerAt - UP_NEXT_DISPLAY_SECONDS));
+      : Math.max(0, duration - UP_NEXT_DISPLAY_SECONDS);
+    setShowUpNext(currentTime >= showAt);
   }, [emitProgress, nextEpisode, outroStart, playNextEpisode]);
 
   return (
@@ -227,12 +242,27 @@ export function VideoPlayer({
         crossOrigin="anonymous"
         playsInline
         autoplay={autoplay}
+        muted={autoplay}
         onProviderChange={configureProvider}
         onCanPlay={handleCanPlay}
         onLoadedMetadata={applyResume}
         onTimeUpdate={handleTimeUpdate}
-        onPlay={() => { setAutoplayBlocked(false); setMediaState("playing"); }}
-        onPlaying={() => { setAutoplayBlocked(false); setMediaState("playing"); }}
+        onPlay={() => {
+          setAutoplayBlocked(false);
+          setMediaState("playing");
+          if (autoplay) {
+            try { playerRef.current && (playerRef.current.muted = false); } catch { /* ignore */ }
+            setSoundLocked(Boolean(playerRef.current?.muted));
+          }
+        }}
+        onPlaying={() => {
+          setAutoplayBlocked(false);
+          setMediaState("playing");
+          if (autoplay) {
+            try { playerRef.current && (playerRef.current.muted = false); } catch { /* ignore */ }
+            setSoundLocked(Boolean(playerRef.current?.muted));
+          }
+        }}
         onWaiting={() => setMediaState("buffering")}
         onStalled={() => setMediaState("buffering")}
         onPause={() => { emitProgress(true); setMediaState("paused"); }}
@@ -275,23 +305,26 @@ export function VideoPlayer({
         </div>
       ) : null}
 
-      {mediaState === "loading" || mediaState === "buffering" || autoplayBlocked ? (
+      {mediaState === "loading" || mediaState === "buffering" || autoplayBlocked || soundLocked ? (
         <div className="premium-player-state" aria-live="polite">
           {logo ? <img className="premium-player-state__logo" src={logo} alt="" /> : <strong className="premium-player-state__title">{title}</strong>}
-          <div className="premium-player-state__loader" aria-hidden="true"><span /></div>
+          {mediaState !== "playing" || autoplayBlocked ? <div className="premium-player-state__loader" aria-hidden="true"><span /></div> : null}
           <span className="premium-player-state__status">
-            {autoplayBlocked ? "Tap to play" : mediaState === "buffering" ? "Buffering" : "Loading"}
+            {autoplayBlocked ? "Tap to play" : soundLocked ? "Tap for sound" : mediaState === "buffering" ? "Buffering" : "Loading"}
           </span>
-          {autoplayBlocked ? (
+          {(autoplayBlocked || soundLocked) ? (
             <button type="button" className="premium-player-state__play" onClick={() => {
               const player = playerRef.current;
               if (!player) return;
+              if (player.muted) player.muted = false;
               void player.play().then(() => {
+                try { player.muted = false; } catch { /* ignore */ }
+                setSoundLocked(Boolean(player.muted));
                 setAutoplayBlocked(false);
                 setMediaState("playing");
               });
             }}>
-              Play
+              {soundLocked ? "Sound" : "Play"}
             </button>
           ) : null}
         </div>
