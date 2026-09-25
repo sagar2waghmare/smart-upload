@@ -30,7 +30,7 @@ export function Rail({ title, items, seeAll }: { title: string; items: MediaItem
       </div>
       <div className="lista-conteudos" ref={scrollRef}>
         {items.map((m, index) => (
-          <MediaCard key={m.id} item={m} priority={index < 3} />
+          <MediaCard key={m.id} item={m} priority={index === 0 && title === "Movies"} />
         ))}
       </div>
     </section>
