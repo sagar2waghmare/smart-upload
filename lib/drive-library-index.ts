@@ -32,6 +32,7 @@ type IndexedRow = {
   id: string;
   name: string;
   type: "movie" | "series" | "anime";
+  mimeType: string;
   modifiedTime?: string;
 };
 
@@ -312,7 +313,7 @@ async function applyChanges(
 async function readIndexedRows(store: D1Like): Promise<IndexedRow[]> {
   const result = await store
     .prepare(
-      "SELECT id, name, type, modified_time as modifiedTime FROM drive_library ORDER BY type, name",
+      "SELECT id, name, type, mime_type as mimeType, modified_time as modifiedTime FROM drive_library ORDER BY type, name",
     )
     .run<IndexedRow>();
 
@@ -320,6 +321,7 @@ async function readIndexedRows(store: D1Like): Promise<IndexedRow[]> {
     id: row.id,
     name: row.name,
     type: row.type,
+    mimeType: row.mimeType,
     modifiedTime: row.modifiedTime,
   }));
 }
@@ -343,6 +345,7 @@ async function fullRebuild(
     id: item.id,
     name: item.name,
     type: item.type,
+    mimeType: item.mimeType,
     modifiedTime: item.modifiedTime,
   }));
 }
